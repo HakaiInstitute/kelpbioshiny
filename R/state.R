@@ -13,7 +13,7 @@ component_status <- function(id, source, sheet, fit_status, waiting_on = charact
   if (source == "none") {
     return(list(kind = "not-used"))
   }
-  if (source == "prefit") {
+  if (is_prefit(source)) {
     return(list(kind = "ready"))
   }
   if (is.null(sheet)) {
@@ -148,15 +148,15 @@ new_store <- function(session) {
   # The fit a model contributes: its pre-fit model, or its fit to your data once
   # fitted; NULL otherwise.
   prefits <- new.env()
-  prefit <- function(id, species) {
-    key <- paste(id, species)
-    if (is.null(prefits[[key]])) prefits[[key]] <- kelpbio_fn("prefit", id, species)()
+  prefit <- function(id, species, reference) {
+    key <- paste(id, species, reference)
+    if (is.null(prefits[[key]])) prefits[[key]] <- kelpbio_fn("prefit", id, species)(reference = reference)
     prefits[[key]]
   }
   s$fit_of <- function(id) {
     source <- s$sources()[[id]]
-    if (source == "prefit") {
-      return(prefit(id, s$species()))
+    if (is_prefit(source)) {
+      return(prefit(id, s$species(), prefit_reference(source)))
     }
     if (source == "user" && s$fit_status()[[id]] == "fitted") {
       return(s$fits()[[id]])

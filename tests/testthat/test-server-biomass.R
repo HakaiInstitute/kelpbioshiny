@@ -19,3 +19,14 @@ test_that("biomass shows the carried-through warning above Plot and Estimates pi
     expect_match(html, "biomass-view", fixed = TRUE)
   })
 })
+
+test_that("the estimates flags name each pre-fit model's reference", {
+  rows <- data.frame(site = "site1", year = "2020", estimate = 1, lower = 0.5, upper = 2, population_size = FALSE, population_weight = TRUE)
+  sources <- default_sources(list())
+  sources[["weight"]] <- "prefit_hakai"
+  flags <- biomass_table(rows, sources, "wet")$flags
+  expect_identical(flags, "Population-level weight|Size (pre-fit Hakai Institute)|Weight (pre-fit Hakai Institute)")
+
+  sources[["weight"]] <- "prefit_coastwide"
+  expect_match(biomass_table(rows, sources, "wet")$flags, "Weight (pre-fit coastwide)", fixed = TRUE)
+})

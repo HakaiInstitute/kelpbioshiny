@@ -3,14 +3,14 @@
 
 source_choices <- function(id, has_sheet) {
   options <- components[[id]]$sources
-  labels <- vapply(options, function(option) source_label(id, option), character(1))
+  labels <- vapply(options, source_label, character(1))
   if (!has_sheet) labels[options == "user"] <- "Your data (no sheet)"
   stats::setNames(options, labels)
 }
 
 source_select <- function(input_id, id) {
   if (length(components[[id]]$sources) == 1) {
-    return(span(source_label(id, components[[id]]$sources)))
+    return(span(source_label(components[[id]]$sources)))
   }
   initial <- default_source(id, FALSE)
   selectInput(input_id, NULL, choices = source_choices(id, FALSE), selected = initial, selectize = FALSE, width = "12rem") |>

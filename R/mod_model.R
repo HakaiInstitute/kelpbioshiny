@@ -57,8 +57,9 @@ mod_model_server <- function(id, store) {
     page <- dedupe(reactive({
       source <- store$sources()[[cid]]
       sheet <- sheet()
-      mode <- if (source != "user") source else if (is.null(sheet)) "no-sheet" else "user"
-      list(mode = mode, name = sheet$name, file = sheet$file, validation = sheet$validation)
+      mode <- if (is_prefit(source)) "prefit" else if (source == "none") "none" else if (is.null(sheet)) "no-sheet" else "user"
+      reference <- if (is_prefit(source)) prefit_reference(source)
+      list(mode = mode, reference = reference, name = sheet$name, file = sheet$file, validation = sheet$validation)
     }))
     # What the diagnostics and predictions tabs can show: mode plus fit state.
     view <- dedupe(reactive(list(mode = page()$mode, kind = kind())))
@@ -146,7 +147,7 @@ mod_model_server <- function(id, store) {
     output$notices <- renderUI({
       mode <- page()$mode
       notice_ui <- if (mode == "prefit") {
-        prefit <- prefit_info[[def$prefit]]
+        prefit <- prefit_info[[page()$reference]]
         notice(
           "layout-list", with_help(paste(prefit$label, "model"), "prefit"),
           sprintf("Fitted in advance to %s. No fitting is needed: biomass uses the stored draws.", prefit$data)
@@ -231,7 +232,7 @@ mod_model_server <- function(id, store) {
         ),
         prefit = empty_state(
           "database", "No data needed",
-          sprintf("This model was fitted to %s. Choose Your data above to fit it to your own data.", prefit_info[[def$prefit]]$data)
+          sprintf("This model was fitted to %s. Choose Your data above to fit it to your own data.", prefit_info[[page$reference]]$data)
         ),
         none = empty_state("minus-circle", "Not used", "Choose a source above to use this model.")
       )
@@ -597,13 +598,14 @@ convergence_panel <- function(ns, fit) {
 }
 
 # By site where the model has site effects, as that is what most users want
-# to see; pre-fit models have the population level only.
+# to see; pre-fit models show the population level only, as their sites are
+# the reference data's rather than the user's.
 default_grouping <- function(choices) if ("site" %in% names(choices)) "site" else "population"
 
 predictions_panel <- function(ns, cid, prefit, species) {
   choices <- prediction_choices(cid, prefit, species)
   note <- if (prefit) {
-    "Pre-fit models give population-level predictions only, because your sites are not in the reference data."
+    "Predictions here are at the population level. Biomass estimates use site-level estimates for sites in the reference data."
   } else if (!has_year_effect(cid, species)) {
     "This model has a site effect but no year effect, so there are no predictions by year."
   }

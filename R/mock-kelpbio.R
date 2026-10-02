@@ -439,30 +439,56 @@ kb_fit_progress <- function(progress_dir) {
 }
 
 # Pre-fit models --------------------------------------------------------------------------
-# Planned. The real pre-fit models will be stored fits in kelpbiodata (for example
-# kelpbiodata::fit_weight_nereo_coastwide); these accessors stand in for them.
-# They were thinned when built, so they converged.
+# Planned. A pre-fit accessor returns a model fitted in advance to a reference
+# dataset, chosen with `reference`: "coastwide" (data compiled from surveys along
+# the coast) or "hakai" (Hakai Institute survey data). The real pre-fit fits will
+# live in kelpbiodata, as data objects these accessors return. They were thinned
+# when built, so they converged.
 
 .mock_prefit <- function(model, species, reference) {
   .mock_new_fit(model, species, data.frame(), NULL, nthin = 5L, source = "prefit", reference = reference)
 }
 
 # Planned.
-kb_prefit_size_nereo <- function() .mock_prefit("size", "nereo", "coastwide")
+kb_prefit_size_nereo <- function(reference = "hakai") {
+  reference <- rlang::arg_match(reference)
+  .mock_prefit("size", "nereo", reference)
+}
 # Planned.
-kb_prefit_size_macro <- function() .mock_prefit("size", "macro", "coastwide")
+kb_prefit_size_macro <- function(reference = "hakai") {
+  reference <- rlang::arg_match(reference)
+  .mock_prefit("size", "macro", reference)
+}
 # Planned.
-kb_prefit_weight_nereo <- function() .mock_prefit("weight", "nereo", "coastwide")
+kb_prefit_weight_nereo <- function(reference = c("coastwide", "hakai")) {
+  reference <- rlang::arg_match(reference)
+  .mock_prefit("weight", "nereo", reference)
+}
 # Planned.
-kb_prefit_weight_macro <- function() .mock_prefit("weight", "macro", "coastwide")
+kb_prefit_weight_macro <- function(reference = c("coastwide", "hakai")) {
+  reference <- rlang::arg_match(reference)
+  .mock_prefit("weight", "macro", reference)
+}
 # Planned.
-kb_prefit_wetdry_nereo <- function() .mock_prefit("wetdry", "nereo", "hakai")
+kb_prefit_wetdry_nereo <- function(reference = "hakai") {
+  reference <- rlang::arg_match(reference)
+  .mock_prefit("wetdry", "nereo", reference)
+}
 # Planned.
-kb_prefit_wetdry_macro <- function() .mock_prefit("wetdry", "macro", "hakai")
+kb_prefit_wetdry_macro <- function(reference = "hakai") {
+  reference <- rlang::arg_match(reference)
+  .mock_prefit("wetdry", "macro", reference)
+}
 # Planned.
-kb_prefit_carbon_nereo <- function() .mock_prefit("carbon", "nereo", "hakai")
+kb_prefit_carbon_nereo <- function(reference = "hakai") {
+  reference <- rlang::arg_match(reference)
+  .mock_prefit("carbon", "nereo", reference)
+}
 # Planned.
-kb_prefit_carbon_macro <- function() .mock_prefit("carbon", "macro", "hakai")
+kb_prefit_carbon_macro <- function(reference = "hakai") {
+  reference <- rlang::arg_match(reference)
+  .mock_prefit("carbon", "macro", reference)
+}
 
 # Summaries and convergence -------------------------------------------------------------
 # Exists: kelpbio re-exports these generics from generics and universals and

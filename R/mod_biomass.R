@@ -6,8 +6,8 @@
 # with a flags column naming the population-level estimates and pre-fit models
 # each site-year uses.
 biomass_table <- function(rows, sources, output) {
-  prefit <- Filter(function(id) sources[[id]] == "prefit", output_components[[output]])
-  prefit_flags <- vapply(prefit, function(id) sprintf("%s (%s)", label_of(id), source_note(id, "prefit")), "")
+  prefit <- Filter(function(id) is_prefit(sources[[id]]), output_components[[output]])
+  prefit_flags <- vapply(prefit, function(id) sprintf("%s (%s)", label_of(id), source_note(sources[[id]])), "")
   population_cover <- if ("population_cover" %in% names(rows)) rows$population_cover else rep(FALSE, nrow(rows))
   flags <- vapply(seq_len(nrow(rows)), function(i) {
     paste(c(

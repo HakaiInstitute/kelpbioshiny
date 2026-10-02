@@ -114,3 +114,29 @@ test_that("tabs and diagnostics pills are marked while a warning is active", {
     expect_false(marked("mark_pill_sensitivity"))
   })
 })
+
+test_that("the weight page offers three sources and switches the pre-fit reference", {
+  shiny::testServer(store_app(mod_model_server, "weight"), {
+    session$flushReact()
+    expect_identical(store$sources()[["weight"]], "prefit_coastwide")
+    expect_match(html_of(output[["weight-notices"]]), "Pre-fit coastwide model", fixed = TRUE)
+    expect_match(html_of(output[["weight-notices"]]), prefit_info$coastwide$data, fixed = TRUE)
+    expect_identical(store$fit_of("weight")$meta$reference, "coastwide")
+
+    session$setInputs(`weight-source` = "prefit_hakai")
+    expect_identical(store$sources()[["weight"]], "prefit_hakai")
+    expect_match(html_of(output[["weight-notices"]]), "Pre-fit Hakai Institute model", fixed = TRUE)
+    expect_match(html_of(output[["weight-tab_data"]]), prefit_info$hakai$data, fixed = TRUE)
+    expect_identical(store$fit_of("weight")$meta$reference, "hakai")
+    expect_identical(store$statuses()$weight$kind, "ready")
+  })
+})
+
+test_that("the size pre-fit model is the Hakai Institute one", {
+  shiny::testServer(store_app(mod_model_server, "size"), {
+    store$set_source("size", "prefit_hakai")
+    session$flushReact()
+    expect_match(html_of(output[["size-notices"]]), "Pre-fit Hakai Institute model", fixed = TRUE)
+    expect_identical(store$fit_of("size")$meta$reference, "hakai")
+  })
+})

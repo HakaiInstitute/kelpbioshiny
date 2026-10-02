@@ -2,9 +2,24 @@
 # kelpbio functions (mocked in R/mock-kelpbio.R); this file holds the app's
 # labels, choices and thresholds.
 
+# Pre-fit models, by the reference dataset they were fitted to. A model's pre-fit
+# source is "prefit_" and the reference, e.g. "prefit_hakai"; the reference is
+# the value of the kelpbio accessor's reference argument
+# (kb_prefit_weight_nereo(reference = "hakai")).
+prefit_info <- list(
+  coastwide = list(label = "Pre-fit coastwide", data = "data compiled from surveys along the coast"),
+  hakai = list(label = "Pre-fit Hakai Institute", data = "Hakai Institute survey data")
+)
+
+prefit_source <- function(reference) paste0("prefit_", reference)
+is_prefit <- function(source) startsWith(source, "prefit_")
+prefit_reference <- function(source) sub("^prefit_", "", source)
+
 component_ids <- c("density", "size", "weight", "blade", "wetdry", "carbon", "cover")
 names(component_ids) <- component_ids
 
+# A model's sources: "user" (your data), its pre-fit sources, and "none" (not
+# used). The first pre-fit source is the default when there is no sheet.
 components <- list(
   density = list(
     label = "Density", detail = "Individuals per square metre by site-year", sheet = "density",
@@ -12,12 +27,12 @@ components <- list(
   ),
   size = list(
     label = "Size", detail = "Distribution of sub-bulb diameter", sheet = "size",
-    columns = c("site", "year", "diameter"), sources = c("user", "prefit"), prefit = "coastwide"
+    columns = c("site", "year", "diameter"), sources = c("user", prefit_source("hakai"))
   ),
   weight = list(
     label = "Weight", detail = "Wet weight by sub-bulb diameter", sheet = "weight",
-    columns = c("site", "year", "diameter", "weight", "density"), sources = c("user", "prefit"), prefit = "coastwide",
-    default = "prefit"
+    columns = c("site", "year", "diameter", "weight", "density"),
+    sources = c("user", prefit_source(c("coastwide", "hakai"))), default = prefit_source("coastwide")
   ),
   blade = list(
     label = "Blade fraction", detail = "Proportion of wet weight in blades", sheet = "blade",
@@ -25,11 +40,11 @@ components <- list(
   ),
   wetdry = list(
     label = "Wet:dry", detail = "Ratio of dry to wet weight", sheet = "wetdry",
-    columns = c("site", "year", "wet_weight", "dry_weight"), sources = c("user", "prefit", "none"), prefit = "hakai"
+    columns = c("site", "year", "wet_weight", "dry_weight"), sources = c("user", prefit_source("hakai"), "none")
   ),
   carbon = list(
     label = "Carbon", detail = "Carbon fraction of dry weight", sheet = "carbon",
-    columns = c("site", "year", "dry_weight", "carbon"), sources = c("user", "prefit", "none"), prefit = "hakai"
+    columns = c("site", "year", "dry_weight", "carbon"), sources = c("user", prefit_source("hakai"), "none")
   ),
   # Optional: scales biomass per unit area up to a total per site-year. Fitted to
   # the biomass predictions, so after every other model in use.
@@ -72,27 +87,21 @@ required_sheets <- function() Filter(sheet_required, component_ids)
 label_of <- function(id) components[[id]]$label
 lower_label <- function(id) tolower(label_of(id))
 
-# Pre-fit models come from one of two reference datasets.
-prefit_info <- list(
-  coastwide = list(label = "Pre-fit coastwide", data = "the coastwide reference data", suffix = "coastwide"),
-  hakai = list(label = "Pre-fit Hakai Institute", data = "Hakai Institute survey data", suffix = "hakai")
-)
-
-source_label <- function(id, source) {
+source_label <- function(source) {
+  if (is_prefit(source)) {
+    return(prefit_info[[prefit_reference(source)]]$label)
+  }
   switch(source,
     user = "Your data",
-    prefit = prefit_info[[components[[id]]$prefit]]$label,
     none = "Not used"
   )
 }
 
-source_labels <- function(sources) {
-  vapply(names(sources), function(id) source_label(id, sources[[id]]), character(1))
-}
+source_labels <- function(sources) vapply(sources, source_label, character(1))
 
 # For use mid-sentence: "pre-fit Hakai Institute", "not used".
-source_note <- function(id, source) {
-  label <- source_label(id, source)
+source_note <- function(source) {
+  label <- source_label(source)
   paste0(tolower(substr(label, 1, 1)), substring(label, 2))
 }
 
@@ -121,8 +130,9 @@ default_source <- function(id, has_sheet) {
   if (has_sheet && "user" %in% options) {
     return("user")
   }
-  if ("prefit" %in% options) {
-    return("prefit")
+  prefit <- options[is_prefit(options)]
+  if (length(prefit) > 0) {
+    return(prefit[[1]])
   }
   "none"
 }

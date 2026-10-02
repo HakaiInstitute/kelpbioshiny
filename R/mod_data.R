@@ -246,7 +246,7 @@ mod_data_server <- function(id, store) {
               "file-spreadsheet", "No sheet for some models",
               tone = "muted",
               paste0(
-                paste(sprintf("%s: %s", vapply(absent, label_of, ""), vapply(absent, function(id) source_note(id, sources[[id]]), "")), collapse = "; "),
+                paste(sprintf("%s: %s", vapply(absent, label_of, ""), vapply(absent, function(id) source_note(sources[[id]]), "")), collapse = "; "),
                 ". You can change sources on the Models step."
               )
             )
@@ -328,7 +328,7 @@ sheet_row <- function(sheet, source) {
       if (source != "user") {
         div(
           class = "small text-body-secondary",
-          sprintf("The %s model uses %s. Choose Your data on the Models step to fit it to this sheet.", lower_label(sheet$component), source_note(sheet$component, source))
+          sprintf("The %s model uses %s. Choose Your data on the Models step to fit it to this sheet.", lower_label(sheet$component), source_note(source))
         )
       },
       div(
@@ -437,7 +437,7 @@ coverage_table <- function(rows, sheets, sources, show_all) {
   }
   presence_col <- function(id, label = label_of(id), width = 100) {
     header <- if (is.null(sheets[[id]])) {
-      div(label, div(class = "small fw-normal", source_note(id, sources[[id]])))
+      div(label, div(class = "small fw-normal", source_note(sources[[id]])))
     } else {
       label
     }

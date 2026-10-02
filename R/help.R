@@ -76,9 +76,12 @@ help_topics <- list(
   prefit = list(
     title = "Pre-fit models",
     body = paste(
-      "A pre-fit model was fitted in advance to a larger reference dataset, so it needs no data or fitting here.",
-      "Pre-fit coastwide models use data compiled from surveys along the coast; Pre-fit Hakai Institute models use Hakai Institute survey data.",
-      "Your sites are not in that data, so population-level estimates are used."
+      sprintf(
+        "%s models were fitted in advance to %s, and %s models to %s.",
+        prefit_info$coastwide$label, prefit_info$coastwide$data, prefit_info$hakai$label, prefit_info$hakai$data
+      ),
+      "They need no data or fitting here.",
+      "Sites in the reference data get their own estimates; other sites use population-level estimates."
     ),
     link = kelpbio_articles[["prefit"]]
   ),

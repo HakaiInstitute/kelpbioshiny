@@ -17,7 +17,7 @@ test_that("the example workbook loads its sheets and passes the data checks", {
       list(level = "warning", message = "2 rows with missing year will be dropped")
     )
     expect_identical(store$sources()[["density"]], "user")
-    expect_identical(store$sources()[["weight"]], "prefit")
+    expect_identical(store$sources()[["weight"]], "prefit_coastwide")
   })
 })
 

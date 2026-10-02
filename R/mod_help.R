@@ -32,7 +32,7 @@ guide_sources <- function() {
   guide_table(
     c("Model", "Sources"),
     lapply(component_ids, function(id) {
-      list(label_of(id), paste(vapply(components[[id]]$sources, function(source) source_label(id, source), ""), collapse = ", "))
+      list(label_of(id), paste(vapply(components[[id]]$sources, source_label, ""), collapse = ", "))
     })
   )
 }
@@ -70,6 +70,23 @@ guide_glossary <- function() {
   )
 }
 
+# The pointer to kelpbio, which explains the statistics the app runs.
+guide_docs_callout <- function() {
+  card(card_body(div(
+    class = "d-flex flex-wrap align-items-center gap-3",
+    div(class = "kb-tile-icon bg-primary-subtle text-primary-emphasis", lucide("book-open")),
+    div(
+      class = "flex-grow-1",
+      div(class = "kb-card-title", "Statistical details"),
+      div(class = "small text-body-secondary mt-1", "The models, priors and diagnostics are explained in the kelpbio documentation.")
+    ),
+    tags$a(
+      href = kelpbio_url, target = "_blank", rel = "noopener", class = "btn btn-primary",
+      span(class = "d-inline-flex align-items-center gap-2", "Open the kelpbio documentation", lucide("external-link"))
+    )
+  )))
+}
+
 help_ui <- function() {
   navset_pill(
     id = "help_page",
@@ -93,14 +110,21 @@ help_guide_ui <- function() {
           })
         )
       ),
-      panel("Glossary", description = "The terms behind the help icons in the app.", guide_glossary()),
-      div(
-        class = "small text-body-secondary",
-        "Statistical details, including the models, priors and diagnostics, are in the ",
-        external_link(kelpbio_url, "kelpbio documentation"), "."
-      )
+      guide_docs_callout(),
+      panel("Glossary", description = "The terms behind the help icons in the app.", guide_glossary())
     )
   )
+}
+
+# A package's installed version, or "Not installed". The app currently uses
+# mocks for the kelpbio functions not yet implemented (R/mock-kelpbio.R), so
+# kelpbio need not be installed; once kelpbio is imported, the About page always
+# shows its installed version.
+package_version_text <- function(package) {
+  if (!requireNamespace(package, quietly = TRUE)) {
+    return("Not installed")
+  }
+  as.character(utils::packageVersion(package))
 }
 
 # The kelpbio citation, from kelpbio's inst/CITATION. Switch to
@@ -154,7 +178,8 @@ help_about_ui <- function() {
         ),
         tags$dl(
           class = "row small mb-0",
-          tags$dt(class = "col-sm-3", "Version"), tags$dd(class = "col-sm-9", as.character(utils::packageVersion("kelpbioshiny"))),
+          tags$dt(class = "col-sm-3", "kelpbioshiny version"), tags$dd(class = "col-sm-9", package_version_text("kelpbioshiny")),
+          tags$dt(class = "col-sm-3", "kelpbio version"), tags$dd(class = "col-sm-9", package_version_text("kelpbio")),
           tags$dt(class = "col-sm-3", "Licence"), tags$dd(class = "col-sm-9", "MIT"),
           tags$dt(class = "col-sm-3", "Source code"), tags$dd(class = "col-sm-9", external_link(source_url, source_url)),
           tags$dt(class = "col-sm-3", "kelpbio"), tags$dd(class = "col-sm-9 mb-0", external_link(kelpbio_url, kelpbio_url))

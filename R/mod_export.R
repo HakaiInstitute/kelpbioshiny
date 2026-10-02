@@ -14,11 +14,11 @@ export_script <- function(species, sources, sheets, workbook, priors, samplers) 
   )
 
   fit_lines <- function(id) {
-    if (sources[[id]] == "prefit") {
-      prefit <- prefit_info[[components[[id]]$prefit]]
+    if (is_prefit(sources[[id]])) {
+      reference <- prefit_reference(sources[[id]])
       return(c(
-        sprintf("# %s model", prefit$label),
-        sprintf("fit_%s <- kelpbiodata::fit_%s_%s_%s", id, id, sp, prefit$suffix)
+        sprintf("# %s model", prefit_info[[reference]]$label),
+        sprintf("fit_%s <- kb_prefit_%s_%s(reference = \"%s\")", id, fn_of(id), sp, reference)
       ))
     }
     changed <- priors[[id]][format_prior(priors[[id]]) != format_prior(default_priors(id, species)), ]

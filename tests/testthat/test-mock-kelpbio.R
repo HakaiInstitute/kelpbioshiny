@@ -50,7 +50,7 @@ test_that("the app code calls no summary or distribution functions", {
 test_that("every kelpbio function name the app builds exists", {
   built <- unlist(lapply(names(species_info), function(species) {
     lapply(component_ids, function(id) {
-      verbs <- c("check", "priors", "fit", if ("prefit" %in% components[[id]]$sources) "prefit")
+      verbs <- c("check", "priors", "fit", if (any(is_prefit(components[[id]]$sources))) "prefit")
       sprintf("kb_%s_%s_%s", kelpbio_verbs[verbs], fn_of(id), species)
     })
   }))
@@ -66,4 +66,26 @@ test_that("the kb_fit methods are registered for the imported generics", {
   expect_true(converged(fit, rhat = RHAT_MAX, esr = ESR_MIN))
   expect_named(rhat(fit), tidy(fit)$term)
   expect_s3_class(summary(fit), "summary_kb_fit")
+})
+
+test_that("each pre-fit accessor takes the references its model offers", {
+  for (species in names(species_info)) {
+    for (id in component_ids) {
+      sources <- components[[id]]$sources
+      references <- prefit_reference(sources[is_prefit(sources)])
+      if (length(references) == 0) next
+      accessor <- kelpbio_fn("prefit", id, species)
+      expect_identical(eval(formals(accessor)$reference), references, info = paste(id, species))
+      for (reference in references) {
+        expect_identical(accessor(reference = reference)$meta$reference, reference, info = paste(id, species))
+      }
+    }
+  }
+})
+
+test_that("a pre-fit accessor rejects a reference it does not have", {
+  expect_identical(kb_prefit_weight_nereo()$meta$reference, "coastwide")
+  expect_identical(kb_prefit_size_nereo()$meta$reference, "hakai")
+  expect_error(kb_prefit_size_nereo(reference = "coastwide"), "must be one of")
+  expect_error(kb_prefit_weight_nereo(reference = "regional"), "must be one of")
 })
