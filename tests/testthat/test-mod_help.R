@@ -16,8 +16,11 @@ test_that("the user guide text", {
 test_that("the user guide lists every step, sheet and help topic", {
   text <- paste(guide_text(), collapse = "\n")
   for (value in names(steps)) expect_match(text, step_description(value), fixed = TRUE)
-  for (id in component_ids) expect_match(text, paste(components[[id]]$columns, collapse = ", "), fixed = TRUE)
+  for (id in component_ids) {
+    for (species in names(species_info)) expect_match(text, paste(sheet_columns(id, species), collapse = ", "), fixed = TRUE)
+  }
   for (topic in help_topics) expect_match(text, topic$title, fixed = TRUE)
+  expect_match(text, sprintf("A value above %s", default_arg(kb_convergence, "rhat")), fixed = TRUE)
 })
 
 test_that("the guide points to the kelpbio documentation above the glossary", {

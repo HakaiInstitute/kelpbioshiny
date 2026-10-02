@@ -18,12 +18,21 @@ guide_table <- function(header, rows) {
   )
 }
 
+# A sheet's columns, by species where they differ.
+guide_columns <- function(id) {
+  columns <- lapply(names(species_info), function(sp) paste(sheet_columns(id, sp), collapse = ", "))
+  if (!is.list(components[[id]]$columns)) {
+    return(tags$code(columns[[1]]))
+  }
+  lapply(seq_along(columns), function(i) div(em(species_info[[i]]$latin), ": ", tags$code(columns[[i]])))
+}
+
 guide_sheets <- function() {
   guide_table(
     c("Sheet", "Model", "Columns", "Sheet needed"),
     lapply(component_ids, function(id) {
       def <- components[[id]]
-      list(tags$code(def$sheet), def$label, tags$code(paste(def$columns, collapse = ", ")), if (sheet_required(id)) "Required" else "Optional")
+      list(tags$code(def$sheet), def$label, guide_columns(id), if (sheet_required(id)) "Required" else "Optional")
     })
   )
 }
@@ -41,7 +50,7 @@ guide_sources <- function() {
 guide_extras <- list(
   data = function() {
     tagList(
-      div(class = "small text-body-secondary", "The workbook has one sheet per model, with these columns. The template workbook on the Data step has them all."),
+      div(class = "small text-body-secondary", "The columns of each sheet. Other columns are ignored."),
       div(class = "table-responsive", guide_sheets())
     )
   },
@@ -62,7 +71,7 @@ guide_glossary <- function() {
         tags$dt(class = "col-md-3 fw-medium", topic$title),
         tags$dd(
           class = "col-md-9 text-body-secondary mb-3",
-          div(topic$body),
+          div(topic_body(topic)),
           div(class = "small mt-1", external_link(help_url(key), "Learn more"))
         )
       )

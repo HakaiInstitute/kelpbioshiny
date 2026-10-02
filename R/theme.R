@@ -1,32 +1,16 @@
-# Themes: two palettes expressed as Bootstrap Sass variables. "teal" is a
-# neutral teal palette; "hakai" follows the kelpbio pkgdown site (Hakai red on
-# a dark slate navbar). The viewer switches between
-# them with session$setCurrentTheme(), so everything else in the app reads
-# colours from var(--bs-*) rather than from these palettes.
+# The theme: the Hakai palette of the kelpbio pkgdown site (Hakai red on a dark
+# slate navbar) expressed as Bootstrap Sass variables. Everything else in the app
+# reads colours from var(--bs-*) rather than from this palette.
 
-app_palettes <- list(
-  teal = list(
-    label = "Teal",
-    bg = "#f7fbfb", fg = "#0e1a20", card = "#ffffff",
-    primary = "#00696e", muted = "#edf3f4", muted_fg = "#58666c",
-    accent = "#e0f3f3", accent_fg = "#003e44", accent_border = "#bfe0e0",
-    secondary_fg = "#02353a",
-    info = "#00696e", info_bg = "#e0f3f3", info_border = "#bfe0e0", info_fg = "#003e44",
-    border = "#dde4e6", input = "#d4dddf", ring = "#3b8f93", ring_rgb = "59, 143, 147",
-    navbar_bg = "#ffffff", navbar_fg = "#58666c", navbar_hover = "#0e1a20",
-    navbar_active = "#00696e", navbar_brand = "#0e1a20"
-  ),
-  hakai = list(
-    label = "Hakai",
-    bg = "#f6f7f9", fg = "#1d2733", card = "#ffffff",
-    primary = "#aa2025", muted = "#eef1f4", muted_fg = "#5a6672",
-    accent = "#fbeced", accent_fg = "#7c161a", accent_border = "#efc3c5",
-    secondary_fg = "#2c3e50",
-    info = "#3b6a8c", info_bg = "#eaf0f5", info_border = "#cddae5", info_fg = "#24455e",
-    border = "#e1e5ea", input = "#d3d9df", ring = "#c9484d", ring_rgb = "201, 72, 77",
-    navbar_bg = "#2c3e50", navbar_fg = "rgba(255, 255, 255, 0.72)", navbar_hover = "#ffffff",
-    navbar_active = "#ffffff", navbar_brand = "#ffffff"
-  )
+app_palette <- list(
+  bg = "#f6f7f9", fg = "#1d2733", card = "#ffffff",
+  primary = "#aa2025", muted = "#eef1f4", muted_fg = "#5a6672",
+  accent = "#fbeced", accent_fg = "#7c161a", accent_border = "#efc3c5",
+  secondary_fg = "#2c3e50",
+  info = "#3b6a8c", info_bg = "#eaf0f5", info_border = "#cddae5", info_fg = "#24455e",
+  border = "#e1e5ea", input = "#d3d9df", ring = "#c9484d", ring_rgb = "201, 72, 77",
+  navbar_bg = "#2c3e50", navbar_fg = "rgba(255, 255, 255, 0.72)", navbar_hover = "#ffffff",
+  navbar_active = "#ffffff", navbar_brand = "#ffffff"
 )
 
 app_status_colours <- list(
@@ -35,8 +19,8 @@ app_status_colours <- list(
   danger = "#e7000b"
 )
 
-app_theme <- function(name) {
-  col <- c(app_palettes[[name]], app_status_colours)
+app_theme <- function() {
+  col <- c(app_palette, app_status_colours)
   bslib::bs_theme(
     version = 5,
     bg = col$bg,
@@ -104,8 +88,8 @@ app_theme <- function(name) {
     "badge-border-radius" = "0.375rem",
     "progress-bg" = col$accent,
     "progress-height" = "0.5rem",
-    # Navigation: the navbar colours are set directly so both a light and a
-    # dark navbar keep readable text.
+    # Navigation: the navbar colours are set directly so the dark navbar keeps
+    # readable text.
     "navbar-bg" = col$navbar_bg,
     # The underlined step tabs get extra bottom padding equal to the navbar's,
     # so equal top padding keeps their labels on the navbar's centre line.
@@ -149,9 +133,7 @@ app_theme <- function(name) {
   )
 }
 
-app_default_theme <- "hakai"
-
-# reactable styles from the active theme's CSS variables, so tables follow a theme switch.
+# reactable styles from the theme's CSS variables.
 app_table_theme <- reactable::reactableTheme(
   color = "var(--bs-body-color)",
   backgroundColor = "var(--bs-card-bg, var(--bs-body-bg))",

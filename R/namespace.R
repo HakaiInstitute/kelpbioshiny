@@ -1,5 +1,5 @@
 #' @import shiny bslib
-#' @importFrom generics tidy glance augment
-#' @importFrom universals rhat esr converged
+#' @importFrom generics tidy augment
+#' @importFrom universals converged
 #' @importFrom rlang %||% .data
 NULL

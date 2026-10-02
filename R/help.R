@@ -17,18 +17,25 @@ kelpbio_articles <- c(
 help_topics <- list(
   rhat = list(
     title = "R-hat",
-    body = paste(
-      "R-hat compares the chains with each other. Values close to 1 mean the chains agree on the same answer.",
-      "A value above 1.05 means the model needs more sampling before its estimates can be relied on."
-    ),
+    body = function() {
+      paste(
+        "R-hat compares the chains with each other. Values close to 1 mean the chains agree on the same answer.",
+        sprintf("A value above %s means the model needs more sampling before its estimates can be relied on.", default_arg(kb_convergence, "rhat"))
+      )
+    },
     link = kelpbio_articles[["diagnostics"]]
   ),
   ess = list(
     title = "Effective sample size (ESS)",
-    body = paste(
-      "Draws that follow each other in a chain are similar, so together they hold less information than independent draws.",
-      "ESS is the number of independent draws they are worth. Below 10% of the draws, estimates and their limits are less reliable."
-    ),
+    body = function() {
+      paste(
+        "Draws that follow each other in a chain are similar, so together they hold less information than independent draws.",
+        sprintf(
+          "ESS is the number of independent draws they are worth. Below %s%% of the draws, estimates and their limits are less reliable.",
+          100 * default_arg(kb_convergence, "esr")
+        )
+      )
+    },
     link = kelpbio_articles[["diagnostics"]]
   ),
   ppc = list(
@@ -96,9 +103,9 @@ help_topics <- list(
   weight_density = list(
     title = "Density in the weight model",
     body = paste(
-      "Plants of the same diameter weigh more or less depending on how crowded they are,",
-      "so the weight model uses the density estimates as a predictor.",
-      "A weight model fitted to your data is fitted after the density model."
+      "Bull kelp plants of the same diameter weigh more or less depending on how crowded they are,",
+      "so the weight model uses stipe density as a predictor: the stipes counted over the area surveyed in each site-year of the density data.",
+      "Site-years without density data take the mean density."
     ),
     link = kelpbio_articles[["models"]]
   ),
@@ -139,6 +146,10 @@ help_topics <- list(
   )
 )
 
+# A topic's text. Text that names a kelpbio default is a function, so it reads
+# the default when shown.
+topic_body <- function(topic) if (is.function(topic$body)) topic$body() else topic$body
+
 help_icon <- function(title, body, link = NULL) {
   bslib::popover(
     tags$button(
@@ -160,7 +171,7 @@ help_url <- function(key) paste0(kelpbio_url, help_topics[[key]]$link)
 
 help_topic <- function(key) {
   topic <- help_topics[[key]]
-  help_icon(topic$title, topic$body, help_url(key))
+  help_icon(topic$title, topic_body(topic), help_url(key))
 }
 
 help_term <- function(text, tip) {

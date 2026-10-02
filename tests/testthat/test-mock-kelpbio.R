@@ -1,50 +1,54 @@
-# The source checks read R/ and so run from the source tree only (not in
-# R CMD check, which tests the installed package).
-source_dir <- function() test_path("..", "..", "R")
+# Policy checks on the installed namespace: the app's own functions (everything
+# but the mocks, whose names start with kb_ or .mock, and the mocks' kb_fit
+# methods) call no statistics and use only kelpbio functions that exist.
 
-parsed_tokens <- function(files) {
-  data <- do.call(rbind, lapply(files, function(file) {
-    data <- utils::getParseData(parse(file, keep.source = TRUE))
-    data[data$terminal, c("token", "text")]
-  }))
-  data
+app_functions <- function() {
+  ns <- asNamespace("kelpbioshiny")
+  names <- ls(ns, all.names = TRUE)
+  names <- names[vapply(names, function(name) is.function(get(name, envir = ns)), logical(1))]
+  mocks <- startsWith(names, "kb_") | startsWith(names, ".mock") | endsWith(names, ".kb_fit")
+  lapply(stats::setNames(nm = names[!mocks]), get, envir = ns)
 }
 
-top_level_assignments <- function(file) {
-  exprs <- parse(file)
-  names <- vapply(exprs, function(e) {
-    if (is.call(e) && as.character(e[[1]]) %in% c("<-", "=") && is.name(e[[2]])) as.character(e[[2]]) else NA_character_
-  }, character(1))
-  names[!is.na(names)]
+# The functions a function calls, including pkg::fun() calls, and the other
+# symbols it uses, found by walking its code with codetools.
+used_names <- function(fn) {
+  found <- character()
+  walker <- codetools::makeCodeWalker(
+    call = function(e, w) {
+      head <- e[[1]]
+      if (is.call(head) && identical(head[[1]], as.name("::"))) found <<- c(found, as.character(head[[3]]))
+      # In x$name, name is a list element, not a symbol in use.
+      parts <- if (identical(head, as.name("$"))) as.list(e)[1:2] else as.list(e)
+      for (part in parts) if (!missing(part)) codetools::walkCode(part, w)
+    },
+    leaf = function(e, w) {
+      if (is.name(e)) found <<- c(found, as.character(e))
+    }
+  )
+  codetools::walkCode(body(fn), walker)
+  unique(found)
 }
-
-app_source_files <- function() {
-  files <- list.files(source_dir(), pattern = "\\.R$", full.names = TRUE)
-  files[basename(files) != "mock-kelpbio.R"]
-}
-
-test_that("every kelpbio function the app calls is defined in the mock file", {
-  skip_if_not(dir.exists(source_dir()))
-  files <- app_source_files()
-  tokens <- parsed_tokens(files)
-  app_defined <- unlist(lapply(files, top_level_assignments))
-  mocked <- top_level_assignments(file.path(source_dir(), "mock-kelpbio.R"))
-
-  kb_symbols <- unique(tokens$text[tokens$token %in% c("SYMBOL_FUNCTION_CALL", "SYMBOL") & startsWith(tokens$text, "kb_")])
-  kelpbio_calls <- setdiff(kb_symbols, app_defined)
-  expect_gt(length(kelpbio_calls), 10)
-  expect_identical(setdiff(kelpbio_calls, mocked), character())
-})
 
 test_that("the app code calls no summary or distribution functions", {
-  skip_if_not(dir.exists(source_dir()))
-  tokens <- parsed_tokens(app_source_files())
-  calls <- tokens$text[tokens$token == "SYMBOL_FUNCTION_CALL"]
-  stats_calls <- c(
+  skip_if_not_installed("codetools")
+  stats_functions <- c(
     "median", "mean", "quantile", "sd", "var", "signif", "exp", "log", "qlogis", "plogis",
-    "rnorm", "rlnorm", "runif"
+    "rnorm", "rlnorm", "runif", "rgamma", "rbeta", "dbeta"
   )
-  expect_identical(intersect(calls, stats_calls), character())
+  used <- lapply(app_functions(), function(fn) intersect(used_names(fn), stats_functions))
+  expect_identical(unname(unlist(used)), character())
+})
+
+test_that("every kelpbio function the app uses exists, and no mock internals are used", {
+  skip_if_not_installed("codetools")
+  used <- unique(unlist(lapply(app_functions(), used_names)))
+  kelpbio <- used[startsWith(used, "kb_")]
+  expect_gt(length(kelpbio), 10)
+  ns <- asNamespace("kelpbioshiny")
+  missing <- kelpbio[!vapply(kelpbio, exists, logical(1), envir = ns, mode = "function")]
+  expect_identical(missing, character())
+  expect_identical(used[startsWith(used, ".mock")], character())
 })
 
 test_that("every kelpbio function name the app builds exists", {
@@ -59,13 +63,15 @@ test_that("every kelpbio function name the app builds exists", {
   expect_identical(unname(missing), character())
 })
 
-test_that("the kb_fit methods are registered for the imported generics", {
-  fit <- kb_prefit_weight_nereo()
-  expect_s3_class(tidy(fit), "tbl_df")
-  expect_s3_class(glance(fit), "tbl_df")
-  expect_true(converged(fit, rhat = RHAT_MAX, esr = ESR_MIN))
-  expect_named(rhat(fit), tidy(fit)$term)
-  expect_s3_class(summary(fit), "summary_kb_fit")
+test_that("the example data pass the data checks, except the weight sheet's missing years", {
+  for (species in names(species_info)) {
+    rows <- kb_example_data(species)
+    for (id in c("density", "size", "cover")) {
+      expect_no_error(suppressMessages(kelpbio_fn("check", id, species)(rows[[id]])))
+      expect_true(all(sheet_columns(id, species) %in% names(rows[[id]])), info = paste(id, species))
+    }
+    expect_error(kelpbio_fn("check", "weight", species)(rows$weight), "must not have any missing values")
+  }
 })
 
 test_that("each pre-fit accessor takes the references its model offers", {
@@ -83,9 +89,12 @@ test_that("each pre-fit accessor takes the references its model offers", {
   }
 })
 
-test_that("a pre-fit accessor rejects a reference it does not have", {
-  expect_identical(kb_prefit_weight_nereo()$meta$reference, "coastwide")
-  expect_identical(kb_prefit_size_nereo()$meta$reference, "hakai")
-  expect_error(kb_prefit_size_nereo(reference = "coastwide"), "must be one of")
-  expect_error(kb_prefit_weight_nereo(reference = "regional"), "must be one of")
+test_that("the mock fit writes progress that kb_fit_progress() reads", {
+  dir <- withr::local_tempdir()
+  expect_identical(kb_fit_progress(dir), 0)
+  rows <- kb_example_data("nereo")$size
+  fit <- kb_fit_size_nereo(rows, niters = 10L, progress = "none", progress_dir = dir)
+  expect_s3_class(fit, "kb_fit_size_nereo")
+  expect_identical(kb_fit_progress(dir), 1)
+  expect_error(kb_fit_size_nereo(rows, nthin = 0), "`nthin` must be greater than 0")
 })

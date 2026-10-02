@@ -12,7 +12,6 @@ test_that("workflow: the example workbook loads and the models step shows the st
   app$wait_for_idle()
 
   expect_identical(app$get_value(input = "step"), "models")
-  status <- app$get_text("#models-status_density")
-  expect_match(status, "Data OK, not fitted")
+  expect_match(app$get_text("#models-status_density"), "Not fitted")
   expect_match(app$get_text("#models-status_weight"), "Ready")
 })

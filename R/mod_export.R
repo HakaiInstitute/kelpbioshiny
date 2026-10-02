@@ -28,8 +28,8 @@ export_script <- function(species, sources, sheets, workbook, priors, samplers) 
       if (nrow(changed) > 0) sprintf("priors = priors_%s", id),
       if (id == "cover") "biomass = biomass",
       if (sampler$chains != 4) sprintf("chains = %s", sampler$chains),
-      if (sampler$iterations != 1000) sprintf("niters = %s", sampler$iterations),
-      if (sampler$thin != 1) sprintf("nthin = %s", sampler$thin)
+      if (sampler$niters != 1000) sprintf("niters = %s", sampler$niters),
+      if (sampler$nthin != 1) sprintf("nthin = %s", sampler$nthin)
     )
     prior_lines <- if (nrow(changed) > 0) {
       c(
@@ -53,6 +53,9 @@ export_script <- function(species, sources, sheets, workbook, priors, samplers) 
       read,
       "",
       sprintf("kb_check_data_%s_%s(%s)", vapply(from_data, fn_of, ""), sp, from_data),
+      if ("weight" %in% from_data && sp == "nereo" && !is.null(sheets$density)) {
+        c("", "# The observed stipe density of each site-year, for the weight model", "weight <- kb_add_stipes_m2(weight, density)")
+      },
       "",
       unlist(lapply(in_biomass, fit_lines)),
       "",
@@ -75,6 +78,8 @@ export_script <- function(species, sources, sheets, workbook, priors, samplers) 
   )
 }
 
+# TODO: build each download (results workbook, figures, fit bundle and report);
+# the buttons only show a notice for now.
 download_items <- list(
   results = list(label = "Results workbook", detail = "Excel: biomass per unit area, totals when the cover model is used, settings and sources", file = "kelpbio-results-%s.xlsx", icon = "file-spreadsheet"),
   figures = list(label = "Figures", detail = "ZIP of PNG and PDF figures", file = "kelpbio-figures-%s.zip", icon = "file-image"),
@@ -131,7 +136,7 @@ mod_export_ui <- function(id) {
 
 mod_export_server <- function(id, store) {
   moduleServer(id, function(input, output, session) {
-    any_fitted <- reactive(any(store$fit_status() == "fitted"))
+    any_fitted <- reactive(any(record_status(store$records()) == "fitted"))
     suffix <- reactive(species_info[[store$species()]]$suffix)
 
     observe({
@@ -141,7 +146,6 @@ mod_export_server <- function(id, store) {
 
     lapply(names(download_items), function(key) {
       observeEvent(input[[paste0("download_", key)]], {
-        store$exported(TRUE)
         store$notify(sprintf("Prototype: %s is not generated.", sprintf(download_items[[key]]$file, suffix())))
       })
     })

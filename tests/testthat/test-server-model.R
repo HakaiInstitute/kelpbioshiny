@@ -1,142 +1,91 @@
-html_of <- function(value) paste(as.character(value$html), collapse = "")
-
-# Fits the size model (no upstream models) with the example workbook loaded.
-fit_size <- function(session, store) {
+fit_size <- function(session, store, runner) {
   store$queue_fits("size")
-  session$flushReact()
-  session$elapse(fit_ms("size") + 2 * TICK_MS)
+  finish_fits(session, runner)
 }
 
 test_that("predictions show the grouping control above Plot and Estimates pills", {
+  local_stub_fits()
   shiny::testServer(store_app(mod_model_server, "size"), {
-    fit_size(session, store)
+    fit_size(session, store, runner)
     html <- html_of(output[["size-tab_predictions"]])
     expect_match(html, "size-grouping", fixed = TRUE)
-    expect_match(html, "size-prediction_section", fixed = TRUE)
-    expect_match(html, "nav-pills", fixed = TRUE)
     expect_match(html, ">Plot<", fixed = TRUE)
     expect_match(html, ">Estimates<", fixed = TRUE)
     expect_lt(regexpr("size-grouping", html), regexpr("size-prediction_section", html))
-    expect_match(html, "size-predictions_table", fixed = TRUE)
   })
 })
 
-test_that("pre-fit models show predictions in the Plot and Estimates pills", {
-  shiny::testServer(store_app(mod_model_server, "weight"), {
-    session$flushReact()
-    html <- html_of(output[["weight-tab_predictions"]])
-    expect_match(html, "weight-prediction_section", fixed = TRUE)
-    expect_match(html, ">Estimates<", fixed = TRUE)
-  })
-})
-
-test_that("the size model header shows both warnings with dismiss buttons", {
+test_that("the size model header shows one notice per warning", {
+  local_stub_fits()
   shiny::testServer(store_app(mod_model_server, "size"), {
-    fit_size(session, store)
+    fit_size(session, store, runner)
     html <- html_of(output[["size-notices"]])
     expect_match(html, "Convergence warning", fixed = TRUE)
     expect_match(html, "Prior sensitivity warning", fixed = TRUE)
-    expect_match(html, "If this is unintended, try making the prior less informative.", fixed = TRUE)
     expect_match(html, "try reducing the rate (for example from 1 to 0.5)", fixed = TRUE)
-    expect_match(html, "size-dismiss_convergence", fixed = TRUE)
-    expect_match(html, "size-dismiss_sensitivity", fixed = TRUE)
-    expect_no_match(html, "widen", fixed = TRUE)
+    expect_match(html_of(output[["size-status"]]), "Ready, convergence warning", fixed = TRUE)
+    # The diagnostics tab holds its three sections, without a second prior warning.
+    diagnostics <- html_of(output[["size-tab_diagnostics"]])
+    for (section in c("Convergence", "Posterior predictive check", "Prior sensitivity")) expect_match(diagnostics, section, fixed = TRUE)
+    expect_no_match(html_of(output[["size-sensitivity_note"]]), "influencing", fixed = TRUE)
   })
 })
 
-test_that("dismissing hides a warning for the current fit and a refit resets it", {
+test_that("a failed fit shows its message with a Refit action", {
+  local_stub_fits(fail = "size")
   shiny::testServer(store_app(mod_model_server, "size"), {
-    fit_size(session, store)
-
-    session$setInputs(`size-dismiss_convergence` = 1)
-    expect_true(store$is_dismissed("size", "convergence"))
+    fit_size(session, store, runner)
     html <- html_of(output[["size-notices"]])
-    expect_no_match(html, "Convergence warning", fixed = TRUE)
-    expect_match(html, "Prior sensitivity warning", fixed = TRUE)
-    expect_match(html_of(output[["size-status"]]), "Fitted, warning dismissed", fixed = TRUE)
-
-    session$setInputs(`size-dismiss_sensitivity` = 1)
-    expect_null(output[["size-notices"]])
-    sensitivity_html <- html_of(output[["size-sensitivity_notices"]])
-    expect_no_match(sensitivity_html, "influencing", fixed = TRUE)
-
-    session$setInputs(`size-fit` = 1)
-    expect_false(store$is_dismissed("size", "convergence"))
-    session$flushReact()
-    session$elapse(fit_ms("size") + 2 * TICK_MS)
-    expect_identical(store$fit_status()[["size"]], "fitted")
-    html <- html_of(output[["size-notices"]])
-    expect_match(html, "Convergence warning", fixed = TRUE)
-    expect_match(html, "Prior sensitivity warning", fixed = TRUE)
-    expect_match(html_of(output[["size-status"]]), "Fitted, convergence warning", fixed = TRUE)
+    expect_match(html, "The fit failed", fixed = TRUE)
+    expect_match(html, "Stub size fit failed.", fixed = TRUE)
+    expect_match(html_of(output[["size-status"]]), "Failed", fixed = TRUE)
+    expect_match(html_of(output[["size-fit_action"]]), "Refit", fixed = TRUE)
   })
 })
 
-test_that("changing the source resets the dismissed warnings", {
+test_that("an invalid prior shows kelpbio's message and disables Fit", {
   shiny::testServer(store_app(mod_model_server, "size"), {
-    fit_size(session, store)
-    store$dismiss("size", "convergence")
-    store$set_source("size", "none")
-    expect_length(store$dismissed(), 0)
-  })
-})
-
-test_that("the hub convergence notice is hidden once dismissed", {
-  shiny::testServer(store_app(mod_models_server, "models"), {
-    store$queue_fits("size")
     session$flushReact()
-    session$elapse(fit_ms("size") + 2 * TICK_MS)
-    expect_match(html_of(output[["models-warnings"]]), "models-dismiss_size", fixed = TRUE)
-    session$setInputs(`models-dismiss_size` = 1)
-    expect_null(output[["models-warnings"]])
+    expect_no_match(html_of(output[["size-fit_action"]]), "disabled", fixed = TRUE)
+    session$setInputs(`size-intercept_b` = 0)
+    expect_identical(output[["size-error_intercept"]], "`sd` must be greater than 0, not 0.")
+    expect_match(html_of(output[["size-fit_action"]]), "disabled", fixed = TRUE)
+    session$setInputs(`size-sampler_chains` = 0)
+    expect_identical(output[["size-sampler_error_chains"]], "`chains` must be greater than 0, not 0.")
   })
 })
 
-test_that("tabs and diagnostics pills are marked while a warning is active", {
-  shiny::testServer(store_app(mod_model_server, "size"), {
-    marked <- function(id) grepl("Has warnings", html_of(output[[paste0("size-", id)]]), fixed = TRUE)
-    expect_false(marked("mark_diagnostics"))
-
-    fit_size(session, store)
-    expect_true(marked("mark_diagnostics"))
-    expect_true(marked("mark_settings"))
-    expect_true(marked("mark_pill_sampler"))
-    expect_true(marked("mark_pill_sensitivity"))
-    expect_match(html_of(output[["size-tab_diagnostics"]]), "size-mark_pill_sampler", fixed = TRUE)
-
-    session$setInputs(`size-dismiss_convergence` = 1)
-    expect_false(marked("mark_pill_sampler"))
-    expect_true(marked("mark_diagnostics"))
-
-    session$setInputs(`size-dismiss_sensitivity` = 1)
-    expect_false(marked("mark_diagnostics"))
-    expect_false(marked("mark_settings"))
-    expect_false(marked("mark_pill_sensitivity"))
-  })
-})
-
-test_that("the weight page offers three sources and switches the pre-fit reference", {
+test_that("the weight page switches the pre-fit reference", {
   shiny::testServer(store_app(mod_model_server, "weight"), {
     session$flushReact()
     expect_identical(store$sources()[["weight"]], "prefit_coastwide")
-    expect_match(html_of(output[["weight-notices"]]), "Pre-fit coastwide model", fixed = TRUE)
     expect_match(html_of(output[["weight-notices"]]), prefit_info$coastwide$data, fixed = TRUE)
     expect_identical(store$fit_of("weight")$meta$reference, "coastwide")
 
     session$setInputs(`weight-source` = "prefit_hakai")
-    expect_identical(store$sources()[["weight"]], "prefit_hakai")
-    expect_match(html_of(output[["weight-notices"]]), "Pre-fit Hakai Institute model", fixed = TRUE)
-    expect_match(html_of(output[["weight-tab_data"]]), prefit_info$hakai$data, fixed = TRUE)
+    expect_match(html_of(output[["weight-notices"]]), prefit_info$hakai$data, fixed = TRUE)
     expect_identical(store$fit_of("weight")$meta$reference, "hakai")
     expect_identical(store$statuses()$weight$kind, "ready")
+    expect_match(html_of(output[["weight-tab_predictions"]]), "weight-prediction_section", fixed = TRUE)
   })
 })
 
-test_that("the size pre-fit model is the Hakai Institute one", {
-  shiny::testServer(store_app(mod_model_server, "size"), {
-    store$set_source("size", "prefit_hakai")
+test_that("the weight page shows its data error once Your data is chosen", {
+  shiny::testServer(store_app(mod_model_server, "weight"), {
     session$flushReact()
-    expect_match(html_of(output[["size-notices"]]), "Pre-fit Hakai Institute model", fixed = TRUE)
-    expect_identical(store$fit_of("size")$meta$reference, "hakai")
+    session$setInputs(`weight-source` = "user")
+    html <- html_of(output[["weight-notices"]])
+    expect_match(html, "The data check failed", fixed = TRUE)
+    expect_match(html, "must not have any missing values", fixed = TRUE)
+    expect_null(output[["weight-fit_action"]])
+  })
+})
+
+test_that("wet:dry predictions are at the population level only", {
+  shiny::testServer(store_app(mod_model_server, "wetdry"), {
+    session$flushReact()
+    html <- html_of(output[["wetdry-tab_predictions"]])
+    expect_no_match(html, "wetdry-grouping", fixed = TRUE)
+    expect_match(html, "Population level", fixed = TRUE)
   })
 })

@@ -10,38 +10,53 @@
       1
       Data
       Load the survey data, from a workbook or a CSV file per model.
-      The workbook has one sheet per model, with these columns. The template workbook on the Data step has them all.
+      The columns of each sheet. Other columns are ignored.
       Sheet
       Model
       Columns
       Sheet needed
       density
       Density
-      site, year, quadrat, density
+      Nereocystis luetkeana
+      :
+      site, year, stipes, area_m2
+      Macrocystis pyrifera
+      :
+      site, year, plants, area_m2
       Required
       size
       Size
-      site, year, diameter
+      Nereocystis luetkeana
+      :
+      site, year, diameter_mm
+      Macrocystis pyrifera
+      :
+      site, year, fronds
       Optional
       weight
       Weight
-      site, year, diameter, weight, density
+      Nereocystis luetkeana
+      :
+      site, year, diameter_mm, weight_kg
+      Macrocystis pyrifera
+      :
+      site, year, fronds, weight_kg
       Optional
       blade
       Blade fraction
-      site, year, blade_weight, total_weight
+      site, year, blade_weight_kg, total_weight_kg
       Optional
       wetdry
       Wet:dry
-      site, year, wet_weight, dry_weight
+      wet_mass_g, dry_mass_g
       Optional
       carbon
       Carbon
-      site, year, dry_weight, carbon
+      site, year, dry_mass_g, carbon_mass_g
       Optional
       cover
       Biomass:cover
-      site, year, canopy_area, plot, plot_percent_cover
+      site, year, canopy_area_m2, plot, plot_percent_cover
       Optional
       2
       Models
@@ -75,7 +90,7 @@
       Glossary
       The terms behind the help icons in the app.
       R-hat
-      R-hat compares the chains with each other. Values close to 1 mean the chains agree on the same answer. A value above 1.05 means the model needs more sampling before its estimates can be relied on.
+      R-hat compares the chains with each other. Values close to 1 mean the chains agree on the same answer. A value above 1.01 means the model needs more sampling before its estimates can be relied on.
       Learn more (https://hakaiinstitute.github.io/kelpbio/articles/diagnostics.html)
       Effective sample size (ESS)
       Draws that follow each other in a chain are similar, so together they hold less information than independent draws. ESS is the number of independent draws they are worth. Below 10% of the draws, estimates and their limits are less reliable.
@@ -102,7 +117,7 @@
       When a site-year has no data for a model, the typical value across all sites and years is used instead of a value for that site-year. Biomass is still estimated, but it does not reflect conditions specific to that site-year.
       Learn more (https://hakaiinstitute.github.io/kelpbio/articles/results.html)
       Density in the weight model
-      Plants of the same diameter weigh more or less depending on how crowded they are, so the weight model uses the density estimates as a predictor. A weight model fitted to your data is fitted after the density model.
+      Bull kelp plants of the same diameter weigh more or less depending on how crowded they are, so the weight model uses stipe density as a predictor: the stipes counted over the area surveyed in each site-year of the density data. Site-years without density data take the mean density.
       Learn more (https://hakaiinstitute.github.io/kelpbio/articles/models.html)
       Canopy area
       The total area of kelp canopy at a site in a year, in square metres, measured from drone imagery. It is the same on every row of that site-year in the cover sheet.

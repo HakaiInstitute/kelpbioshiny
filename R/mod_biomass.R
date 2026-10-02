@@ -17,7 +17,7 @@ biomass_table <- function(rows, sources, output) {
       prefit_flags
     ), collapse = "|")
   }, character(1))
-  columns <- intersect(c("site", "year", "canopy_area", "estimate", "lower", "upper"), names(rows))
+  columns <- intersect(c("site", "year", "canopy_area_m2", "estimate", "lower", "upper"), names(rows))
   data.frame(as.data.frame(rows)[columns], flags = flags)
 }
 
@@ -41,6 +41,7 @@ mod_biomass_ui <- function(id) {
   main <- tagList(
     page_header(
       "Biomass", step_description("biomass"),
+      # TODO: remove once the estimates come from kelpbio rather than the mocks.
       span(class = "badge border text-body-secondary fw-normal", "Prototype data")
     ),
     uiOutput(ns("main"))
@@ -84,7 +85,7 @@ mod_biomass_server <- function(id, store) {
     observeEvent(input$scale, chosen_scale(input$scale))
     observeEvent(input$change_sources, store$go_to("models"))
     observeEvent(input$to_data, store$go_to("data"))
-    observeEvent(input$fit_all, store$queue_fits(store$fittable()))
+    observeEvent(input$fit_all, store$fit_all())
     observeEvent(input$to_models, store$go_to("models"))
     observeEvent(input$open_cover, store$go_to("models", "cover"))
     for (cid in component_ids) {
@@ -92,7 +93,6 @@ mod_biomass_server <- function(id, store) {
         cid <- cid
         observeEvent(input[[paste0("diagnostics_", cid)]], store$open_tab(cid, "diagnostics"))
         observeEvent(input[[paste0("settings_", cid)]], store$open_settings(cid))
-        observeEvent(input[[paste0("dismiss_", cid)]], store$dismiss(cid, "convergence"))
       })
     }
 
@@ -126,7 +126,7 @@ mod_biomass_server <- function(id, store) {
       total <- scale_key() == "total"
       statuses <- store$statuses()
       used <- c(output_components[[key]], if (total) "cover")
-      warnings <- Filter(function(id) shows_convergence_warning(statuses[[id]]), used)
+      warnings <- Filter(function(id) has_warning(statuses[[id]]), used)
       available <- store$outputs()
       unavailable <- lapply(Filter(function(k) !available[[k]]$available, names(available)), function(k) available[[k]]$reason)
       totals <- store$totals()
@@ -135,7 +135,6 @@ mod_biomass_server <- function(id, store) {
           convergence_notice(
             sprintf("The %s model has a convergence warning", lower_label(id)), ns(paste0("settings_", id)),
             "Every estimate below uses it, so treat its limits with caution until then.",
-            dismiss_id = ns(paste0("dismiss_", id)),
             secondary = button(ns(paste0("diagnostics_", id)), "View diagnostics", variant = "outline", size = "sm")
           )
         }),
@@ -144,27 +143,36 @@ mod_biomass_server <- function(id, store) {
           list(notice(
             "minus-circle", totals$reason,
             tone = "muted",
-            action = if (!statuses$cover$kind %in% c("not-used", "no-data")) {
+            action = if (!statuses$cover$kind %in% c("not-used", "no-data", "data-error")) {
               button(ns("open_cover"), "Open biomass:cover", variant = "outline", size = "sm")
             }
           ))
         }
       )
       panels <- if (total) total_panels(ns, key) else area_panels(ns, key)
+      result <- estimates()
+      if (inherits(result, "error")) {
+        notices <- c(notices, list(notice("x-circle", "Biomass could not be estimated", conditionMessage(result), tone = "warning")))
+      }
       tagList(
         if (length(notices) > 0) div(class = "d-flex flex-column gap-2 mb-3", notices),
         plot_estimates_nav(ns("view"), panels$plot, panels$estimates, selected = isolate(input$view))
       )
     })
 
-    # Biomass per unit area, or totals, for the chosen output.
+    # Biomass per unit area, or totals, for the chosen output, or the error
+    # kelpbio gave.
     estimates <- reactive({
       req(store$has_density(), store$biomass_ready())
-      if (scale_key() == "total") store$biomass_total(output_key()) else store$biomass(output_key())
+      tryCatch(
+        if (scale_key() == "total") store$biomass_total(output_key()) else store$biomass(output_key()),
+        error = function(e) e
+      )
     })
+    estimated <- reactive(if (!inherits(estimates(), "error")) estimates() else req(FALSE))
 
     output$figure <- render_figure(
-      function() kb_plot_biomass(estimates()), "figure",
+      function() kb_plot_biomass(estimated()), "figure",
       aspect = function() if (scale_key() == "total") 4.5 / 8 else 6 / 8,
       alt = function() {
         label <- output_info[[output_key()]]$label
@@ -174,7 +182,7 @@ mod_biomass_server <- function(id, store) {
 
     output$table <- reactable::renderReactable({
       total <- scale_key() == "total"
-      rows <- biomass_table(estimates(), store$sources(), output_key())
+      rows <- biomass_table(estimated(), store$sources(), output_key())
       population <- grepl("Population", rows$flags)
       number <- function(name) reactable::colDef(name = name, cell = number_text, align = "right")
       app_table(
@@ -183,7 +191,7 @@ mod_biomass_server <- function(id, store) {
         columns = Filter(Negate(is.null), list(
           site = reactable::colDef(name = "Site"),
           year = reactable::colDef(name = "Year"),
-          canopy_area = if (total) {
+          canopy_area_m2 = if (total) {
             reactable::colDef(name = "Canopy area (m\u00b2)", align = "right", format = reactable::colFormat(separators = TRUE, digits = 0))
           },
           estimate = number("Estimate"),
@@ -270,6 +278,14 @@ locked_state <- function(ns, store) {
       div(class = "mt-2", button(ns("to_data"), "Go to data", variant = "outline"))
     ))
   }
+  mismatches <- store$mismatches()
+  if (length(mismatches) > 0) {
+    return(empty_state(
+      "lock", "Biomass is locked",
+      sprintf("Site names differ across sheets: %s. %s", and_list(sprintf("\"%s\"", mismatches)), mismatch_advice),
+      div(class = "mt-2", button(ns("to_data"), "Go to data", variant = "outline"))
+    ))
+  }
   statuses <- store$statuses()
   blocking <- store$blocking()
   empty_state(
@@ -288,7 +304,7 @@ locked_state <- function(ns, store) {
     ),
     div(
       class = "d-flex gap-2 mt-2",
-      if (length(store$fittable()) > 0) button(ns("fit_all"), "Fit all", "play"),
+      if (length(store$fit_plan()$ids) > 0 && is.null(store$fitting())) button(ns("fit_all"), "Fit all", "play"),
       button(ns("to_models"), if (is.null(store$fitting())) "Go to Models" else "View progress", variant = "outline")
     )
   )

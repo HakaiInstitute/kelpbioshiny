@@ -95,16 +95,10 @@
 }
 
 /* Navbar: the brand and the not-yet-done step markers take the navbar's own
-   text colour, so they read on a light or a dark navbar. */
+   text colour. */
 .kb-brand-logo {
   height: 2.25rem;
   width: auto;
-}
-
-.kb-kelp-art {
-  width: 1.75rem;
-  height: 2.25rem;
-  flex-shrink: 0;
 }
 
 .kb-brand-divider {

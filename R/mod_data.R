@@ -11,6 +11,7 @@ coverage <- function(sheets, sources) {
   })
   drone <- if (is.null(sheets$cover)) NULL else site_years(sheets$cover$rows)
   no_plot <- if (is.null(sheets$cover)) character() else no_plot_cover(sheets$cover$rows)
+  mismatched <- site_mismatches(sheets)
   keys <- unique(unlist(sets, use.names = FALSE))
   if (length(keys) == 0) {
     return(list(rows = NULL))
@@ -21,19 +22,14 @@ coverage <- function(sheets, sources) {
 
   rows <- lapply(seq_along(keys), function(i) {
     present <- vapply(coverage_ids, function(id) if (is.null(sets[[id]])) NA else keys[i] %in% sets[[id]], NA)
-    twin <- which(year == year[i] & site != site[i] & normalise_site(site) == normalise_site(site[i]))
     note <- NA_character_
     tone <- NA_character_
     issue <- NA_character_
     missing <- character()
-    if (length(twin) > 0) {
+    if (site[i] %in% mismatched) {
       tone <- "warning"
       issue <- "mismatch"
-      note <- if (isTRUE(present[["density"]])) {
-        sprintf("Site name differs across sheets: \"%s\" in density, \"%s\" in size and weight", site[i], site[twin[1]])
-      } else {
-        sprintf("Site name differs across sheets: \"%s\" in density", site[twin[1]])
-      }
+      note <- "Site name differs across sheets only in case or spacing"
     } else if (!isTRUE(present[["density"]])) {
       note <- "No density data: biomass not estimated"
       tone <- "warning"
@@ -71,6 +67,12 @@ coverage <- function(sheets, sources) {
   list(rows = rows)
 }
 
+# Site-years with a canopy area but no plot cover.
+no_plot_cover <- function(rows) {
+  has_cover <- tapply(!is.na(rows$plot_percent_cover), paste(rows$site, rows$year, sep = "|"), any)
+  names(has_cover)[!has_cover]
+}
+
 mod_data_ui <- function(id) {
   ns <- NS(id)
   species_choices <- lapply(species_info, function(x) {
@@ -84,22 +86,13 @@ mod_data_ui <- function(id) {
         tagAppendAttributes(class = "mb-0"),
       div(class = "small text-body-secondary", "Applies to every model in this run.")
     ),
-    sidebar_section(
-      "Template",
-      div(
-        class = "small text-body-secondary",
-        "An Excel workbook with one sheet per model and the required columns. Leave out sheets you do not have."
-      ),
-      div(
-        class = "small text-body-secondary",
-        "The cover sheet is optional: add drone canopy area and plot percent cover to estimate total biomass per site-year."
-      ),
-      button(ns("template"), "Download template workbook", "download", "outline")
-    ),
+    # TODO: generate the template workbook (one sheet per model with its columns) for download.
+    sidebar_section("Template", button(ns("template"), "Download template workbook", "download", "outline")),
     div(
       class = "d-flex flex-column gap-2",
       div(class = "kb-eyebrow text-body-secondary", "Resume a run"),
       div(class = "small text-body-secondary", "Upload a fit bundle exported from an earlier run."),
+      # TODO: read a fit bundle (the fits, sources and settings of a run) and restore the run from it.
       fileInput(ns("bundle"), NULL, accept = ".rds", buttonLabel = "Fit bundle (.rds)", placeholder = "No file", width = "100%") |>
         tagAppendAttributes(class = "mb-0")
     )
@@ -111,7 +104,7 @@ mod_data_ui <- function(id) {
       div(
         class = "flex-grow-1",
         div(class = "fw-medium", label_of(cid)),
-        div(class = "small font-monospace text-body-secondary", paste(components[[cid]]$columns, collapse = ", "))
+        textOutput(ns(paste0("csv_columns_", cid))) |> tagAppendAttributes(class = "small font-monospace text-body-secondary")
       ),
       textOutput(ns(paste0("csv_file_", cid)), inline = TRUE) |> tagAppendAttributes(class = "small text-body-secondary"),
       fileInput(ns(paste0("csv_", cid)), NULL, accept = ".csv", buttonLabel = "Choose CSV", width = "15rem") |>
@@ -128,7 +121,7 @@ mod_data_ui <- function(id) {
     ),
     panel(
       "Workbook",
-      description = "An Excel workbook with a sheet for each model: density, size, weight, blade, wetdry, carbon, and optionally cover.",
+      description = sheets_description,
       action = uiOutput(ns("clear_ui"), inline = TRUE),
       div(
         class = "kb-dropzone d-flex flex-column align-items-center gap-3 text-center",
@@ -173,6 +166,7 @@ mod_data_server <- function(id, store) {
       if (!identical(input$species, store$species())) updateRadioButtons(session, "species", selected = store$species())
     })
 
+    # TODO: replace the notices below with the template and fit bundle once they are built.
     observeEvent(input$template, {
       store$notify(sprintf("Prototype: kelpbio-template-%s.xlsx is not generated.", species_info[[store$species()]]$suffix))
     })
@@ -188,6 +182,7 @@ mod_data_server <- function(id, store) {
     lapply(component_ids, function(cid) {
       observeEvent(input[[paste0("csv_", cid)]], store$load_csv(cid, input[[paste0("csv_", cid)]]$name))
       output[[paste0("csv_file_", cid)]] <- renderText(store$sheets()[[cid]]$file)
+      output[[paste0("csv_columns_", cid)]] <- renderText(paste(sheet_columns(cid, store$species()), collapse = ", "))
     })
 
     output$description <- renderUI({
@@ -195,13 +190,7 @@ mod_data_server <- function(id, store) {
       tagList(step_description("data"), " Species: ", species_phrase(sp, "."))
     })
 
-    # Dismissing lasts for the session, so Clear does not bring the card back.
-    welcome_dismissed <- reactiveVal(FALSE)
-    observeEvent(input$welcome_close, welcome_dismissed(TRUE))
-
-    output$welcome <- renderUI({
-      if (!loaded() && !welcome_dismissed()) welcome_card(session$ns)
-    })
+    output$welcome <- renderUI(if (!loaded()) welcome_card(session$ns))
 
     output$continue_ui <- renderUI({
       if (loaded()) button(session$ns("continue"), span("Continue to models ", lucide("arrow-right")))
@@ -269,38 +258,20 @@ mod_data_server <- function(id, store) {
   })
 }
 
-# Shown on the Data step until data are loaded: what the app does, its steps
-# and what a run needs.
+# Shown on the Data step until data are loaded: what the app does and its steps.
 welcome_card <- function(ns) {
   card(
     id = ns("welcome_card"),
     card_body(
       gap = "1.25rem",
       div(
-        class = "d-flex align-items-start justify-content-between gap-3",
-        div(
-          div(class = "kb-card-title", "Welcome to kelpbio"),
-          div(class = "text-body-secondary mt-1", app_purpose)
-        ),
-        # Bootstrap's close button, bound as a Shiny action button.
-        tags$button(id = ns("welcome_close"), type = "button", class = "btn-close action-button", `aria-label` = "Close")
+        div(class = "kb-card-title", "Welcome to kelpbio"),
+        div(class = "text-body-secondary mt-1", app_purpose)
       ),
       layout_column_wrap(
         width = "12rem",
         gap = "1rem",
         !!!lapply(names(steps), step_item)
-      ),
-      div(
-        class = "d-flex flex-column gap-1",
-        div(class = "kb-eyebrow text-body-secondary", "What you need"),
-        tags$ul(
-          class = "small text-body-secondary mb-0 ps-3",
-          tags$li(sprintf(
-            "A workbook with a sheet per model. The %s %s required; the others are optional. The template workbook in the sidebar has the sheets and columns.",
-            and_list(unname(required_sheets())), if (length(required_sheets()) > 1) "sheets are" else "sheet is"
-          )),
-          tags$li("A few minutes to fit the models.")
-        )
       ),
       div(
         class = "d-flex flex-wrap align-items-center gap-3",
@@ -311,8 +282,14 @@ welcome_card <- function(ns) {
   )
 }
 
+# The one description of the workbook's sheets; the columns are in the guide and
+# under the CSV uploads.
+sheets_description <- sprintf(
+  "An Excel workbook with one sheet per model, named after the model. The %s sheet is required; leave out the sheets you do not have. A cover sheet adds total biomass per site-year.",
+  and_list(unname(required_sheets()))
+)
+
 sheet_row <- function(sheet, source) {
-  validation <- sheet$validation
   tags$li(
     class = "d-flex flex-wrap align-items-center gap-3 border rounded-3 p-3",
     div(
@@ -337,16 +314,12 @@ sheet_row <- function(sheet, source) {
           tags$code(class = "small bg-body-tertiary text-body-secondary rounded px-2 py-1", column)
         })
       ),
-      if (!is.null(sheet$checks)) div(class = "small text-body-secondary", "Checked: ", sheet$checks),
+      if (!is.null(sheet$error)) div(class = "small text-danger-emphasis", sheet$error),
       if (!is.null(sheet$note)) {
         div(class = "small d-flex align-items-center gap-2 text-info-emphasis", lucide("info", "text-info"), sheet$note)
       }
     ),
-    switch(validation$level,
-      ok = success_badge(validation$message),
-      warning = warning_badge(validation$message),
-      badge(validation$message, "text-bg-danger", "x-circle")
-    )
+    if (is.null(sheet$error)) success_badge("Checks passed") else badge("Data error", "text-bg-danger", "x-circle")
   )
 }
 
@@ -354,14 +327,13 @@ sheet_row <- function(sheet, source) {
 # flag, each linking to its section.
 issues_summary <- function(ns, sheets, rows) {
   present <- sheets[component_ids[component_ids %in% names(sheets)]]
-  levels <- vapply(present, function(sheet) sheet$validation$level, "")
+  errors <- sum(!vapply(present, function(sheet) is.null(sheet$error), logical(1)))
   count <- function(n, one, many = paste0(one, "s")) sprintf("%d %s", n, if (n == 1) one else many)
   site_years <- function(n, what) paste(count(n, "site-year"), what)
   link <- function(text, target) tags$a(href = paste0("#", ns(target)), class = "link-body-emphasis", text)
   sheet_issues <- list(
     if (is.null(sheets$density)) "No density sheet",
-    if (any(levels == "error")) count(sum(levels == "error"), "sheet error"),
-    if (any(levels == "warning")) count(sum(levels == "warning"), "sheet warning")
+    if (errors > 0) count(errors, "sheet error")
   )
   coverage_counts <- c(
     "with site names that differ across sheets" = sum(rows$issue %in% "mismatch"),
@@ -380,12 +352,12 @@ issues_summary <- function(ns, sheets, rows) {
     return(div(
       class = "d-flex flex-wrap align-items-center gap-2 small border rounded-3 px-3 py-2 mb-3 bg-success-subtle border-success-subtle",
       lucide("check-circle-2", "text-success"), span(class = "fw-medium", "All sheets passed their checks"),
-      span(class = "text-body-secondary", "·"), recognised
+      span(class = "text-body-secondary", "\u00b7"), recognised
     ))
   }
   items <- c(list(recognised), issues)
   separated <- lapply(seq_along(items), function(i) {
-    tagList(if (i > 1) span(class = "text-body-secondary", `aria-hidden` = "true", "·"), items[[i]])
+    tagList(if (i > 1) span(class = "text-body-secondary", `aria-hidden` = "true", "\u00b7"), items[[i]])
   })
   div(
     class = "d-flex flex-wrap align-items-center gap-2 small border rounded-3 px-3 py-2 mb-3 bg-warning-subtle border-warning-subtle",
@@ -397,6 +369,7 @@ coverage_panel <- function(ns, sheets, sources, show_all) {
   cov <- coverage(sheets, sources)
   flagged <- sum(!is.na(cov$rows$note))
   visible <- if (show_all) nrow(cov$rows) else flagged
+  mismatches <- site_mismatches(sheets)
   panel(
     "Coverage",
     id = ns("coverage_card"),
@@ -406,14 +379,13 @@ coverage_panel <- function(ns, sheets, sources, show_all) {
       "Drone coverage marks site-years with a", with_help("canopy area", "canopy_area"), "where totals can be estimated."
     ),
     action = button(ns("toggle_all"), if (show_all) "Show gaps only" else "Show all site-years", variant = "ghost", size = "sm"),
-    notice(
-      "info", "Check site names and years across sheets",
-      paste(
-        "Review them carefully for inconsistencies, such as differences in capitalisation, spacing or spelling.",
-        "Names that do not match exactly are treated as different sites."
-      ),
-      tone = "muted"
-    ),
+    if (length(mismatches) > 0) {
+      notice(
+        "alert-triangle", "Site names differ across sheets",
+        sprintf("%s. Biomass cannot be estimated until they match. %s", and_list(sprintf("\"%s\"", mismatches)), mismatch_advice),
+        tone = "warning"
+      )
+    },
     if (visible == 0) {
       notice("check-circle-2", "Every site-year with density has size and weight data", tone = "muted")
     } else {

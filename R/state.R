@@ -5,84 +5,141 @@
 
 TICK_MS <- 200
 
-# Pure status logic, kept outside the store so it can be tested without a session.
-# waiting_on: the upstream models (upstream_of()) that are not ready yet; fit:
-# the model's kelpbio fit once it is fitted; dismissed: the warnings dismissed
-# for that fit ("convergence", "sensitivity").
-component_status <- function(id, source, sheet, fit_status, waiting_on = character(), fit = NULL, dismissed = character()) {
+# Fit records -------------------------------------------------------------------
+# Each model's fit to your data is a record: its status ("idle", "queued",
+# "fitting", "fitted" or "failed"), the kelpbio fit once fitted, and the error
+# message once failed. The transitions below are pure, so they can be tested
+# without a session.
+
+new_record <- function(status = "idle", fit = NULL, error = NULL) list(status = status, fit = fit, error = error)
+
+idle_records <- function() lapply(component_ids, function(id) new_record())
+
+record_status <- function(records) vapply(records, `[[`, "", "status")
+
+# A change to a model in biomass per unit area makes the cover fit, which is
+# fitted to the biomass predictions, out of date. A queued cover fit stays queued:
+# it runs after the biomass models.
+invalidate_cover <- function(records, ids) {
+  if (any(ids %in% biomass_ids) && records$cover$status %in% c("fitting", "fitted", "failed")) {
+    records$cover <- new_record()
+  }
+  records
+}
+
+queue_records <- function(records, ids) {
+  records <- invalidate_cover(records, ids)
+  records[ids] <- list(new_record("queued"))
+  records
+}
+
+reset_records <- function(records, ids) {
+  records <- invalidate_cover(records, ids)
+  records[ids] <- list(new_record())
+  records
+}
+
+cancel_records <- function(records) {
+  pending <- names(records)[record_status(records) %in% c("queued", "fitting")]
+  records[pending] <- list(new_record())
+  records
+}
+
+start_record <- function(records, id) {
+  records[[id]] <- new_record("fitting")
+  records
+}
+
+# A result applies only while its record is still fitting: a fit that was
+# cancelled or reset in the meantime is discarded.
+finish_record <- function(records, id, fit) {
+  if (records[[id]]$status == "fitting") records[[id]] <- new_record("fitted", fit = fit)
+  records
+}
+
+fail_record <- function(records, id, message) {
+  if (records[[id]]$status %in% c("queued", "fitting")) records[[id]] <- new_record("failed", error = message)
+  records
+}
+
+# Fits run one at a time in model order, so the cover fit comes last.
+next_queued <- function(records) {
+  queued <- names(records)[record_status(records) == "queued"]
+  if (length(queued) > 0) queued[[1]]
+}
+
+fitting_id <- function(records) {
+  fitting <- names(records)[record_status(records) == "fitting"]
+  if (length(fitting) > 0) fitting[[1]]
+}
+
+# Statuses ----------------------------------------------------------------------
+# What the app shows for each model, from its source, sheet, fit record and, for
+# a pre-fit source, the pre-fit model (list(fit, error)). Kinds: "not-used",
+# "no-data", "data-error", "not-fitted", "queued", "fitting", "ready" (pre-fit,
+# or fitted; `warning` when the fit did not converge) and "failed".
+component_status <- function(source, sheet, record, prefit = NULL, cover_blocked = FALSE) {
   if (source == "none") {
-    return(list(kind = "not-used"))
+    return(list(kind = "not-used", source = source))
   }
   if (is_prefit(source)) {
-    return(list(kind = "ready"))
+    if (!is.null(prefit$error)) {
+      return(list(kind = "failed", source = source, message = prefit$error))
+    }
+    return(list(kind = "ready", source = source, warning = FALSE))
   }
   if (is.null(sheet)) {
-    return(list(kind = "no-data"))
+    return(list(kind = "no-data", source = source))
   }
-  if (fit_status %in% c("idle", "queued") && length(waiting_on) > 0) {
-    return(list(kind = "waiting", on = waiting_on, queued = fit_status == "queued"))
+  if (!is.null(sheet$error)) {
+    return(list(kind = "data-error", source = source, message = sheet$error))
   }
-  switch(fit_status,
-    queued = list(kind = "queued"),
-    fitting = list(kind = "fitting"),
-    fitted = list(kind = "fitted", converged = is_converged(fit), dismissed = dismissed),
-    list(kind = "data-ok", warning = sheet$validation$level == "warning")
+  switch(record$status,
+    queued = list(kind = "queued", source = source),
+    fitting = list(kind = "fitting", source = source),
+    fitted = list(kind = "ready", source = source, warning = !converged(record$fit)),
+    failed = list(kind = "failed", source = source, message = record$error),
+    list(kind = "not-fitted", source = source, blocked = cover_blocked)
   )
 }
 
-is_ready_status <- function(status) status$kind %in% c("ready", "fitted", "not-used")
+is_ready_status <- function(status) status$kind %in% c("ready", "not-used")
+is_pending_status <- function(status) status$kind %in% c("queued", "fitting")
+has_warning <- function(status) isTRUE(status$warning)
 
-# Statuses in component order; upstream models come first, so each model's
-# waiting list can be read from the statuses already worked out.
-component_statuses <- function(sources, sheets, fit_status, fits = list(), dismissed = list()) {
-  statuses <- list()
-  for (id in component_ids) {
-    upstream <- upstream_of(id, sources)
-    waiting_on <- upstream[!vapply(statuses[upstream], is_ready_status, logical(1))]
-    statuses[[id]] <- component_status(
-      id, sources[[id]], sheets[[id]], fit_status[[id]], waiting_on, fits[[id]], dismissed[[id]] %||% character()
-    )
-  }
-  statuses
+# The biomass models first; the cover model can be fitted once they are ready.
+component_statuses <- function(sources, sheets, records, prefits = list()) {
+  statuses <- lapply(biomass_ids, function(id) component_status(sources[[id]], sheets[[id]], records[[id]], prefits[[id]]))
+  ready <- all(vapply(statuses, is_ready_status, logical(1)))
+  c(statuses, list(cover = component_status(sources[["cover"]], sheets$cover, records$cover, cover_blocked = !ready)))
 }
 
-is_pending <- function(status) {
-  status$kind %in% c("queued", "fitting") || (status$kind == "waiting" && status$queued)
+# A model fitted to your data can be fitted now: it has checked data and, for the
+# cover model, the biomass models are ready.
+can_fit <- function(status) {
+  status$source == "user" && (status$kind %in% c("failed", "ready") || (status$kind == "not-fitted" && !status$blocked))
 }
 
-# A model can be queued when it has data and everything it waits on can be
-# fitted or is already queued or fitting.
-is_queueable <- function(id, statuses) {
-  status <- statuses[[id]]
-  if (status$kind == "data-ok") {
-    return(TRUE)
-  }
-  if (status$kind != "waiting" || status$queued) {
-    return(FALSE)
-  }
-  all(vapply(status$on, function(up) is_pending(statuses[[up]]) || is_queueable(up, statuses), logical(1)))
-}
-
-# The models to queue for ids: each with the upstream models it still needs.
-with_upstream <- function(ids, statuses) {
-  expand <- function(id) {
+# The models Fit all queues: those not yet fitted or failed, less those with an
+# invalid setting (`skipped`). The cover model joins when every biomass model is
+# ready, already pending, or in the same batch.
+fit_all_plan <- function(statuses, invalid = character()) {
+  candidates <- Filter(function(id) {
     status <- statuses[[id]]
-    upstream <- if (status$kind == "waiting") Filter(function(up) is_queueable(up, statuses), status$on) else character()
-    c(unlist(lapply(upstream, expand)), id)
+    status$source == "user" && status$kind %in% c("not-fitted", "failed")
+  }, component_ids)
+  skipped <- intersect(candidates, invalid)
+  ids <- setdiff(candidates, invalid)
+  if ("cover" %in% ids) {
+    on_track <- function(id) is_ready_status(statuses[[id]]) || is_pending_status(statuses[[id]]) || id %in% ids
+    if (!all(vapply(biomass_ids, on_track, logical(1)))) ids <- setdiff(ids, "cover")
   }
-  needed <- unlist(lapply(ids, expand))
-  unname(component_ids[component_ids %in% needed])
-}
-
-# Models whose fit uses id's fit, directly or through another model.
-downstream_of <- function(id, sources) {
-  direct <- component_ids[vapply(component_ids, function(other) id %in% upstream_of(other, sources), logical(1))]
-  unique(c(direct, unlist(lapply(direct, downstream_of, sources = sources))))
+  list(ids = unname(ids), skipped = unname(skipped))
 }
 
 # Totals need a fitted biomass:cover model; the reason is shown when they are unavailable.
 total_availability <- function(sources, sheets, status) {
-  if (status$kind == "fitted") {
+  if (status$kind == "ready") {
     return(list(available = TRUE))
   }
   reason <- if (is.null(sheets$cover)) {
@@ -115,9 +172,52 @@ output_availability <- function(sources) {
   )
 }
 
-new_store <- function(session) {
+# The kb_fit_*() call for a model fitted to your data, as list(fn, args). The
+# Nereocystis weight model takes the observed stipe density of each site-year
+# from the density data, when there are any; cover takes biomass per unit area.
+fit_call <- function(id, species, sheets, priors, sampler, progress_dir, biomass = NULL) {
+  data <- sheets[[id]]$rows
+  if (id == "weight" && species == "nereo" && !is.null(sheets$density)) {
+    data <- kb_add_stipes_m2(data, sheets$density$rows)
+  }
+  args <- list(
+    data = data, priors = prior_list(priors),
+    chains = sampler$chains, niters = sampler$niters, nthin = sampler$nthin,
+    progress = "none", progress_dir = progress_dir
+  )
+  if (id == "cover") args$biomass <- biomass
+  list(fn = kelpbio_fn("fit", id, species), args = args)
+}
+
+# Fit runners -------------------------------------------------------------------
+# A runner runs one kb_fit_*() call at a time in the background: invoke(fn, args)
+# starts it, status() is "initial", "running", "success" or "error", result() is
+# list(fit) or list(error), and cancel() stops it. The default runs each fit on a
+# mirai daemon (started in inst/app/global.R) through an ExtendedTask; the daemon
+# loads the installed kelpbioshiny namespace to run the mock fits. Tests pass a
+# runner that runs in the session.
+mirai_fit_runner <- function() {
+  current <- NULL
+  task <- ExtendedTask$new(function(fn, args) {
+    current <<- mirai::mirai(
+      tryCatch(list(fit = do.call(fn, args)), error = function(e) list(error = conditionMessage(e))),
+      .args = list(fn = fn, args = args)
+    )
+    current
+  })
+  list(
+    invoke = function(fn, args) task$invoke(fn, args),
+    status = function() task$status(),
+    result = function() task$result(),
+    cancel = function() if (!is.null(current)) mirai::stop_mirai(current)
+  )
+}
+
+# The store ---------------------------------------------------------------------
+
+new_store <- function(session, run_fit = mirai_fit_runner) {
   s <- new.env()
-  idle <- stats::setNames(rep("idle", length(component_ids)), component_ids)
+  runner <- run_fit()
 
   s$session <- session
   s$species <- reactiveVal("nereo")
@@ -126,42 +226,44 @@ new_store <- function(session) {
   s$sources <- reactiveVal(default_sources(list()))
   s$priors <- reactiveVal(lapply(component_ids, default_priors, species = "nereo"))
   s$samplers <- reactiveVal(lapply(component_ids, function(id) default_sampler()))
-  s$fit_status <- reactiveVal(idle)
-  # The kelpbio fit objects of the models fitted to your data, by model id.
-  s$fits <- reactiveVal(list())
-  # The warnings dismissed for each model's current fit, by model id; cleared
-  # whenever the model's fit changes.
-  s$dismissed <- reactiveVal(list())
+  s$records <- reactiveVal(idle_records())
+  # The completed share of the running fit, in percent.
   s$progress <- reactiveVal(0)
-  s$queue <- reactiveVal(character())
-  s$fitting <- reactiveVal(NULL)
-  s$biomass_viewed <- reactiveVal(FALSE)
-  s$exported <- reactiveVal(FALSE)
   s$open <- reactiveVal("hub")
   s$tab_request <- reactiveVal(NULL)
 
+  # Pre-fit models, loaded once per model, species and reference; a load that
+  # fails gives its error message.
+  prefits <- new.env()
+  s$prefit <- function(id) {
+    source <- s$sources()[[id]]
+    key <- paste(id, s$species(), source)
+    if (is.null(prefits[[key]])) {
+      prefits[[key]] <- tryCatch(
+        list(fit = kelpbio_fn("prefit", id, s$species())(reference = prefit_reference(source))),
+        error = function(e) list(error = conditionMessage(e))
+      )
+    }
+    prefits[[key]]
+  }
+
   # Derived state --------------------------------------------------------------
 
-  s$statuses <- reactive(component_statuses(s$sources(), s$sheets(), s$fit_status(), s$fits(), s$dismissed()))
-  s$is_dismissed <- function(id, type) type %in% s$dismissed()[[id]]
+  s$statuses <- reactive({
+    sources <- s$sources()
+    prefit_ids <- Filter(function(id) is_prefit(sources[[id]]), component_ids)
+    component_statuses(sources, s$sheets(), s$records(), lapply(prefit_ids, s$prefit))
+  })
+  s$fitting <- reactive(fitting_id(s$records()))
 
   # The fit a model contributes: its pre-fit model, or its fit to your data once
   # fitted; NULL otherwise.
-  prefits <- new.env()
-  prefit <- function(id, species, reference) {
-    key <- paste(id, species, reference)
-    if (is.null(prefits[[key]])) prefits[[key]] <- kelpbio_fn("prefit", id, species)(reference = reference)
-    prefits[[key]]
-  }
   s$fit_of <- function(id) {
     source <- s$sources()[[id]]
     if (is_prefit(source)) {
-      return(prefit(id, s$species(), prefit_reference(source)))
+      return(s$prefit(id)$fit)
     }
-    if (source == "user" && s$fit_status()[[id]] == "fitted") {
-      return(s$fits()[[id]])
-    }
-    NULL
+    if (source == "user") s$records()[[id]]$fit
   }
 
   # Biomass per unit area by site-year, and totals from the biomass:cover model.
@@ -173,16 +275,27 @@ new_store <- function(session) {
     )
   }
   s$biomass_total <- function(type) kb_predict_biomass_total(s$fit_of("cover"), s$biomass(type))
-  s$fittable <- reactive({
-    statuses <- s$statuses()
-    component_ids[vapply(component_ids, is_queueable, logical(1), statuses = statuses)]
+
+  # Invalid prior and sampler settings, by model: list(priors, sampler), each a
+  # named character vector of error messages.
+  s$setting_errors <- reactive({
+    priors <- s$priors()
+    samplers <- s$samplers()
+    lapply(component_ids, function(id) list(priors = prior_errors(priors[[id]]), sampler = sampler_errors(samplers[[id]])))
   })
+  s$invalid <- reactive({
+    errors <- s$setting_errors()
+    component_ids[vapply(errors, function(e) length(e$priors) + length(e$sampler) > 0, logical(1))]
+  })
+  s$fit_plan <- reactive(fit_all_plan(s$statuses(), s$invalid()))
+
+  s$has_density <- reactive(!is.null(s$sheets()$density))
+  s$mismatches <- reactive(site_mismatches(s$sheets()))
   # The cover model is optional: biomass per unit area does not wait for it.
   s$blocking <- reactive(biomass_ids[!vapply(s$statuses()[biomass_ids], is_ready_status, logical(1))])
-  s$biomass_ready <- reactive(length(s$blocking()) == 0)
+  s$biomass_ready <- reactive(length(s$blocking()) == 0 && length(s$mismatches()) == 0)
   s$outputs <- reactive(output_availability(s$sources()))
   s$totals <- reactive(total_availability(s$sources(), s$sheets(), s$statuses()$cover))
-  s$has_density <- reactive(!is.null(s$sheets()$density))
 
   # Actions ----------------------------------------------------------------------
 
@@ -191,80 +304,61 @@ new_store <- function(session) {
     showNotification(ui, action = action, type = type, duration = duration, id = id, session = session)
   }
 
-  # A model's dismissals apply to one fit, so any change of fit state clears them.
-  clear_dismissed <- function(ids) {
-    dismissed <- isolate(s$dismissed())
-    if (any(ids %in% names(dismissed))) s$dismissed(dismissed[setdiff(names(dismissed), ids)])
-  }
-
-  patch_status <- function(ids, value) {
-    clear_dismissed(ids)
-    current <- isolate(s$fit_status())
-    current[ids] <- value
-    s$fit_status(current)
-  }
-
-  s$dismiss <- function(id, type) {
-    dismissed <- isolate(s$dismissed())
-    dismissed[[id]] <- union(dismissed[[id]], type)
-    s$dismissed(dismissed)
-  }
-
-  # The fit that is sampling: its model, progress directory and kelpbio fit.
+  # The fit that is running: its model and progress directory.
   running <- NULL
-  stop_running <- function() {
-    if (!is.null(running)) unlink(running$dir, recursive = TRUE)
+  stop_running <- function(cancel = FALSE) {
+    if (!is.null(running)) {
+      if (cancel) runner$cancel()
+      unlink(running$dir, recursive = TRUE)
+    }
     running <<- NULL
-    s$fitting(NULL)
+    s$progress(0)
   }
 
-  reset_all_fits <- function() {
-    s$queue(character())
-    stop_running()
-    s$fit_status(idle)
-    s$dismissed(list())
-    s$biomass_viewed(FALSE)
+  # Every change of fit records goes through here, so a reset of the running
+  # model also stops its fit.
+  set_records <- function(records) {
+    s$records(records)
+    if (!is.null(running) && records[[running$id]]$status != "fitting") stop_running(cancel = TRUE)
   }
+  update_records <- function(transition, ...) set_records(transition(isolate(s$records()), ...))
 
-  # A refit makes the fits built on it out of date.
-  stale_downstream <- function(ids) {
-    fits <- isolate(s$fit_status())
-    stale <- unique(unlist(lapply(ids, downstream_of, sources = isolate(s$sources()))))
-    stale[fits[stale] == "fitted"]
-  }
-
-  reset_fit <- function(id) {
-    s$queue(setdiff(isolate(s$queue()), id))
-    if (identical(isolate(s$fitting()), id)) stop_running()
-    patch_status(c(id, stale_downstream(id)), "idle")
-    s$biomass_viewed(FALSE)
-  }
+  s$reset_fit <- function(id) update_records(reset_records, id)
 
   apply_sheets <- function(sheets, file) {
-    reset_all_fits()
+    update_records(function(records) idle_records())
     s$sheets(sheets)
     s$workbook(file)
     s$sources(default_sources(sheets))
   }
 
+  # Prototype: every upload loads the example workbook, from kb_example_data().
+  example_sheets <- function(file) {
+    species <- isolate(s$species())
+    rows <- kb_example_data(species)
+    lapply(stats::setNames(nm = names(rows)), function(id) new_sheet(id, rows[[id]], file, species))
+  }
+
   s$load_example <- function() {
-    sheets <- lapply(
-      stats::setNames(nm = example_workbook_sheets), example_sheet,
-      file = example_workbook, species = isolate(s$species())
-    )
-    apply_sheets(sheets, example_workbook)
+    file <- sprintf("example-%s.xlsx", isolate(s$species()))
+    apply_sheets(example_sheets(file), file)
   }
 
   s$load_workbook <- function(file) {
-    s$load_example()
-    s$workbook(file)
+    apply_sheets(example_sheets(file), file)
     s$notify("Prototype: the example workbook was loaded in place of your file.")
   }
 
+  # Prototype: a CSV loads the example sheet for its model, where there is one.
   s$load_csv <- function(id, file) {
-    reset_fit(id)
+    rows <- kb_example_data(isolate(s$species()))[[id]]
+    if (is.null(rows)) {
+      s$notify(sprintf("Prototype: there are no example %s rows to load.", lower_label(id)))
+      return()
+    }
+    s$reset_fit(id)
     sheets <- isolate(s$sheets())
-    sheets[[id]] <- example_sheet(id, file, isolate(s$species()))
+    sheets[[id]] <- new_sheet(id, rows, file, isolate(s$species()))
     s$sheets(sheets)
     sources <- isolate(s$sources())
     sources[[id]] <- "user"
@@ -274,13 +368,15 @@ new_store <- function(session) {
 
   s$clear_data <- function() apply_sheets(list(), NULL)
 
+  # The data checks depend on the species, so a species change checks the sheets again.
   s$set_species <- function(value) {
     if (identical(value, isolate(s$species()))) {
       return()
     }
     s$species(value)
     s$priors(lapply(component_ids, default_priors, species = value))
-    reset_all_fits()
+    update_records(function(records) idle_records())
+    s$sheets(lapply(isolate(s$sheets()), function(sheet) new_sheet(sheet$component, sheet$rows, sheet$file, value)))
   }
 
   s$set_source <- function(id, value) {
@@ -288,15 +384,17 @@ new_store <- function(session) {
     if (identical(sources[[id]], value)) {
       return()
     }
-    reset_fit(id)
+    s$reset_fit(id)
     sources[[id]] <- value
     s$sources(sources)
   }
 
+  # Edits are stored as typed, invalid ones included, so the editor can show
+  # kelpbio's message for them; an invalid setting blocks fitting.
   s$update_prior <- function(id, name, field, value) {
     priors <- isolate(s$priors())
     row <- priors[[id]]$name == name
-    if (is.null(value) || is.na(value) || identical(priors[[id]][row, field], value)) {
+    if (is.null(value) || identical(priors[[id]][row, field], value)) {
       return()
     }
     priors[[id]][row, field] <- value
@@ -311,30 +409,22 @@ new_store <- function(session) {
 
   s$update_sampler <- function(id, field, value) {
     samplers <- isolate(s$samplers())
-    if (is.null(value) || is.na(value) || identical(samplers[[id]][[field]], value)) {
+    if (is.null(value) || identical(samplers[[id]][[field]], value)) {
       return()
     }
     samplers[[id]][[field]] <- value
     s$samplers(samplers)
   }
 
-  # Queues ids together with the upstream models they still need, and refits
-  # the fitted models built on them.
   s$queue_fits <- function(ids) {
-    if (length(ids) == 0) {
-      return()
-    }
-    ids <- with_upstream(ids, isolate(s$statuses()))
-    ids <- component_ids[component_ids %in% c(ids, stale_downstream(ids))]
-    patch_status(ids, "queued")
-    s$queue(union(isolate(s$queue()), ids))
+    ids <- setdiff(ids, isolate(s$invalid()))
+    if (length(ids) > 0) update_records(queue_records, ids)
   }
 
+  s$fit_all <- function() s$queue_fits(isolate(s$fit_plan())$ids)
+
   s$cancel_fits <- function() {
-    fits <- isolate(s$fit_status())
-    patch_status(names(fits)[fits %in% c("queued", "fitting")], "idle")
-    s$queue(character())
-    stop_running()
+    update_records(cancel_records)
     s$notify("Fits cancelled.")
   }
 
@@ -378,99 +468,95 @@ new_store <- function(session) {
     }
   })
 
-  observe({
-    if (identical(session$input$step, "biomass") && s$biomass_ready()) s$biomass_viewed(TRUE)
-  })
-
   # Fit queue ------------------------------------------------------------------
-  # Fits run one at a time, polled by a reactive timer that lives in the session,
-  # so they continue whichever step is shown. Each fit calls its kb_fit_*() with a
-  # progress_dir that kb_fit_progress() reads on every tick. The mock fits return
-  # at once and simulate sampling time through kb_fit_progress(); the real app
-  # would run kb_fit_*() as an ExtendedTask backed by mirai and take the fit when
-  # the task completes.
+  # Fits run one at a time in the background, so the session stays responsive
+  # and fits continue whichever step is shown. The next queued fit starts once
+  # the runner is free; a fit whose call cannot be built (e.g. the cover model
+  # without biomass) fails at once.
 
-  start_fit <- function(id) {
-    species <- s$species()
-    sampler <- s$samplers()[[id]]
+  start_next <- function(id) {
     progress_dir <- tempfile("kb-fit-")
     dir.create(progress_dir)
-    args <- list(
-      s$sheets()[[id]]$rows, prior_list(s$priors()[[id]]),
-      chains = sampler$chains, niters = sampler$iterations, nthin = sampler$thin,
-      progress = "none", progress_dir = progress_dir
+    call <- tryCatch(
+      {
+        if (id == "cover" && !s$biomass_ready()) {
+          stop("Biomass per unit area is not available: every other model in use must be ready first.", call. = FALSE)
+        }
+        fit_call(
+          id, s$species(), s$sheets(), s$priors()[[id]], s$samplers()[[id]], progress_dir,
+          biomass = if (id == "cover") s$biomass("wet")
+        )
+      },
+      error = function(e) e
     )
-    # The biomass:cover model is fitted to the plots' biomass per unit area.
-    if (id == "cover") args$biomass <- s$biomass("wet")
-    list(id = id, dir = progress_dir, fit = do.call(kelpbio_fn("fit", id, species), args))
-  }
-
-  skip_tick <- FALSE
-
-  observe({
-    if (!is.null(s$fitting()) || length(s$queue()) == 0) {
+    set_records(start_record(s$records(), id))
+    if (inherits(call, "error")) {
+      unlink(progress_dir, recursive = TRUE)
+      fit_failed(id, conditionMessage(call))
       return()
     }
-    # The next fit is the first queued model that is not waiting on another.
+    running <<- list(id = id, dir = progress_dir)
+    s$progress(0)
+    runner$invoke(call$fn, call$args)
+  }
+
+  fit_failed <- function(id, message) {
+    set_records(fail_record(s$records(), id, message))
+    s$notify(message, type = "error", title = sprintf("%s model failed", label_of(id)), duration = 10)
+  }
+
+  fit_done <- function(id, fit) {
+    set_records(finish_record(s$records(), id, fit))
+    if (converged(fit)) {
+      s$notify("All parameters converged.", title = sprintf("%s model fitted", label_of(id)))
+      return()
+    }
+    s$notify(
+      convergence_advice,
+      type = "warning",
+      title = sprintf("%s model fitted with a convergence warning", label_of(id)),
+      action = div(
+        class = "mt-2",
+        actionButton(paste0("toast_settings_", id), "Open sampler settings", class = "btn-primary btn-sm")
+      ),
+      duration = 10,
+      id = paste0("convergence_", id)
+    )
+  }
+
+  observe({
+    records <- s$records()
+    if (!is.null(running) || runner$status() == "running") {
+      return()
+    }
+    id <- next_queued(records)
+    if (!is.null(id)) isolate(start_next(id))
+  })
+
+  # A cancelled fit settles as an error after running was cleared, so only the
+  # running fit's result is used.
+  observe({
+    status <- runner$status()
+    if (is.null(running) || !status %in% c("success", "error")) {
+      return()
+    }
     isolate({
-      queue <- s$queue()
-      statuses <- s$statuses()
-      runnable <- queue[vapply(statuses[queue], function(x) x$kind == "queued", logical(1))]
-      if (length(runnable) == 0) {
-        # What is left waits on models that are no longer queued, e.g. after a source change.
-        patch_status(queue, "idle")
-        s$queue(character())
-        s$notify(sprintf("Not fitted: %s. The models it needs are no longer queued.", paste(vapply(queue, lower_label, ""), collapse = ", ")))
-        return()
-      }
-      s$queue(setdiff(queue, runnable[1]))
-      running <<- start_fit(runnable[1])
-      s$fitting(runnable[1])
-      patch_status(runnable[1], "fitting")
-      s$progress(0)
-      skip_tick <<- TRUE
+      id <- running$id
+      result <- tryCatch(runner$result(), error = function(e) list(error = conditionMessage(e)))
+      stop_running()
+      if (is.null(result$error)) fit_done(id, result$fit) else fit_failed(id, result$error)
     })
   })
 
   observe({
-    id <- s$fitting()
-    if (is.null(id)) {
+    if (is.null(s$fitting())) {
       return()
     }
     invalidateLater(TICK_MS)
-    isolate({
-      if (skip_tick) {
-        skip_tick <<- FALSE
-        return()
-      }
-      progress <- kb_fit_progress(running$dir)
-      s$progress(100 * progress)
-      if (progress < 1) {
-        return()
-      }
-      fit <- running$fit
-      fits <- s$fits()
-      fits[[id]] <- fit
-      s$fits(fits)
-      patch_status(id, "fitted")
-      stop_running()
-      if (is_converged(fit)) {
-        s$notify("All parameters converged.", title = sprintf("%s model fitted", label_of(id)))
-      } else {
-        s$notify(
-          convergence_advice,
-          type = "warning",
-          title = sprintf("%s model fitted with a convergence warning", label_of(id)),
-          action = div(
-            class = "mt-2",
-            actionButton(paste0("toast_settings_", id), "Open sampler settings", class = "btn-primary btn-sm")
-          ),
-          duration = 10,
-          id = paste0("convergence_", id)
-        )
-      }
-    })
+    if (!is.null(running)) s$progress(100 * kb_fit_progress(running$dir))
   })
+
+  session$onSessionEnded(function() stop_running(cancel = TRUE))
 
   s
 }

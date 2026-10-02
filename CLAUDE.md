@@ -24,22 +24,23 @@ The build runs are also Positron/VS Code tasks ("kelpbioshiny: build", "kelpbios
 | `R/mod_<step>.R` | One module per step: `mod_<step>_ui(id)` / `mod_<step>_server(id, store)` (`data`, `models`, `biomass`, `export`); `mod_model.R` is the per-model detail page |
 | `R/mod_help.R` | The Help tab: `help_ui()` holds two pills, `help_guide_ui()` (User guide, built from the app's definitions) and `help_about_ui()` (with the citations) |
 | `R/steps.R` | `app_purpose` and `app_steps`: the app's one-line purpose, and the step names and one-line descriptions |
-| `R/state.R` | `new_store()`: the per-session store of reactive state and actions, plus the pure status logic |
-| `R/data.R` | Model definitions, labels, thresholds, example workbook (read from `inst/extdata/`) |
-| `R/theme.R` | `bs_theme()` palettes and the reactable theme |
-| `R/functions-ui.R`, `R/help.R`, `R/icons.R`, `R/kelp-art.R` | UI building blocks, help popovers, Lucide icons, brand drawings |
-| `R/mock-kelpbio.R` | Mocks of the kelpbio functions the app calls (see below) |
+| `R/state.R` | `new_store()`: the per-session store of reactive state and actions, the fit queue and its runner, plus the pure fit-record transitions and status logic |
+| `R/data.R` | Model definitions, labels, sheets, prior and sampler settings |
+| `R/theme.R` | The Hakai `bs_theme()` and the reactable theme |
+| `R/functions-ui.R`, `R/help.R`, `R/icons.R` | UI building blocks, help popovers, Lucide icons |
+| `R/mock-kelpbio.R`, `R/mock-example.R` | Mocks of the kelpbio functions the app calls, and the example data (see below) |
 | `R/namespace.R` | `@import` / `@importFrom` directives |
-| `inst/app/` | `ui.R`, `server.R` (call the internals) and `www/` (CSS, logo, favicon) |
-| `inst/extdata/` | Fake JSON: the example workbook sheets and the mocks' results |
+| `inst/app/` | `ui.R`, `server.R` (call the internals), `global.R` (starts the mirai daemons that run the fits) and `www/` (CSS, logo, favicon) |
+| `inst/extdata/` | Fake JSON: the example data and the mocks' results |
 | `inst/CITATION` | The app's citation, shown on the About page |
 | `app.R` | Deployment entry point (`load_all()` + `run_app()`), build-ignored |
 
 ## Key Rules
 
-- **The app computes no numbers and draws no custom figures.** Every estimate, table and figure comes from an unqualified `kb_*()` call or a kelpbio generic (`tidy()`, `glance()`, `summary()`, `converged()`); the app only labels, arranges and formats. `test-mock-kelpbio.R` checks that app code calls no summary or distribution functions.
-- **Mocks live only in `R/mock-kelpbio.R`.** Each is marked Exists (matches kelpbio's signature) or Planned. kelpbio is not yet in Imports. To switch a function to the real one: delete its mock, add kelpbio to Imports in `DESCRIPTION` (once), and add `@importFrom kelpbio <fun>` to `R/namespace.R`. The mocks' `kb_fit` methods for `tidy`/`glance`/`augment`/`rhat`/`esr`/`converged`/`summary` are registered with `@exportS3Method`; delete them once kelpbio is imported, since kelpbio provides them.
-- **Styling** comes from the theme: Bootstrap Sass variables in `bs_theme()` and bslib components. Custom CSS (`inst/app/www/styles.css`) targets only `.kb-*` classes and reads colours from `var(--bs-*)`; it never targets Bootstrap, bslib, Shiny or reactable internals. No custom JavaScript files; the one script is the one-line inline `onclick` on the About page's citation Copy buttons.
+- **The app computes no numbers and draws no custom figures.** Every estimate, table and figure comes from an unqualified `kb_*()` call or a kelpbio generic (`tidy()`, `glance()`, `summary()`, `converged()`); the app only labels, arranges and formats. `test-mock-kelpbio.R` scans the installed namespace with codetools to check that app code calls no summary or distribution functions.
+- **Fits run in the background.** Each `kb_fit_*()` call runs on a mirai daemon through one `ExtendedTask` per session; the store polls `kb_fit_progress()` while it runs. The runner is injectable (`new_store(session, run_fit =)`), so tests run fits in the session.
+- **Mocks live only in `R/mock-kelpbio.R` and `R/mock-example.R`.** App code calls no mock internals and reads fake data only through `kb_example_data()`. Each mock is marked Exists (matches kelpbio's signature and checks), Exists in the working tree (in an unmerged kelpbio change) or Planned. kelpbio is not yet in Imports. To switch a function to the real one: delete its mock, add kelpbio to Imports in `DESCRIPTION` (once), and add `@importFrom kelpbio <fun>` to `R/namespace.R`. The mocks' `kb_fit` methods for `tidy`/`augment`/`converged` are registered with `@exportS3Method`; delete them once kelpbio is imported, since kelpbio provides them.
+- **Styling** comes from the Hakai theme: Bootstrap Sass variables in `bs_theme()` and bslib components. Custom CSS (`inst/app/www/styles.css`) targets only `.kb-*` classes and reads colours from `var(--bs-*)`; it never targets Bootstrap, bslib, Shiny or reactable internals. No custom JavaScript files; the one script is the one-line inline `onclick` on the About page's citation Copy buttons.
 - **No `library()` calls**; shiny and bslib are imported whole, everything else via `@importFrom` or `pkg::fun()`. Internal functions carry plain comments, not roxygen (no Rd).
 - R code is ASCII only: write non-ASCII characters as `\u` escapes.
 
@@ -58,7 +59,7 @@ The build runs are also Positron/VS Code tasks ("kelpbioshiny: build", "kelpbios
 Test at the lowest level that can see the behaviour (from shinyssdtools' `CLAUDE-TESTING.md`):
 
 1. **Unit tests** for pure functions (status logic, labels, coverage, export script).
-2. **`testServer()`** for reactive logic (`test-server-<module>.R`): drive inputs with `session$setInputs()`, advance the fit queue's timers with `session$elapse()`, and read the store and reactives directly. Never add `exportTestValues()` or test-only outputs to app code.
+2. **`testServer()`** for reactive logic (`test-state.R`, `test-server-<module>.R`): drive inputs with `session$setInputs()`, stub the fits with `local_stub_fits()`, run the queue with `finish_fits()`, and read the store and reactives directly. Never add `exportTestValues()` or test-only outputs to app code.
 3. **shinytest2 `AppDriver`** (`test-shinytest2-*.R`) only for what needs a browser: DOM rendering, uploads, downloads. These tests run the installed app (`system.file("app")`), so install first; they `skip_on_cran()` and use no screenshot snapshots.
 
-testthat runs tests with the package namespace as parent, so internals are available without `:::`. Shared helpers are in `tests/testthat/helpers.R` (`store_app()`, `fit_ms()`, `create_workflow_app()`, `wait_for_data()`).
+testthat runs tests with the package namespace as parent, so internals are available without `:::`. Shared helpers are in `tests/testthat/helpers.R` (`store_app()`, `create_workflow_app()`, `wait_for_data()`) and `tests/testthat/helper-fits.R` (`local_stub_fits()`, `test_runner()`, `finish_fits()`).

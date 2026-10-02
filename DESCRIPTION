@@ -22,6 +22,7 @@ Imports:
     ggplot2,
     htmltools,
     jsonlite,
+    mirai,
     reactable,
     rlang,
     scales,
@@ -32,6 +33,7 @@ Imports:
     utils,
     withr
 Suggests:
+    codetools,
     pkgload,
     shinytest2,
     testthat (>= 3.0.0)

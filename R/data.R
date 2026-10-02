@@ -1,6 +1,5 @@
-# Workflow definitions and the example workbook. Every model result comes from
-# kelpbio functions (mocked in R/mock-kelpbio.R); this file holds the app's
-# labels, choices and thresholds.
+# Workflow definitions. Every model result comes from kelpbio functions (mocked in
+# R/mock-kelpbio.R); this file holds the app's labels and choices.
 
 # Pre-fit models, by the reference dataset they were fitted to. A model's pre-fit
 # source is "prefit_" and the reference, e.g. "prefit_hakai"; the reference is
@@ -20,47 +19,54 @@ names(component_ids) <- component_ids
 
 # A model's sources: "user" (your data), its pre-fit sources, and "none" (not
 # used). The first pre-fit source is the default when there is no sheet.
+# `columns` are the sheet's required columns, by species where they differ.
 components <- list(
   density = list(
-    label = "Density", detail = "Individuals per square metre by site-year", sheet = "density",
-    columns = c("site", "year", "quadrat", "density"), sources = "user"
+    label = "Density", detail = "Stipes per square metre by site-year", sheet = "density",
+    columns = list(nereo = c("site", "year", "stipes", "area_m2"), macro = c("site", "year", "plants", "area_m2")),
+    sources = "user"
   ),
   size = list(
-    label = "Size", detail = "Distribution of sub-bulb diameter", sheet = "size",
-    columns = c("site", "year", "diameter"), sources = c("user", prefit_source("hakai"))
+    label = "Size", detail = "Distribution of plant size", sheet = "size",
+    columns = list(nereo = c("site", "year", "diameter_mm"), macro = c("site", "year", "fronds")),
+    sources = c("user", prefit_source("hakai"))
   ),
   weight = list(
-    label = "Weight", detail = "Wet weight by sub-bulb diameter", sheet = "weight",
-    columns = c("site", "year", "diameter", "weight", "density"),
+    label = "Weight", detail = "Wet weight by plant size", sheet = "weight",
+    columns = list(nereo = c("site", "year", "diameter_mm", "weight_kg"), macro = c("site", "year", "fronds", "weight_kg")),
     sources = c("user", prefit_source(c("coastwide", "hakai"))), default = prefit_source("coastwide")
   ),
   blade = list(
     label = "Blade fraction", detail = "Proportion of wet weight in blades", sheet = "blade",
-    columns = c("site", "year", "blade_weight", "total_weight"), sources = c("user", "none")
+    columns = c("site", "year", "blade_weight_kg", "total_weight_kg"), sources = c("user", "none")
   ),
   wetdry = list(
-    label = "Wet:dry", detail = "Ratio of dry to wet weight", sheet = "wetdry",
-    columns = c("site", "year", "wet_weight", "dry_weight"), sources = c("user", prefit_source("hakai"), "none")
+    label = "Wet:dry", detail = "Ratio of dry to wet mass", sheet = "wetdry",
+    columns = c("wet_mass_g", "dry_mass_g"), sources = c("user", prefit_source("hakai"), "none")
   ),
   carbon = list(
-    label = "Carbon", detail = "Carbon fraction of dry weight", sheet = "carbon",
-    columns = c("site", "year", "dry_weight", "carbon"), sources = c("user", prefit_source("hakai"), "none")
+    label = "Carbon", detail = "Carbon fraction of dry mass", sheet = "carbon",
+    columns = c("site", "year", "dry_mass_g", "carbon_mass_g"), sources = c("user", prefit_source("hakai"), "none")
   ),
   # Optional: scales biomass per unit area up to a total per site-year. Fitted to
-  # the biomass predictions, so after every other model in use.
+  # the biomass predictions, so once every other model in use is ready.
   cover = list(
     label = "Biomass:cover", detail = "Relates plot biomass per unit area to plot percent cover", sheet = "cover",
-    columns = c("site", "year", "canopy_area", "plot", "plot_percent_cover"), sources = c("user", "none"),
+    columns = c("site", "year", "canopy_area_m2", "plot", "plot_percent_cover"), sources = c("user", "none"),
     fn = "biomass_cover"
   )
 )
 
-# The models that combine into biomass per unit area; the cover model builds on them.
-biomass_ids <- setdiff(component_ids, "cover")
+sheet_columns <- function(id, species) {
+  columns <- components[[id]]$columns
+  if (is.list(columns)) columns[[species]] else columns
+}
 
-# kelpbio model names (as in kb_fit_<model>_<species>()) and the app's model ids.
+# The models that combine into biomass per unit area; the cover model builds on them.
+biomass_ids <- component_ids[component_ids != "cover"]
+
+# kelpbio model names (as in kb_fit_<model>_<species>()).
 fn_of <- function(id) components[[id]]$fn %||% id
-id_of <- function(model) unname(vapply(model, function(m) if (m == "biomass_cover") "cover" else m, character(1)))
 
 # The kelpbio function for a model and species: kelpbio_fn("fit", "cover", "nereo")
 # is kb_fit_biomass_cover_nereo(). In the package these resolve to the functions
@@ -68,16 +74,6 @@ id_of <- function(model) unname(vapply(model, function(m) if (m == "biomass_cove
 kelpbio_verbs <- c(check = "check_data", priors = "priors", fit = "fit", prefit = "prefit")
 kelpbio_fn <- function(verb, id, species) {
   get(sprintf("kb_%s_%s_%s", kelpbio_verbs[[verb]], fn_of(id), species), mode = "function")
-}
-
-# Models a fit to your data needs fitted first, from kb_model_dependencies(),
-# leaving out the models not used in this run. Pre-fit models need nothing.
-upstream_of <- function(id, sources) {
-  if (sources[[id]] != "user") {
-    return(character())
-  }
-  needs <- id_of(kb_model_dependencies()[[fn_of(id)]])
-  needs[sources[needs] != "none"]
 }
 
 # A sheet is required when the model can only be fitted to your data.
@@ -111,15 +107,15 @@ species_info <- list(
 )
 
 output_info <- list(
-  wet = list(label = "Wet biomass", unit = "kg/m\u00b2"),
-  dry = list(label = "Dry biomass", unit = "kg/m\u00b2"),
-  carbon = list(label = "Carbon", unit = "kg/m\u00b2")
+  wet = list(label = "Wet biomass", unit = "kg/m²"),
+  dry = list(label = "Dry biomass", unit = "kg/m²"),
+  carbon = list(label = "Carbon", unit = "kg/m²")
 )
 
 output_components <- list(
   wet = c("density", "size", "weight", "blade"),
   dry = c("density", "size", "weight", "blade", "wetdry"),
-  carbon = component_ids
+  carbon = biomass_ids
 )
 
 default_source <- function(id, has_sheet) {
@@ -141,83 +137,18 @@ default_sources <- function(sheets) {
   vapply(component_ids, function(id) default_source(id, !is.null(sheets[[id]])), character(1))
 }
 
-# Example workbook ------------------------------------------------------------------
+# Sheets --------------------------------------------------------------------------------
 
-# A JSON file from inst/extdata, read once per R session.
-json_cache <- new.env(parent = emptyenv())
-read_extdata_json <- function(name) {
-  if (is.null(json_cache[[name]])) {
-    path <- system.file("extdata", paste0(name, ".json"), package = "kelpbioshiny", mustWork = TRUE)
-    json_cache[[name]] <- jsonlite::fromJSON(path)
-  }
-  json_cache[[name]]
-}
-
-density_rows <- function() {
-  raw <- read_extdata_json("fake-density")
-  raw$site[raw$site == "site1" & raw$year == 2022] <- "Site 1"
-  raw$year <- as.character(raw$year)
-  raw[c("site", "year", "quadrat", "density")]
-}
-
-# Size and weight sheets run 2019-2025.
-size_rows <- function() {
-  rows <- read_extdata_json("fake-size")
-  rows[!(rows$site == "site8" & rows$year == "2021"), ]
-}
-
-weight_rows <- function() {
-  rows <- read_extdata_json("fake-weight")
-  rows$year[c(42, 318)] <- NA
-  rows
-}
-
-# Park-Miller generator, so the fraction sheets are the same in every session.
-seeded <- function(seed) {
-  s <- seed
-  function() {
-    s <<- (s * 16807) %% 2147483647
-    (s - 1) / 2147483646
-  }
-}
-
-fake_rows <- function(id) {
-  rand <- seeded(nchar(id) * 97 + 11)
-  grid <- expand.grid(rep = 1:3, year = c("2019", "2020"), site = paste0("site", 1:6), stringsAsFactors = FALSE)
-  rows <- lapply(seq_len(nrow(grid)), function(i) {
-    wet <- round(0.5 + rand() * 3, 2)
-    key <- data.frame(site = grid$site[i], year = grid$year[i])
-    if (id == "blade") {
-      return(cbind(key, blade_weight = round(wet * (0.4 + rand() * 0.2), 2), total_weight = wet))
-    }
-    if (id == "wetdry") {
-      return(cbind(key, wet_weight = wet, dry_weight = round(wet * (0.08 + rand() * 0.04), 3)))
-    }
-    dry <- round(wet * 0.1, 3)
-    cbind(key, dry_weight = dry, carbon = round(dry * (0.27 + rand() * 0.06), 4))
-  })
-  do.call(rbind, rows)
-}
-
-# Drone canopy area and plot percent cover for a subset of site-years.
-cover_rows <- function() read_extdata_json("fake-cover")
-
-# Site-years with a canopy area but no plot cover.
-no_plot_cover <- function(rows) {
-  has_cover <- tapply(!is.na(rows$plot_percent_cover), paste(rows$site, rows$year, sep = "|"), any)
-  names(has_cover)[!has_cover]
-}
-
-# The result of the model's kelpbio data check: an error, a warning about rows
-# that will be dropped, or a pass, plus any note the check reports.
-check_sheet <- function(id, rows, species) {
-  warnings <- character()
+# A sheet: its rows and the result of the model's kelpbio data check, which
+# either passes or aborts with a message naming the column. Messages and
+# warnings the check reports become the sheet's note.
+new_sheet <- function(id, rows, file, species) {
   notes <- character()
   result <- tryCatch(
     withCallingHandlers(
-      kelpbio_fn("check", id, species)(rows),
+      kelpbio_fn("check", id, species)(rows, x_name = sprintf("`%s`", components[[id]]$sheet)),
       warning = function(w) {
-        warnings <<- c(warnings, conditionMessage(w))
+        notes <<- c(notes, conditionMessage(w))
         invokeRestart("muffleWarning")
       },
       message = function(m) {
@@ -227,36 +158,12 @@ check_sheet <- function(id, rows, species) {
     ),
     error = function(e) e
   )
-  validation <- if (inherits(result, "error")) {
-    list(level = "error", message = conditionMessage(result))
-  } else if (length(warnings) > 0) {
-    list(level = "warning", message = warnings[1])
-  } else {
-    list(level = "ok", message = "All checks passed")
-  }
-  list(validation = validation, note = if (length(notes) > 0) paste(notes, collapse = " "))
-}
-
-example_sheet <- function(id, file, species = "nereo") {
-  sheet <- list(component = id, name = components[[id]]$sheet, file = file)
-  sheet$rows <- switch(id,
-    density = density_rows(),
-    size = size_rows(),
-    weight = weight_rows(),
-    cover = cover_rows(),
-    fake_rows(id)
+  list(
+    component = id, name = components[[id]]$sheet, file = file, rows = rows,
+    error = if (inherits(result, "error")) conditionMessage(result),
+    note = if (length(notes) > 0) paste(notes, collapse = " ")
   )
-  check <- check_sheet(id, sheet$rows, species)
-  sheet$validation <- check$validation
-  sheet$note <- check$note
-  if (id == "cover") {
-    sheet$checks <- "Canopy area is the same on every row of a site-year; plot percent cover is between 0 and 100 or missing."
-  }
-  sheet
 }
-
-example_workbook <- "example-nereo.xlsx"
-example_workbook_sheets <- c("density", "size", "weight", "cover")
 
 site_years <- function(rows) {
   rows <- rows[!is.na(rows$year), ]
@@ -265,14 +172,25 @@ site_years <- function(rows) {
 
 normalise_site <- function(site) gsub("[[:space:]_-]", "", tolower(site))
 
-# Priors, sampler and convergence ---------------------------------------------------
+# Site names that differ across the sheets only in case, spacing, hyphens or
+# underscores. They are treated as different sites, so biomass waits until they
+# are renamed to match.
+site_mismatches <- function(sheets) {
+  sites <- unique(unlist(lapply(sheets, function(sheet) as.character(sheet$rows$site))))
+  key <- normalise_site(sites)
+  sort(sites[key %in% key[duplicated(key)]])
+}
+
+mismatch_advice <- "Rename it in the workbook so the names match exactly, then upload again."
+
+# Priors and sampler ----------------------------------------------------------------
 # The prior editor works on a table built from the model's kb_priors_*() list: one
 # row per entry, with its family and hyperparameters (a: mean or rate, b: SD).
 
 prior_labels <- c(
   intercept = "Intercept", zero_inflation = "Zero inflation (logit)", dispersion = "Dispersion",
   shape = "Shape", power = "Power", floor = "Floor", density = "Density", fronds = "Fronds",
-  cover = "Cover slope", sd_site = "SD of site effect", sd_year = "SD of year effect",
+  precision = "Precision", cover = "Cover slope", sd_site = "SD of site effect", sd_year = "SD of year effect",
   sd_site_year = "SD of site-year effect", sd_residual = "Residual SD"
 )
 
@@ -296,12 +214,25 @@ default_priors <- function(id, species = "nereo") {
   do.call(rbind, rows)
 }
 
+# One row of the prior table as a kelpbio prior; errors on invalid hyperparameters.
+as_prior <- function(row) {
+  if (row$family == "normal") kb_prior_normal(row$a, row$b) else kb_prior_exponential(row$a)
+}
+
 # The edited table as the priors list a kelpbio fit takes.
 prior_list <- function(rows) {
-  priors <- lapply(seq_len(nrow(rows)), function(i) {
-    if (rows$family[i] == "normal") kb_prior_normal(rows$a[i], rows$b[i]) else kb_prior_exponential(rows$a[i])
+  stats::setNames(lapply(seq_len(nrow(rows)), function(i) as_prior(rows[i, ])), rows$name)
+}
+
+# The message of the error kelpbio gives for each invalid prior, by prior name.
+prior_errors <- function(rows) {
+  errors <- lapply(seq_len(nrow(rows)), function(i) {
+    tryCatch({
+      as_prior(rows[i, ])
+      NULL
+    }, error = function(e) conditionMessage(e))
   })
-  stats::setNames(priors, rows$name)
+  unlist(stats::setNames(errors, rows$name))
 }
 
 format_prior <- function(prior) {
@@ -312,20 +243,26 @@ format_prior <- function(prior) {
   )
 }
 
-default_sampler <- function() list(chains = 4, iterations = 1000, thin = 1)
+# The sampler settings, named as the kelpbio fit arguments.
+default_sampler <- function() list(chains = 4, niters = 1000, nthin = 1)
 
-# Thresholds passed to kelpbio. A parameter is flagged when its R-hat is above
-# RHAT_MAX or its effective sample rate (ESS divided by the draws) is below ESR_MIN;
-# a prior is informative when its prior CJS is above PRIOR_CJS_MAX, and the data say
-# little about a parameter when its likelihood CJS is below LIK_CJS_MIN.
-RHAT_MAX <- 1.05
-ESR_MIN <- 0.1
-PRIOR_CJS_MAX <- 0.1
-LIK_CJS_MIN <- 0.05
+# The message for each invalid sampler setting, by setting: each must be a
+# positive whole number, checked as kelpbio checks its fit arguments.
+sampler_errors <- function(sampler) {
+  errors <- lapply(names(sampler), function(name) {
+    tryCatch({
+      x_name <- paste0("`", name, "`")
+      chk::chk_whole_number(sampler[[name]], x_name = x_name)
+      chk::chk_gt(sampler[[name]], value = 0, x_name = x_name)
+      NULL
+    }, error = function(e) conditionMessage(e))
+  })
+  unlist(stats::setNames(errors, names(sampler)))
+}
 
-is_converged <- function(fit) !is.null(fit) && converged(fit, rhat = RHAT_MAX, esr = ESR_MIN)
-
-sensitivity <- function(fit) kb_sensitivity(fit, prior_cjs = PRIOR_CJS_MAX, lik_cjs = LIK_CJS_MIN)
+# The default of an argument of a kelpbio function, for help text that names a
+# threshold: default_arg(kb_convergence, "rhat").
+default_arg <- function(fn, name) eval(formals(fn)[[name]])
 
 # Predictions ---------------------------------------------------------------------
 
@@ -334,37 +271,40 @@ prediction_groupings <- c(population = "Population level", site = "By site", yea
 # What each model predicts. `along` names the predictor of a curve model; its
 # table, and its by-site-and-year figure, give the value at `at`.
 prediction_info <- list(
-  density = list(response = "density", table = "Density (individuals/m\u00b2)"),
+  density = list(response = "density", table = "Density (stipes/m²)"),
   size = list(response = "mean sub-bulb diameter", table = "Mean sub-bulb diameter (mm)"),
   weight = list(
     response = "wet weight", along = "sub-bulb diameter", at = "a plant with a 50 mm sub-bulb diameter",
     table = "Wet weight (kg) of a plant with a 50 mm sub-bulb diameter"
   ),
   blade = list(response = "blade fraction", table = "Blade fraction"),
-  wetdry = list(response = "dry weight", along = "wet weight", table = "Ratio of dry to wet weight"),
-  carbon = list(response = "carbon", along = "dry weight", table = "Carbon fraction of dry weight"),
+  wetdry = list(response = "ratio of dry to wet mass", table = "Ratio of dry to wet mass"),
+  carbon = list(response = "carbon fraction of dry mass", table = "Carbon fraction of dry mass"),
   cover = list(
     response = "wet biomass per square metre", along = "plot percent cover",
-    table = "Wet biomass (kg/m\u00b2) at 50% plot cover", note = " Points are plots."
+    table = "Wet biomass (kg/m²) at 50% plot cover", note = " Points are plots."
   )
 )
 
-has_year_effect <- function(id, species = "nereo") "sd_year" %in% names(kelpbio_fn("priors", id, species)())
+# The random effects a model has, from its prior entries.
+has_effect <- function(id, effect, species = "nereo") {
+  paste0("sd_", effect) %in% names(kelpbio_fn("priors", id, species)())
+}
 
 # The groupings a model's predictions can be shown at. A pre-fit model was
 # fitted to other sites and years, so only its population-level predictions apply.
 prediction_choices <- function(id, prefit = FALSE, species = "nereo") {
-  if (prefit) {
+  if (prefit || !has_effect(id, "site", species)) {
     return(prediction_groupings["population"])
   }
-  if (has_year_effect(id, species)) prediction_groupings else prediction_groupings[c("population", "site")]
+  if (has_effect(id, "year", species)) prediction_groupings else prediction_groupings[c("population", "site")]
 }
 
 prediction_by <- list(population = NULL, site = "site", year = "year", site_year = c("site", "year"))
 
 # A model's predictions at a grouping: curves along the predictor for the figure,
 # or, for the table (at = TRUE) and the by-site-and-year figure, the value at a
-# reference predictor value: a 50 mm plant, 1 kg (giving the ratio), 50% cover.
+# reference predictor value: a 50 mm plant, 50% cover.
 model_predictions <- function(id, fit, grouping, at = FALSE) {
   by <- prediction_by[[grouping]]
   at <- at || grouping == "site_year"
@@ -373,8 +313,8 @@ model_predictions <- function(id, fit, grouping, at = FALSE) {
     size = kb_predict_size_by(fit, by),
     weight = kb_predict_weight_by(fit, by, diameter_mm = if (at) 50),
     blade = kb_predict_blade_by(fit, by),
-    wetdry = kb_predict_wetdry_by(fit, by, wet_weight_kg = if (at) 1),
-    carbon = kb_predict_carbon_by(fit, by, dry_weight_kg = if (at) 1),
+    wetdry = kb_predict_wetdry(fit),
+    carbon = kb_predict_carbon_by(fit, by),
     cover = kb_predict_biomass_cover_by(fit, by, plot_percent_cover = if (at) 50)
   )
 }
@@ -396,12 +336,13 @@ prediction_aspect <- function(id, grouping) {
 
 prediction_caption <- function(id, grouping) {
   info <- prediction_info[[id]]
-  year <- has_year_effect(id)
+  site <- has_effect(id, "site")
+  year <- has_effect(id, "year")
   curve <- !is.null(info$along)
   what <- if (curve) paste(info$response, "by", info$along) else info$response
   if (grouping == "site_year" && curve) what <- paste(info$response, "of", info$at)
   by <- switch(grouping,
-    population = paste(" for", if (year) "a typical site and year" else "a typical site"),
+    population = if (year) " for a typical site and year" else if (site) " for a typical site" else "",
     site = paste0(if (curve) ", faceted by site" else " by site", if (year) ", for a typical year"),
     year = paste0(if (curve) ", faceted by year" else " by year", ", for a typical site"),
     site_year = " by year, faceted by site"
