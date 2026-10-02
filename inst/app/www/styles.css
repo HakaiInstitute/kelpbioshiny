@@ -1,0 +1,157 @@
+/* App classes only. Colours, radii, spacing and component looks come from the
+   bs_theme() Sass variables in R/theme.R; nothing here targets Bootstrap, bslib,
+   Shiny or reactable internals. */
+
+.kb-icon {
+  width: 1rem;
+  height: 1rem;
+  flex-shrink: 0;
+  vertical-align: -0.1875em;
+}
+
+.kb-spin {
+  animation: kb-spin 1s linear infinite;
+}
+
+@keyframes kb-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+.kb-tabular {
+  font-variant-numeric: tabular-nums;
+}
+
+.kb-step-marker {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 1.25rem;
+  height: 1.25rem;
+  border-radius: 50%;
+  font-size: 0.6875rem;
+  font-weight: 600;
+}
+
+.kb-step-marker .kb-icon {
+  width: 0.75rem;
+  height: 0.75rem;
+}
+
+.kb-page-title {
+  font-size: 1.5rem;
+  letter-spacing: -0.01em;
+  margin-bottom: 0.25rem;
+}
+
+.kb-lead {
+  font-size: 1rem;
+}
+
+.kb-card-title {
+  font-size: 1rem;
+  font-weight: 600;
+  line-height: 1.25;
+}
+
+.kb-eyebrow {
+  font-size: 0.75rem;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
+.kb-empty-icon,
+.kb-tile-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+
+.kb-empty-icon {
+  width: 3rem;
+  height: 3rem;
+  border-radius: 50%;
+}
+
+.kb-empty-icon .kb-icon {
+  width: 1.25rem;
+  height: 1.25rem;
+}
+
+.kb-tile-icon {
+  width: 2.25rem;
+  height: 2.25rem;
+  border-radius: var(--bs-border-radius-lg);
+}
+
+.kb-dropzone {
+  border: 2px dashed var(--bs-border-color);
+  border-radius: var(--bs-border-radius-lg);
+  background: color-mix(in srgb, var(--bs-tertiary-bg) 40%, transparent);
+  padding: 2rem 1.5rem;
+}
+
+/* Navbar: the brand and the not-yet-done step markers take the navbar's own
+   text colour, so they read on a light or a dark navbar. */
+.kb-brand-logo {
+  height: 2.25rem;
+  width: auto;
+}
+
+.kb-kelp-art {
+  width: 1.75rem;
+  height: 2.25rem;
+  flex-shrink: 0;
+}
+
+.kb-brand-divider {
+  align-self: stretch;
+  border-left: 1px solid currentColor;
+  opacity: 0.35;
+}
+
+.kb-brand-subtitle {
+  opacity: 0.75;
+}
+
+.kb-step-todo {
+  border: 1px solid currentColor;
+  opacity: 0.8;
+}
+
+/* A small figure, such as a single population-level estimate. */
+.kb-figure-narrow {
+  max-width: 36rem;
+}
+
+/* Help: a muted icon that opens a popover, and a term with a tooltip. */
+.kb-help {
+  line-height: 1;
+  opacity: 0.7;
+}
+
+.kb-help:hover,
+.kb-help:focus-visible {
+  opacity: 1;
+}
+
+.kb-help .kb-icon {
+  width: 0.875rem;
+  height: 0.875rem;
+}
+
+.kb-term {
+  text-decoration: underline dotted;
+  text-underline-offset: 0.2em;
+  cursor: help;
+}
+
+@media (min-width: 992px) {
+  .kb-aside {
+    position: sticky;
+    top: 1.5rem;
+  }
+}
