@@ -87,13 +87,6 @@
   border-radius: var(--bs-border-radius-lg);
 }
 
-.kb-dropzone {
-  border: 2px dashed var(--bs-border-color);
-  border-radius: var(--bs-border-radius-lg);
-  background: color-mix(in srgb, var(--bs-tertiary-bg) 40%, transparent);
-  padding: 2rem 1.5rem;
-}
-
 /* Navbar: the brand and the not-yet-done step markers take the navbar's own
    text colour. */
 .kb-brand-logo {
@@ -121,7 +114,7 @@
   max-width: 36rem;
 }
 
-/* Help: a muted icon that opens a popover, and a term with a tooltip. */
+/* Help: a muted icon that opens a popover. */
 .kb-help {
   line-height: 1;
   opacity: 0.7;
@@ -137,12 +130,6 @@
   height: 0.875rem;
 }
 
-.kb-term {
-  text-decoration: underline dotted;
-  text-underline-offset: 0.2em;
-  cursor: help;
-}
-
 @media (min-width: 992px) {
   .kb-aside {
     position: sticky;
@@ -152,5 +139,6 @@
 
 /* The workbook file input fills narrow screens but stays compact on wide ones. */
 .kb-file-input {
+  width: 100%;
   max-width: 20rem;
 }

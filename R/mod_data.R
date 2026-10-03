@@ -124,15 +124,17 @@ mod_data_ui <- function(id) {
       description = sheets_description,
       action = uiOutput(ns("clear_ui"), inline = TRUE),
       div(
-        class = "kb-dropzone d-flex flex-column align-items-center gap-3 text-center",
-        div(class = "kb-empty-icon bg-white border text-primary", lucide("upload")),
-        uiOutput(ns("dropzone_text")),
+        class = "d-flex flex-column gap-2",
         div(
-          class = "d-flex flex-wrap justify-content-center align-items-start gap-2",
-          fileInput(ns("workbook"), NULL, accept = c(".xlsx", ".xls"), buttonLabel = "Browse files", width = "100%") |>
-            tagAppendAttributes(class = "mb-0 kb-file-input"),
-          button(ns("example"), "Use example workbook")
-        )
+          class = "d-flex flex-wrap align-items-start gap-2",
+          div(
+            class = "kb-file-input",
+            fileInput(ns("workbook"), NULL, accept = c(".xlsx", ".xls"), buttonLabel = "Browse files", width = "100%") |>
+              tagAppendAttributes(class = "mb-0")
+          ),
+          button(ns("example"), "Use example workbook", variant = "outline")
+        ),
+        uiOutput(ns("loaded"))
       ),
       accordion(
         open = FALSE,
@@ -167,7 +169,8 @@ mod_data_server <- function(id, store) {
         store$confirm_reset(
           component_ids,
           function() store$set_species(value),
-          function() updateRadioButtons(session, "species", selected = store$species())
+          function() updateRadioButtons(session, "species", selected = store$species()),
+          resets_priors = TRUE
         )
       }
     }, ignoreInit = TRUE)
@@ -179,7 +182,6 @@ mod_data_server <- function(id, store) {
     observeEvent(input$template, {
       store$notify(sprintf("Prototype: kelpbio-template-%s.xlsx is not generated.", species_info[[store$species()]]$suffix))
     })
-    observeEvent(input$welcome_example, replace_data(store$load_example))
     observeEvent(input$guide, store$open_help("guide"))
     observeEvent(input$bundle, store$notify("Prototype: resuming from a fit bundle is not simulated."))
     observeEvent(input$workbook, {
@@ -215,17 +217,11 @@ mod_data_server <- function(id, store) {
       if (loaded()) button(session$ns("clear"), "Clear", variant = "ghost", size = "sm")
     })
 
-    output$dropzone_text <- renderUI({
-      workbook <- store$workbook()
-      if (is.null(workbook)) {
-        return(tagList(
-          div(class = "fw-medium", "Drag a workbook onto the file box, or browse"),
-          div(class = "small text-body-secondary", "Excel workbooks (.xlsx, .xls)")
-        ))
-      }
-      tagList(
-        div(class = "fw-medium", "Loaded ", span(class = "font-monospace", workbook)),
-        div(class = "small text-body-secondary", "Upload another workbook to replace it")
+    output$loaded <- renderUI({
+      workbook <- req(store$workbook())
+      div(
+        class = "small text-body-secondary",
+        "Loaded ", span(class = "font-monospace text-body", workbook, .noWS = "after"), ". Upload another workbook to replace it."
       )
     })
 
@@ -239,7 +235,7 @@ mod_data_server <- function(id, store) {
       present <- component_ids[component_ids %in% names(sheets)]
       absent <- setdiff(component_ids, present)
       tagList(
-        issues_summary(session$ns, sheets, cov()$rows),
+        issues_summary(session$ns, sheets, cov()$rows, sources),
         panel(
           "Recognised sheets",
           id = session$ns("sheets_card"),
@@ -287,11 +283,7 @@ welcome_card <- function(ns) {
         gap = "1rem",
         !!!lapply(names(steps), step_item)
       ),
-      div(
-        class = "d-flex flex-wrap align-items-center gap-3",
-        button(ns("welcome_example"), "Use example workbook"),
-        actionLink(ns("guide"), "Read the user guide")
-      )
+      div(actionLink(ns("guide"), "Read the user guide"))
     )
   )
 }
@@ -303,7 +295,22 @@ sheets_description <- sprintf(
   and_list(unname(required_sheets()))
 )
 
+# A sheet whose model uses a pre-fit model or none shows its check muted, as it
+# blocks nothing until its source is Your data.
 sheet_row <- function(sheet, source) {
+  used <- source == "user"
+  model <- lower_label(sheet$component)
+  unused_note <- sprintf(
+    "Not used: %s. To fit it to this sheet, set its source to Your data on the Models step.",
+    if (is_prefit(source)) sprintf("the %s model uses the %s model", model, source_note(source)) else sprintf("the %s model is not used", model)
+  )
+  badge_ui <- if (!used) {
+    badge("Not used", "bg-secondary-subtle text-secondary-emphasis", "minus-circle")
+  } else if (is.null(sheet$error)) {
+    success_badge("Checks passed")
+  } else {
+    badge("Data error", "text-bg-danger", "x-circle")
+  }
   tags$li(
     class = "d-flex flex-wrap align-items-center gap-3 border rounded-3 p-3",
     div(
@@ -316,32 +323,28 @@ sheet_row <- function(sheet, source) {
         span(class = "fw-medium", label_of(sheet$component)),
         if (endsWith(sheet$file, ".csv")) span(class = "small text-body-secondary", "from ", sheet$file)
       ),
-      if (source != "user") {
-        div(
-          class = "small text-body-secondary",
-          sprintf("The %s model uses %s. Choose Your data on the Models step to fit it to this sheet.", lower_label(sheet$component), source_note(source))
-        )
-      },
+      if (!used) div(class = "small text-body-secondary", unused_note),
       div(
         class = "d-flex flex-wrap gap-1",
         lapply(names(sheet$rows), function(column) {
           tags$code(class = "small bg-body-tertiary text-body-secondary rounded px-2 py-1", column)
         })
       ),
-      if (!is.null(sheet$error)) div(class = "small text-danger-emphasis", sheet$error),
+      if (!is.null(sheet$error)) div(class = paste("small", if (used) "text-danger-emphasis" else "text-body-secondary"), sheet$error),
       if (!is.null(sheet$note)) {
         div(class = "small d-flex align-items-center gap-2 text-info-emphasis", lucide("info", "text-info"), sheet$note)
       }
     ),
-    if (is.null(sheet$error)) success_badge("Checks passed") else badge("Data error", "text-bg-danger", "x-circle")
+    badge_ui
   )
 }
 
 # One line above the sheets: counts of what the checks and the coverage table
-# flag, each linking to its section.
-issues_summary <- function(ns, sheets, rows) {
+# flag, each linking to its section. Only sheets used by their model count as
+# errors.
+issues_summary <- function(ns, sheets, rows, sources) {
   present <- sheets[component_ids[component_ids %in% names(sheets)]]
-  errors <- sum(!vapply(present, function(sheet) is.null(sheet$error), logical(1)))
+  errors <- sum(vapply(names(present), function(id) !is.null(present[[id]]$error) && sources[[id]] == "user", logical(1)))
   count <- function(n, one, many = paste0(one, "s")) sprintf("%d %s", n, if (n == 1) one else many)
   site_years <- function(n, what) paste(count(n, "site-year"), what)
   link <- function(text, target) tags$a(href = paste0("#", ns(target)), class = "link-body-emphasis", text)

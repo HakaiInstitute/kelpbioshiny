@@ -1,6 +1,6 @@
 # Help for readers new to Bayesian models: a muted help icon that opens a
-# popover with a short explanation, and a dotted-underline term with a one-line
-# tooltip. Popover text lives in help_topics so the wording stays consistent.
+# popover with a short explanation. Popover text lives in help_topics so the
+# wording stays consistent.
 
 # kelpbio owns the statistics; help text links to its articles rather than
 # restating them. Every link is kelpbio_url plus one of kelpbio_articles.
@@ -63,6 +63,16 @@ help_topics <- list(
       "Predictions by site or by year add the estimated difference for each sampled site or year, so they describe those sites and years. Predictions by site and year include both."
     ),
     link = kelpbio_articles[["results"]]
+  ),
+  chains = list(
+    title = "Chains",
+    body = "Independent runs of the sampler. Comparing the chains with each other shows whether the sampler has converged.",
+    link = kelpbio_articles[["diagnostics"]]
+  ),
+  niters = list(
+    title = "Iterations (niters)",
+    body = "The number of draws kept from each chain. More draws give more reliable estimates, but fitting takes longer.",
+    link = kelpbio_articles[["diagnostics"]]
   ),
   nthin = list(
     title = "Thinning (nthin)",
@@ -172,10 +182,6 @@ help_url <- function(key) paste0(kelpbio_url, help_topics[[key]]$link)
 help_topic <- function(key) {
   topic <- help_topics[[key]]
   help_icon(topic$title, topic_body(topic), help_url(key))
-}
-
-help_term <- function(text, tip) {
-  bslib::tooltip(span(class = "kb-term", tabindex = "0", text), tip)
 }
 
 # A label followed by its help icon, kept on one line.

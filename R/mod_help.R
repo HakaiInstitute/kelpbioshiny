@@ -109,6 +109,9 @@ guide_docs_callout <- function() {
   )))
 }
 
+# A Help page's opening line. The pill above names the page, so it has no title.
+help_lead <- function(text) div(class = "kb-lead text-body-secondary mb-4", text)
+
 help_ui <- function() {
   navset_pill(
     id = "help_page",
@@ -119,7 +122,7 @@ help_ui <- function() {
 
 help_guide_ui <- function() {
   tagList(
-    page_header("User guide", "How to use the app, step by step."),
+    help_lead("How to use the app, step by step."),
     div(
       class = "d-flex flex-column gap-3",
       panel(
@@ -181,7 +184,7 @@ citation_block <- function(id, label, citation) {
 
 help_about_ui <- function() {
   tagList(
-    page_header("About", app_purpose),
+    help_lead(app_purpose),
     div(
       class = "d-flex flex-column gap-3",
       card(card_body(

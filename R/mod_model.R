@@ -135,7 +135,7 @@ mod_model_server <- function(id, store) {
       notice_ui <- if (mode == "prefit" && status$kind != "failed") {
         notice(
           "layout-list", with_help(sprintf("Fitted in advance to %s", prefit_info[[page()$reference]]$data), "prefit"),
-          "No fitting is needed: biomass uses the stored draws."
+          "No fitting needed. Biomass uses this model's saved results."
         )
       } else if (mode == "none") {
         notice(
@@ -158,7 +158,7 @@ mod_model_server <- function(id, store) {
         notice("clock", "Fitted once biomass per unit area is ready", "Every other model in use must be ready first.", tone = "muted")
       } else if (mode == "user" && status$kind == "ready") {
         tagList(
-          if (has_warning(status)) convergence_notice(warning_help$convergence$title, ns("open_settings")),
+          if (isTRUE(status$convergence)) convergence_notice(warning_help$convergence$title, ns("open_settings")),
           prior_notice(store$sensitivity[[cid]](), fit()$meta$priors, ns("open_priors"))
         )
       }
@@ -208,7 +208,7 @@ mod_model_server <- function(id, store) {
           ),
           panel(
             with_help("Priors", "priors"),
-            description = "The defaults suit most data sets.",
+            description = "The defaults suit most datasets.",
             action = button(ns("reset"), "Reset to defaults", "rotate-ccw", "ghost", "sm"),
             uiOutput(ns("priors"))
           )
@@ -293,7 +293,7 @@ mod_model_server <- function(id, store) {
       current <- isolate(store$priors()[[cid]])
       # After a fit, mark the priors the sensitivity check found influential.
       rows <- if (kind() == "ready") isolate(store$sensitivity[[cid]]())
-      influential <- rows$prior[!rows$weak_prior]
+      influential <- if (!is.null(rows)) rows$prior[!rows$weak_prior]
       tags$fieldset(
         disabled = if (pending()) NA,
         div(
@@ -349,8 +349,8 @@ mod_model_server <- function(id, store) {
     })
 
     sampler_labels <- list(
-      chains = help_term("Chains", "Independent runs of the sampler, compared with each other to check convergence."),
-      niters = help_term("Iterations (niters)", "Draws kept from each chain."),
+      chains = with_help("Chains", "chains"),
+      niters = with_help("Iterations (niters)", "niters"),
       nthin = with_help("Thinning (nthin)", "nthin")
     )
     sampler_steps <- c(chains = 1, niters = 100, nthin = 1)
@@ -387,11 +387,11 @@ mod_model_server <- function(id, store) {
         row_style = function(index) if (!rows$converged[index]) app_row_colour$warning,
         columns = list(
           term = reactable::colDef(name = "Parameter", style = list(fontFamily = "var(--bs-font-monospace)")),
-          rhat = reactable::colDef(name = "R-hat"),
-          ess_bulk = reactable::colDef(name = "ESS"),
+          rhat = reactable::colDef(name = "R-hat", class = "kb-tabular"),
+          ess_bulk = reactable::colDef(name = "ESS", class = "kb-tabular"),
           converged = reactable::colDef(
             name = "Status",
-            cell = function(value) if (value) success_badge("OK", NULL) else warning_badge("Check", NULL)
+            cell = function(value) if (value) "Converged" else warning_badge("Not converged", NULL)
           )
         )
       )
@@ -424,15 +424,13 @@ mod_model_server <- function(id, store) {
       if (is.null(grouping) || !grouping %in% names(choices)) default_grouping(choices) else grouping
     })
 
+    # The Group by choice above names the grouping, so the figure has no title.
     output$prediction_figure <- renderUI({
       grouping <- prediction_grouping()
-      panel(
-        prediction_groupings[[grouping]],
-        figure_plot(
-          ns("prediction_plot"), prediction_caption(cid, grouping),
-          class = if (grouping == "population") "kb-figure-narrow"
-        )
-      )
+      card(card_body(figure_plot(
+        ns("prediction_plot"), prediction_caption(cid, grouping),
+        class = if (grouping == "population") "kb-figure-narrow"
+      )))
     })
 
     # The predictions for the figure, and for the table: the same call unless the
@@ -462,7 +460,7 @@ mod_model_server <- function(id, store) {
 
     output$predictions_table <- reactable::renderReactable({
       rows <- predictions_at()
-      number <- function(name) reactable::colDef(name = name, cell = number_text, align = "right")
+      number <- function(name) reactable::colDef(name = name, cell = number_text, align = "right", class = "kb-tabular")
       app_table(rows[intersect(c("site", "year", "estimate", "lower", "upper"), names(rows))], columns = Filter(Negate(is.null), list(
         site = if ("site" %in% names(rows)) reactable::colDef(name = "Site"),
         year = if ("year" %in% names(rows)) reactable::colDef(name = "Year"),
@@ -475,15 +473,13 @@ mod_model_server <- function(id, store) {
     output$sensitivity_note <- renderUI(data_strength_notice(sensitivity()))
 
     output$sensitivity <- reactable::renderReactable({
-      rows <- sensitivity()[c("parameter", "prior_cjs", "lik_cjs", "weak_prior", "strong_data")]
-      flag <- function(value) if (value) success_badge("Yes", NULL) else warning_badge("No", NULL)
+      rows <- sensitivity()[c("parameter", "weak_prior", "strong_data")]
+      flag <- function(value) if (value) "Yes" else warning_badge("No", NULL)
       app_table(
         rows,
         pagination = FALSE,
         columns = list(
           parameter = reactable::colDef(name = "Parameter", style = list(fontFamily = "var(--bs-font-monospace)")),
-          prior_cjs = reactable::colDef(name = "Prior CJS", format = reactable::colFormat(digits = 3)),
-          lik_cjs = reactable::colDef(name = "Likelihood CJS", format = reactable::colFormat(digits = 3)),
           weak_prior = reactable::colDef(name = "Weak prior", cell = flag),
           strong_data = reactable::colDef(name = "Strong data", cell = flag)
         )
@@ -514,10 +510,7 @@ diagnostics_panel <- function(ns) {
 sensitivity_panel <- function(ns) {
   panel(
     with_help("Prior sensitivity", "sensitivity"),
-    description = sprintf(
-      "A prior CJS above %s means the prior is informative; a likelihood CJS below %s means the data say little about the parameter.",
-      default_arg(kb_sensitivity, "prior_cjs"), default_arg(kb_sensitivity, "lik_cjs")
-    ),
+    description = "No under Weak prior means the prior is influencing the estimate; No under Strong data means the data say little about the parameter.",
     uiOutput(ns("sensitivity_note")),
     reactable::reactableOutput(ns("sensitivity"))
   )
@@ -563,7 +556,7 @@ default_grouping <- function(choices) if ("site" %in% names(choices)) "site" els
 predictions_panel <- function(ns, cid, prefit, species) {
   choices <- prediction_choices(cid, prefit, species)
   note <- if (prefit) {
-    "Predictions here are at the population level. Biomass estimates use site-level estimates for sites in the reference data."
+    "Biomass estimates use site-level estimates for sites in the reference data."
   } else if (!has_effect(cid, "site", species)) {
     "This model has no site or year effects, so its predictions are at the population level."
   } else if (!has_effect(cid, "year", species)) {

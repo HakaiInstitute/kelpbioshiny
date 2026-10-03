@@ -185,31 +185,3 @@ mod_export_server <- function(id, store) {
     })
   })
 }
-
-# One notice per warning of the models in use: a failed fit, a convergence
-# warning or a prior sensitivity warning. sensitivity holds the kb_sensitivity()
-# rows of each model fitted to your data.
-warning_notices <- function(ns, statuses, sensitivity) {
-  title <- function(id, key) sprintf("%s model: %s", label_of(id), tolower(warning_help[[key]]$title))
-  notices <- lapply(component_ids, function(id) {
-    status <- statuses[[id]]
-    rows <- sensitivity[[id]]
-    flagged <- if (status$kind == "ready" && !is.null(rows)) rows[!rows$weak_prior, ] else data.frame()
-    list(
-      if (status$kind == "failed") {
-        notice(
-          "x-circle", title(id, "failed"), status$message,
-          tone = "warning", action = button(ns(paste0("open_", id)), "Open model", variant = "outline", size = "sm")
-        )
-      },
-      if (has_warning(status)) convergence_notice(title(id, "convergence"), ns(paste0("settings_", id))),
-      if (nrow(flagged) > 0) {
-        notice(
-          "alert-triangle", title(id, "prior"), paste(prior_influence(flagged), warning_help$prior$advice),
-          tone = "warning", action = button(ns(paste0("priors_", id)), "Open prior settings", "sliders-horizontal", size = "sm")
-        )
-      }
-    )
-  })
-  Filter(Negate(is.null), unlist(notices, recursive = FALSE))
-}

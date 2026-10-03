@@ -3,18 +3,16 @@
 # fitted cover model, as total biomass for the site-years with a canopy area.
 
 # The estimates table: kb_predict_biomass() or kb_predict_biomass_total() rows
-# with a flags column naming the population-level estimates and pre-fit models
-# each site-year uses.
-biomass_table <- function(rows, sources, output) {
-  prefit <- Filter(function(id) is_prefit(sources[[id]]), output_components[[output]])
-  prefit_flags <- vapply(prefit, function(id) sprintf("%s (%s)", label_of(id), source_note(sources[[id]])), "")
+# with a flags column naming the population-level estimates each site-year
+# uses. The sources, pre-fit or not, are the same for every row and are listed
+# in the sidebar.
+biomass_table <- function(rows) {
   population_cover <- if ("population_cover" %in% names(rows)) rows$population_cover else rep(FALSE, nrow(rows))
   flags <- vapply(seq_len(nrow(rows)), function(i) {
     paste(c(
       if (population_cover[i]) "Population-level cover",
       if (rows$population_size[i]) "Population-level size",
-      if (rows$population_weight[i]) "Population-level weight",
-      prefit_flags
+      if (rows$population_weight[i]) "Population-level weight"
     ), collapse = "|")
   }, character(1))
   columns <- intersect(c("site", "year", "canopy_area_m2", "estimate", "lower", "upper"), names(rows))
@@ -29,7 +27,7 @@ biomass_scales <- list(
 mod_biomass_ui <- function(id) {
   ns <- NS(id)
   sidebar <- card(card_body(
-    sidebar_section("Estimate", uiOutput(ns("scale_choice"))),
+    sidebar_section("Scale", uiOutput(ns("scale_choice"))),
     sidebar_section("Output", uiOutput(ns("output_choice"))),
     div(
       class = "d-flex flex-column gap-2",
@@ -92,8 +90,9 @@ mod_biomass_server <- function(id, store) {
     for (cid in component_ids) {
       local({
         cid <- cid
-        observeEvent(input[[paste0("diagnostics_", cid)]], store$open_tab(cid, "diagnostics"))
         observeEvent(input[[paste0("settings_", cid)]], store$open_settings(cid))
+        observeEvent(input[[paste0("priors_", cid)]], store$open_settings(cid))
+        observeEvent(input[[paste0("open_", cid)]], store$go_to("models", cid))
       })
     }
 
@@ -134,18 +133,11 @@ mod_biomass_server <- function(id, store) {
       total <- scale_key() == "total"
       statuses <- store$statuses()
       used <- c(output_components[[key]], if (total) "cover")
-      warnings <- Filter(function(id) has_warning(statuses[[id]]), used)
       available <- store$outputs()
       unavailable <- lapply(Filter(function(k) !available[[k]]$available, names(available)), function(k) available[[k]]$reason)
       totals <- store$totals()
       notices <- c(
-        lapply(warnings, function(id) {
-          convergence_notice(
-            sprintf("The %s model has a convergence warning", lower_label(id)), ns(paste0("settings_", id)),
-            "Every estimate below uses it, so treat its limits with caution until then.",
-            secondary = button(ns(paste0("diagnostics_", id)), "View diagnostics", variant = "outline", size = "sm")
-          )
-        }),
+        warning_notices(ns, statuses, lapply(store$sensitivity, function(r) r()), ids = used),
         lapply(unavailable, function(reason) notice("minus-circle", reason, tone = "muted")),
         if (!totals$available) {
           list(notice(
@@ -192,9 +184,9 @@ mod_biomass_server <- function(id, store) {
 
     output$table <- reactable::renderReactable({
       total <- scale_key() == "total"
-      rows <- biomass_table(estimated(), store$sources(), output_key())
-      population <- grepl("Population", rows$flags)
-      number <- function(name) reactable::colDef(name = name, cell = number_text, align = "right")
+      rows <- biomass_table(estimated())
+      population <- rows$flags != ""
+      number <- function(name) reactable::colDef(name = name, cell = number_text, align = "right", class = "kb-tabular")
       app_table(
         rows,
         row_style = function(index) if (population[index]) app_row_colour$info,
@@ -202,7 +194,10 @@ mod_biomass_server <- function(id, store) {
           site = reactable::colDef(name = "Site"),
           year = reactable::colDef(name = "Year"),
           canopy_area_m2 = if (total) {
-            reactable::colDef(name = "Canopy area (m\u00b2)", align = "right", format = reactable::colFormat(separators = TRUE, digits = 0))
+            reactable::colDef(
+              name = "Canopy area (m\u00b2)", align = "right", class = "kb-tabular",
+              format = reactable::colFormat(separators = TRUE, digits = 0)
+            )
           },
           estimate = number("Estimate"),
           lower = number("Lower"),
@@ -214,11 +209,7 @@ mod_biomass_server <- function(id, store) {
                 return(NULL)
               }
               div(class = "d-flex flex-wrap gap-1", lapply(strsplit(value, "|", fixed = TRUE)[[1]], function(flag) {
-                if (startsWith(flag, "Population")) {
-                  badge(flag, "bg-secondary-subtle text-secondary-emphasis fw-normal")
-                } else {
-                  badge(flag, "border text-body fw-normal")
-                }
+                badge(flag, "border text-body fw-normal")
               }))
             }
           )
@@ -231,7 +222,7 @@ mod_biomass_server <- function(id, store) {
 flags_note <- function(end) {
   span(
     class = "d-inline-flex flex-wrap align-items-center gap-1",
-    "Flags show where a pre-fit or", with_help("population-level estimate", "population"), paste0("was used", end)
+    "Flags show where a", with_help("population-level estimate", "population"), paste0("was used", end)
   )
 }
 

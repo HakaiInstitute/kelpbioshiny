@@ -12,6 +12,8 @@ test_that("a model fitted to your data with no sheet needs data", {
 test_that("Fit all fits each model with its sheet data and sampler settings", {
   log <- local_stub_fits()
   shiny::testServer(store_app(), {
+    # The example weight sheet fails its data check, so weight uses a pre-fit model.
+    store$set_source("weight", prefit_source("coastwide"))
     store$update_sampler("size", "nthin", 2)
     store$fit_all()
     finish_fits(session, runner)

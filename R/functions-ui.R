@@ -153,7 +153,7 @@ status_badge <- function(status, progress = 0) {
       class = "badge d-inline-flex align-items-center gap-1 border border-primary-subtle text-primary kb-tabular",
       lucide("loader-2", "kb-spin"), sprintf("Fitting %d%%", floor(progress))
     ),
-    "ready" = if (has_warning(status)) warning_badge("Ready, convergence warning") else success_badge("Ready"),
+    "ready" = if (has_warning(status)) warning_badge("Ready with warnings") else success_badge("Ready"),
     "failed" = badge("Failed", "text-bg-danger", "x-circle")
   )
 }
@@ -249,51 +249,73 @@ status_list <- function(statuses, notes) {
 warning_help <- list(
   convergence = list(
     title = "Convergence warning",
-    advice = "Increase thinning (nthin) in Sampler settings and refit. For example, set nthin to 2."
+    advice = "Some parameters have not converged. Increase thinning (nthin) in Sampler settings, for example to 2, and refit."
   ),
   prior = list(
     title = "Prior sensitivity warning",
-    advice = "If this is unintended, make each flagged prior less informative on the Settings tab and refit."
+    advice = "If the flagged prior was not chosen on purpose, make it less informative on the Settings tab and refit."
   ),
   failed = list(title = "The fit failed", advice = "Refit the model to see its results."),
   data_check = list(title = "The data check failed", advice = "Correct the sheet and upload it again."),
   mismatch = list(title = "Site names differ across sheets", advice = mismatch_advice)
 )
 
-# A convergence warning whose main action opens the model's sampler settings.
-convergence_notice <- function(title, settings_id, ..., secondary = NULL) {
+# The action of a model's warning notice: opens its Settings tab. Outline, so
+# the page's Fit or Refit button stays the main action.
+settings_button <- function(id) button(id, "Open settings", "sliders-horizontal", variant = "outline", size = "sm")
+
+# A convergence warning whose action opens the model's settings.
+convergence_notice <- function(title, settings_id) {
   notice(
-    "alert-triangle", title, warning_help$convergence$advice, ...,
+    "alert-triangle", title, warning_help$convergence$advice,
     tone = "warning",
-    action = div(
-      class = "d-flex flex-wrap gap-2",
-      secondary,
-      button(settings_id, "Open sampler settings", "sliders-horizontal", size = "sm")
-    )
+    action = settings_button(settings_id)
   )
 }
 
+# One notice per warning of the models `ids`, for the steps after Models: a
+# failed fit, a convergence warning or a prior sensitivity warning. sensitivity
+# holds the kb_sensitivity() rows of each model fitted to your data. The buttons
+# are ns("open_<id>"), ns("settings_<id>") and ns("priors_<id>").
+warning_notices <- function(ns, statuses, sensitivity, ids = component_ids) {
+  title <- function(id, key) sprintf("%s model: %s", label_of(id), tolower(warning_help[[key]]$title))
+  notices <- lapply(ids, function(id) {
+    status <- statuses[[id]]
+    list(
+      if (status$kind == "failed") {
+        notice(
+          "x-circle", title(id, "failed"), status$message,
+          tone = "warning", action = button(ns(paste0("open_", id)), "Open model", variant = "outline", size = "sm")
+        )
+      },
+      if (isTRUE(status$convergence)) convergence_notice(title(id, "convergence"), ns(paste0("settings_", id))),
+      if (isTRUE(status$prior)) {
+        rows <- sensitivity[[id]]
+        notice(
+          "alert-triangle", title(id, "prior"), paste(prior_influence(rows[!rows$weak_prior, ]), warning_help$prior$advice),
+          tone = "warning", action = settings_button(ns(paste0("priors_", id)))
+        )
+      }
+    )
+  })
+  Filter(Negate(is.null), unlist(notices, recursive = FALSE))
+}
+
 # How to make one prior less informative, from its family in the fit's priors
-# list. The example halves the rate or doubles the SD: a suggested setting for
-# the prior editor, not a model estimate. With parameter NULL, the advice is for
-# the one flagged prior.
+# list, as a phrase: "reduce its rate (for example from 1 to 0.5)". The example
+# halves the rate or doubles the SD: a suggested setting for the prior editor,
+# not a model estimate. With a parameter, the phrase names it, for a notice that
+# flags several priors.
 prior_advice <- function(prior, parameter = NULL) {
-  subject <- function(family) {
-    if (is.null(parameter)) paste("this", family, "prior") else sprintf("%s (%s prior)", parameter, family)
+  its <- if (is.null(parameter)) "its" else "the"
+  action <- if (inherits(prior, "kb_prior_exponential")) {
+    sprintf("reduce %s rate (for example from %s to %s)", its, as.character(prior$rate), as.character(prior$rate / 2))
+  } else if (inherits(prior, "kb_prior_normal")) {
+    sprintf("increase %s SD (for example from %s to %s)", its, as.character(prior$sd), as.character(prior$sd * 2))
+  } else {
+    "use a wider prior"
   }
-  if (inherits(prior, "kb_prior_exponential")) {
-    return(sprintf(
-      "For %s, try reducing the rate (for example from %s to %s).",
-      subject("exponential"), as.character(prior$rate), as.character(prior$rate / 2)
-    ))
-  }
-  if (inherits(prior, "kb_prior_normal")) {
-    return(sprintf(
-      "For %s, try increasing the SD (for example from %s to %s).",
-      subject("normal"), as.character(prior$sd), as.character(prior$sd * 2)
-    ))
-  }
-  if (is.null(parameter)) "Try a wider prior." else sprintf("For %s, try a wider prior.", parameter)
+  if (is.null(parameter)) action else sprintf("for %s, %s", parameter, action)
 }
 
 # "The prior for sYear is influencing the estimate.", from kb_sensitivity() rows
@@ -310,7 +332,7 @@ prior_influence <- function(flagged) {
 # prior is not weak. priors is the fit's priors list, whose entries the rows'
 # prior column names.
 prior_notice <- function(rows, priors, settings_id) {
-  if (is.null(rows) || all(rows$weak_prior)) {
+  if (!prior_flagged(rows)) {
     return(NULL)
   }
   flagged <- rows[!rows$weak_prior, ]
@@ -318,11 +340,19 @@ prior_notice <- function(rows, priors, settings_id) {
   advice <- vapply(seq_len(nrow(flagged)), function(i) {
     prior_advice(priors[[flagged$prior[i]]], if (many) flagged$parameter[i])
   }, "")
+  action <- if (many) {
+    sprintf(
+      "Unless they were chosen on purpose, make them less informative on the Settings tab and refit: %s.",
+      paste(advice, collapse = "; ")
+    )
+  } else {
+    sprintf("Unless it was chosen on purpose, %s on the Settings tab and refit.", advice)
+  }
   notice(
     "alert-triangle", warning_help$prior$title,
-    paste(prior_influence(flagged), warning_help$prior$advice, paste(advice, collapse = " ")),
+    paste(prior_influence(flagged), action),
     tone = "warning",
-    action = button(settings_id, "Open prior settings", "sliders-horizontal", size = "sm")
+    action = settings_button(settings_id)
   )
 }
 

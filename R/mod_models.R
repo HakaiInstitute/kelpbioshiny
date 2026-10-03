@@ -49,7 +49,8 @@ mod_models_ui <- function(id) {
         actionLink(ns(paste0("open_", cid)), label_of(cid), class = "fw-medium text-body"),
         div(class = "small text-body-secondary", components[[cid]]$detail)
       ),
-      tags$td(source_select(ns(paste0("source_", cid)), cid)),
+      # Phones show only the model and its status; the model page has the source.
+      tags$td(class = "d-none d-sm-table-cell", source_select(ns(paste0("source_", cid)), cid)),
       tags$td(class = "pe-4", uiOutput(ns(paste0("status_", cid))))
     )
   })
@@ -84,7 +85,12 @@ mod_models_ui <- function(id) {
             class = "table-responsive",
             tags$table(
               class = "table table-hover align-middle mb-0",
-              tags$thead(tags$tr(head_cell(class = "ps-4", "Model"), head_cell(with_help("Source", "prefit")), head_cell(class = "pe-4", "Status"))),
+              # Fixed widths, so the columns stay put as the status badges change.
+              tags$thead(tags$tr(
+                head_cell(class = "ps-4", "Model"),
+                head_cell(class = "d-none d-sm-table-cell", style = "width: 14rem", with_help("Source", "prefit")),
+                head_cell(class = "pe-4", style = "width: 13rem", "Status")
+              )),
               tags$tbody(rows)
             )
           )
@@ -150,11 +156,7 @@ mod_models_server <- function(id, store) {
       if (length(plan$ids) > 0) {
         return(button(session$ns("fit_all"), "Fit all", "play"))
       }
-      div(
-        class = "d-flex align-items-center gap-2",
-        span(class = "small text-body-secondary", fit_all_reason(store$statuses(), plan)),
-        button(session$ns("fit_all"), "Fit all", "play", disabled = TRUE)
-      )
+      span(class = "small text-body-secondary", fit_all_reason(store$statuses(), plan))
     })
 
     output$skipped <- renderUI({
@@ -193,7 +195,7 @@ mod_models_server <- function(id, store) {
       statuses <- store$statuses()
       blocking <- store$blocking()
       notice(
-        "layout-list", "Still to do before biomass",
+        "layout-list", "Before biomass can be estimated",
         paste(sprintf("%s: %s", vapply(blocking, label_of, ""), vapply(statuses[blocking], block_reason, "")), collapse = "; "),
         tone = "muted"
       )

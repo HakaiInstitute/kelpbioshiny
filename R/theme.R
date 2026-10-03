@@ -109,14 +109,12 @@ app_theme <- function() {
     "nav-underline-link-active-color" = col$primary,
     "nav-pills-link-active-bg" = col$accent,
     "nav-pills-link-active-color" = col$accent_fg,
-    # Popovers and tooltips (help text)
+    # Popovers (help text)
     "popover-max-width" = "20rem",
     "popover-header-bg" = col$card,
     "popover-header-font-size" = "0.875rem",
     "popover-body-padding-y" = "0.75rem",
     "popover-border-color" = col$border,
-    "tooltip-max-width" = "16rem",
-    "tooltip-bg" = col$fg,
     # Accordion
     "accordion-bg" = col$card,
     "accordion-border-color" = col$border,
@@ -141,7 +139,7 @@ app_table_theme <- reactable::reactableTheme(
   borderColor = "var(--bs-border-color)",
   highlightColor = "var(--bs-tertiary-bg)",
   cellPadding = "0.5rem 0.75rem",
-  style = list(fontFamily = "inherit", fontSize = "0.875rem", fontVariantNumeric = "tabular-nums"),
+  style = list(fontFamily = "inherit", fontSize = "0.875rem"),
   headerStyle = list(
     background = "var(--bs-tertiary-bg)", color = "var(--bs-secondary-color)", fontWeight = 500,
     borderBottomColor = "var(--bs-border-color)"

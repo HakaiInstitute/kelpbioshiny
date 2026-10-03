@@ -41,9 +41,16 @@ reset_records <- function(records, ids) {
 
 # The fitted and running models a reset of `ids` discards: the ids and, for a
 # biomass model, the cover model.
-reset_count <- function(records, ids) {
+reset_ids <- function(records, ids) {
   affected <- unique(c(ids, if (any(ids %in% biomass_ids)) "cover"))
-  sum(record_status(records[affected]) %in% c("fitted", "fitting"))
+  affected[record_status(records[affected]) %in% c("fitted", "fitting")]
+}
+
+# Whether any model's priors differ from the defaults for `species`.
+priors_edited <- function(priors, species) {
+  any(vapply(component_ids, function(id) {
+    any(format_prior(priors[[id]]) != format_prior(default_priors(id, species)))
+  }, logical(1)))
 }
 
 cancel_records <- function(records) {
@@ -84,8 +91,10 @@ fitting_id <- function(records) {
 # What the app shows for each model, from its source, sheet, fit record and, for
 # a pre-fit source, the pre-fit model (list(fit, error)). Kinds: "not-used",
 # "no-data", "data-error", "not-fitted", "queued", "fitting", "ready" (pre-fit,
-# or fitted; `warning` when the fit did not converge) and "failed".
-component_status <- function(source, sheet, record, prefit = NULL, cover_blocked = FALSE) {
+# or fitted) and "failed". A fitted model carries two warnings: `convergence`
+# when the fit did not converge, and `prior` (prior_warning, from its prior
+# sensitivity) when a prior is influencing an estimate.
+component_status <- function(source, sheet, record, prefit = NULL, cover_blocked = FALSE, prior_warning = FALSE) {
   if (source == "none") {
     return(list(kind = "not-used", source = source))
   }
@@ -93,7 +102,7 @@ component_status <- function(source, sheet, record, prefit = NULL, cover_blocked
     if (!is.null(prefit$error)) {
       return(list(kind = "failed", source = source, message = prefit$error))
     }
-    return(list(kind = "ready", source = source, warning = FALSE))
+    return(list(kind = "ready", source = source))
   }
   if (is.null(sheet)) {
     return(list(kind = "no-data", source = source))
@@ -104,7 +113,7 @@ component_status <- function(source, sheet, record, prefit = NULL, cover_blocked
   switch(record$status,
     queued = list(kind = "queued", source = source),
     fitting = list(kind = "fitting", source = source),
-    fitted = list(kind = "ready", source = source, warning = !converged(record$fit)),
+    fitted = list(kind = "ready", source = source, convergence = !converged(record$fit), prior = prior_warning),
     failed = list(kind = "failed", source = source, message = record$error),
     list(kind = "not-fitted", source = source, blocked = cover_blocked)
   )
@@ -112,13 +121,20 @@ component_status <- function(source, sheet, record, prefit = NULL, cover_blocked
 
 is_ready_status <- function(status) status$kind %in% c("ready", "not-used")
 is_pending_status <- function(status) status$kind %in% c("queued", "fitting")
-has_warning <- function(status) isTRUE(status$warning)
+has_warning <- function(status) isTRUE(status$convergence) || isTRUE(status$prior)
+
+# kb_sensitivity() rows flag a prior warning when any prior is not weak.
+prior_flagged <- function(rows) !is.null(rows) && !all(rows$weak_prior)
 
 # The biomass models first; the cover model can be fitted once they are ready.
-component_statuses <- function(sources, sheets, records, prefits = list()) {
-  statuses <- lapply(biomass_ids, function(id) component_status(sources[[id]], sheets[[id]], records[[id]], prefits[[id]]))
+# prior_warnings flags, by model, a fit whose priors influence its estimates.
+component_statuses <- function(sources, sheets, records, prefits = list(), prior_warnings = list()) {
+  status <- function(id, ...) {
+    component_status(sources[[id]], sheets[[id]], records[[id]], ..., prior_warning = isTRUE(prior_warnings[[id]]))
+  }
+  statuses <- lapply(biomass_ids, function(id) status(id, prefits[[id]]))
   ready <- all(vapply(statuses, is_ready_status, logical(1)))
-  c(statuses, list(cover = component_status(sources[["cover"]], sheets$cover, records$cover, cover_blocked = !ready)))
+  c(statuses, list(cover = status("cover", cover_blocked = !ready)))
 }
 
 # A model fitted to your data can be fitted now: it has checked data and, for the
@@ -267,7 +283,8 @@ new_store <- function(session, run_fit = mirai_fit_runner) {
   s$statuses <- reactive({
     sources <- s$sources()
     prefit_ids <- Filter(function(id) is_prefit(sources[[id]]), component_ids)
-    component_statuses(sources, s$sheets(), s$records(), lapply(prefit_ids, s$prefit))
+    prior_warnings <- lapply(component_ids, function(id) prior_flagged(s$sensitivity[[id]]()))
+    component_statuses(sources, s$sheets(), s$records(), lapply(prefit_ids, s$prefit), prior_warnings)
   })
   s$fitting <- reactive(fitting_id(s$records()))
 
@@ -285,7 +302,8 @@ new_store <- function(session, run_fit = mirai_fit_runner) {
   # dedupe(), so it is computed once per change of those fits and shared by
   # every output that shows it.
 
-  # Prior sensitivity of each model's fit to your data; NULL until fitted.
+  # Prior sensitivity of each model's fit to your data; NULL until fitted. The
+  # statuses read it, so it is computed as soon as a model is fitted.
   s$sensitivity <- lapply(component_ids, function(id) {
     fit <- dedupe(reactive(s$records()[[id]]$fit))
     reactive(if (!is.null(fit())) kb_sensitivity(fit()))
@@ -336,27 +354,40 @@ new_store <- function(session, run_fit = mirai_fit_runner) {
 
   # Actions ----------------------------------------------------------------------
 
-  s$notify <- function(text, type = "message", title = NULL, action = NULL, duration = 4, id = NULL) {
+  s$notify <- function(text, type = "message", title = NULL, duration = 4) {
     ui <- if (is.null(title)) text else tagList(div(class = "fw-semibold", title), div(text))
-    showNotification(ui, action = action, type = type, duration = duration, id = id, session = session)
+    showNotification(ui, type = type, duration = duration, session = session)
   }
 
-  # Runs `action`, a change that resets the fits of `ids`, after asking first
-  # when any of them is fitted or fitting. Cancel runs `cancel`, which puts the
-  # input that asked for the change back.
+  # Runs `action`, a change that resets the fits of `ids` and, with
+  # `resets_priors` (a species change), every model's priors, after asking first
+  # when it would discard a fit or an edited prior. Cancel runs `cancel`, which
+  # puts the input that asked for the change back.
   pending_reset <- NULL
-  s$confirm_reset <- function(ids, action, cancel = function() NULL) {
-    n <- reset_count(isolate(s$records()), ids)
-    if (n == 0) {
+  s$confirm_reset <- function(ids, action, cancel = function() NULL, resets_priors = FALSE) {
+    fitted <- reset_ids(isolate(s$records()), ids)
+    edited <- resets_priors && priors_edited(isolate(s$priors()), isolate(s$species()))
+    if (length(fitted) == 0 && !edited) {
       return(action())
     }
     pending_reset <<- list(action = action, cancel = cancel)
     showModal(
       modalDialog(
-        sprintf("This resets %d fitted %s. Continue?", n, if (n == 1) "model" else "models"),
+        title = if (length(fitted) > 0) "Discard fitted models?" else "Reset priors?",
+        div(
+          class = "d-flex flex-column gap-2",
+          if (length(fitted) > 0) {
+            div(sprintf(
+              "This discards the %s of %s. %s to be fitted again.",
+              if (length(fitted) == 1) "fit" else "fits", and_list(vapply(fitted, label_of, "")),
+              if (length(fitted) == 1) "It needs" else "They need"
+            ))
+          },
+          if (edited) div("Edited priors return to their defaults for the new species.")
+        ),
         footer = tagList(
           button("reset_cancel", "Cancel", variant = "outline"),
-          button("reset_continue", "Continue")
+          button("reset_continue", if (length(fitted) > 0) "Discard fits" else "Reset priors")
         ),
         size = "s"
       ),
@@ -522,13 +553,6 @@ new_store <- function(session, run_fit = mirai_fit_runner) {
   }
   s$open_settings <- function(id) s$open_tab(id, "settings")
 
-  lapply(component_ids, function(id) {
-    observeEvent(session$input[[paste0("toast_settings_", id)]], {
-      removeNotification(paste0("convergence_", id), session = session)
-      s$open_settings(id)
-    })
-  })
-
   observeEvent(session$input$step, {
     if (session$input$step == "models") {
       s$open(pending_model %||% "hub")
@@ -568,29 +592,15 @@ new_store <- function(session, run_fit = mirai_fit_runner) {
     runner$invoke(call$fn, call$args)
   }
 
+  # A failure is the one fit result shown as a notification, as it can happen
+  # while another step is open. A finished fit shows only in the statuses and
+  # the model page notices.
   fit_failed <- function(id, message) {
     set_records(fail_record(s$records(), id, message))
     s$notify(message, type = "error", title = sprintf("%s model failed", label_of(id)), duration = 10)
   }
 
-  fit_done <- function(id, fit) {
-    set_records(finish_record(s$records(), id, fit))
-    if (converged(fit)) {
-      s$notify("All parameters converged.", title = sprintf("%s model fitted", label_of(id)))
-      return()
-    }
-    s$notify(
-      warning_help$convergence$advice,
-      type = "warning",
-      title = sprintf("%s model fitted with a convergence warning", label_of(id)),
-      action = div(
-        class = "mt-2",
-        actionButton(paste0("toast_settings_", id), "Open sampler settings", class = "btn-primary btn-sm")
-      ),
-      duration = 10,
-      id = paste0("convergence_", id)
-    )
-  }
+  fit_done <- function(id, fit) set_records(finish_record(s$records(), id, fit))
 
   observe({
     records <- s$records()

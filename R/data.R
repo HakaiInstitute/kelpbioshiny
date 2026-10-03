@@ -34,7 +34,7 @@ components <- list(
   weight = list(
     label = "Weight", detail = "Wet weight by plant size", sheet = "weight",
     columns = list(nereo = c("site", "year", "diameter_mm", "weight_kg"), macro = c("site", "year", "fronds", "weight_kg")),
-    sources = c("user", prefit_source(c("coastwide", "hakai"))), default = prefit_source("coastwide")
+    sources = c("user", prefit_source(c("coastwide", "hakai")))
   ),
   blade = list(
     label = "Blade fraction", detail = "Proportion of wet weight in blades", sheet = "blade",
@@ -120,9 +120,6 @@ output_components <- list(
 
 default_source <- function(id, has_sheet) {
   options <- components[[id]]$sources
-  if (!is.null(components[[id]]$default)) {
-    return(components[[id]]$default)
-  }
   if (has_sheet && "user" %in% options) {
     return("user")
   }
