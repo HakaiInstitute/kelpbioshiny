@@ -41,6 +41,7 @@ fit_activity <- function() {
   )
 }
 
+# jarl-ignore unused_function: called from inst/app/ui.R.
 app_ui <- function() {
   page_navbar(
     title = brand(),

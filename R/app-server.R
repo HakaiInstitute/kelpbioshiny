@@ -1,3 +1,4 @@
+# jarl-ignore unused_function: called from inst/app/server.R.
 app_server <- function(input, output, session) {
   store <- new_store(session)
 

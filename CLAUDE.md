@@ -37,7 +37,7 @@ The build runs are also Positron/VS Code tasks ("kelpbioshiny: build", "kelpbios
 
 ## Key Rules
 
-- **The app computes no numbers and draws no custom figures.** Every estimate, table and figure comes from an unqualified `kb_*()` call or a kelpbio generic (`tidy()`, `glance()`, `summary()`, `converged()`); the app only labels, arranges and formats. `test-mock-kelpbio.R` scans the installed namespace with codetools to check that app code calls no summary or distribution functions.
+- **The app computes no numbers and draws no custom figures.** Every estimate, table and figure comes from an unqualified `kb_*()` call or a kelpbio generic (`tidy()`, `glance()`, `summary()`, `converged()`); the app only labels, arranges and formats. `test-architecture.R` scans the installed namespace with codetools to check that app code calls no summary or distribution functions.
 - **Fits run in the background.** Each `kb_fit_*()` call runs on a mirai daemon through one `ExtendedTask` per session; the store polls `kb_fit_progress()` while it runs. The runner is injectable (`new_store(session, run_fit =)`), so tests run fits in the session.
 - **Mocks live only in `R/mock-kelpbio.R` and `R/mock-example.R`.** App code calls no mock internals and reads fake data only through `kb_example_data()`. Each mock is marked Exists (matches kelpbio's signature and checks), Exists in the working tree (in an unmerged kelpbio change) or Planned. kelpbio is not yet in Imports. To switch a function to the real one: delete its mock, add kelpbio to Imports in `DESCRIPTION` (once), and add `@importFrom kelpbio <fun>` to `R/namespace.R`. The mocks' `kb_fit` methods for `tidy`/`augment`/`converged` are registered with `@exportS3Method`; delete them once kelpbio is imported, since kelpbio provides them.
 - **Styling** comes from the Hakai theme: Bootstrap Sass variables in `bs_theme()` and bslib components. Custom CSS (`inst/app/www/styles.css`) targets only `.kb-*` classes and reads colours from `var(--bs-*)`; it never targets Bootstrap, bslib, Shiny or reactable internals. No custom JavaScript files; the one script is the inline `onclick` of `copy_button()` (`R/functions-ui.R`), shared by every Copy button.
@@ -56,10 +56,19 @@ The build runs are also Positron/VS Code tasks ("kelpbioshiny: build", "kelpbios
 
 ## Testing
 
-Test at the lowest level that can see the behaviour (from shinyssdtools' `CLAUDE-TESTING.md`):
+The suite is deliberately minimal for the prototype: one example of each test type, as the pattern to follow. A full suite replaces it once the app moves past the prototype.
 
-1. **Unit tests** for pure functions (status logic, labels, coverage, export script).
-2. **`testServer()`** for reactive logic (`test-state.R`, `test-server-<module>.R`): drive inputs with `session$setInputs()`, stub the fits with `local_stub_fits()`, run the queue with `finish_fits()`, and read the store and reactives directly. Never add `exportTestValues()` or test-only outputs to app code.
-3. **shinytest2 `AppDriver`** (`test-shinytest2-*.R`) only for what needs a browser: DOM rendering, uploads, downloads. These tests run the installed app (`system.file("app")`), so install first; they `skip_on_cran()` and use no screenshot snapshots.
+| Type | File |
+|------|------|
+| Unit test of a pure function (a status rule) | `test-state.R` |
+| Store test: `testServer()` on `new_store()`, fits stubbed, run by `test_runner()` | `test-state.R` |
+| Module test: `testServer()` on a step's server, driven by `session$setInputs()` | `test-mod_data.R` |
+| Snapshot of the User guide text | `test-mod_help.R` |
+| Architecture: codetools on the installed namespace | `test-architecture.R` |
+| Browser smoke test (shinytest2 `AppDriver` on the installed app; install first) | `test-shinytest2.R` |
 
-testthat runs tests with the package namespace as parent, so internals are available without `:::`. Shared helpers are in `tests/testthat/helpers.R` (`store_app()`, `create_workflow_app()`, `wait_for_data()`) and `tests/testthat/helper-fits.R` (`local_stub_fits()`, `test_runner()`, `finish_fits()`).
+- Fits are stubbed at the kelpbio boundary: `local_stub_fits()` replaces the `kb_fit_*()` functions with `local_mocked_bindings()`, so the tests survive the swap from the mocks to kelpbio. The runner is injected with `new_store(session, run_fit =)`.
+- Browser tests never click Fit: with kelpbio in place it would run real MCMC. They `skip_on_cran()` and use no screenshot snapshots.
+- Never add `exportTestValues()` or test-only outputs to app code.
+
+Shared helpers: `tests/testthat/helpers.R` (`store_app()`) and `tests/testthat/helper-fits.R` (`local_stub_fits()`, `test_runner()`, `finish_fits()`).

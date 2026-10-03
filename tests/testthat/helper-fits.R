@@ -2,9 +2,9 @@
 # fit at once, and a fit runner that runs each call in the session when told to.
 
 # Stubs every kb_fit_<model>_<species>() for the calling test. Each records its
-# arguments and returns the mock's fake fit, or errors for a model in `fail`.
-# Returns an environment whose `calls` lists list(model, species, args) in order.
-local_stub_fits <- function(fail = character(), env = parent.frame()) {
+# arguments and returns the mock's fake fit. Returns an environment whose `calls`
+# lists list(model, species, args) in order.
+local_stub_fits <- function(env = parent.frame()) {
   log <- new.env()
   log$calls <- list()
   stub <- function(model, species) {
@@ -13,7 +13,6 @@ local_stub_fits <- function(fail = character(), env = parent.frame()) {
     function(...) {
       args <- list(...)
       log$calls <- c(log$calls, list(list(model = model, species = species, args = args)))
-      if (model %in% fail) stop(sprintf("Stub %s fit failed.", model), call. = FALSE)
       fit <- .mock_new_fit(model, species, args$data, args$priors, args$chains, args$niters, args$nthin)
       if (model == "biomass_cover") fit$data <- tibble::as_tibble(.mock_cover_response(args$data))
       fit
