@@ -27,11 +27,11 @@ app_server <- function(input, output, session) {
     queued <- sum(record_status(store$records()) == "queued")
     paste0(
       sprintf("Fitting %s %d%%", lower_label(store$fitting()), floor(store$progress())),
-      if (queued > 0) sprintf(" · %d queued", queued)
+      if (queued > 0) sprintf(" \u00b7 %d queued", queued)
     )
   })
 
   observeEvent(input$activity, store$go_to("models"))
-  # Set by a citation's Copy button once the text is on the clipboard.
-  observeEvent(input$citation_copied, store$notify("Citation copied to the clipboard."))
+  # Set by a Copy button (copy_button()) once the text is on the clipboard.
+  observeEvent(input$copied, store$notify(copied_messages[[input$copied]]))
 }

@@ -149,3 +149,8 @@
     top: 1.5rem;
   }
 }
+
+/* The workbook file input fills narrow screens but stays compact on wide ones. */
+.kb-file-input {
+  max-width: 20rem;
+}

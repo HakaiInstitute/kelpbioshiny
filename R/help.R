@@ -109,8 +109,8 @@ help_topics <- list(
     ),
     link = kelpbio_articles[["models"]]
   ),
-  # Cover and totals: the exact formulation is a placeholder until the
-  # biomass:cover model is designed in kelpbio.
+  # Cover and total biomass: the exact formulation is a placeholder until the
+  # cover model is designed in kelpbio.
   canopy_area = list(
     title = "Canopy area",
     body = paste(
@@ -130,7 +130,7 @@ help_topics <- list(
   total_biomass = list(
     title = "Total biomass",
     body = paste(
-      "Biomass per unit area is predicted from percent cover with the biomass:cover model, then scaled up by the canopy area.",
+      "Biomass per unit area is predicted from percent cover with the cover model, then scaled up by the canopy area.",
       "The uncertainty in every model is carried through to the limits.",
       "Site-years with canopy area but no plot cover use the population-level cover relationship."
     ),

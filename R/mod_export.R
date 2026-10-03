@@ -67,7 +67,7 @@ export_script <- function(species, sources, sheets, workbook, priors, samplers) 
       if ("cover" %in% used) {
         c(
           "",
-          "# Total biomass per site-year from drone canopy area",
+          "# Total biomass per site-year from the cover model",
           fit_lines("cover"),
           "totals <- kb_predict_biomass_total(fit_cover, biomass)",
           "kb_plot_biomass(totals)"
@@ -81,7 +81,7 @@ export_script <- function(species, sources, sheets, workbook, priors, samplers) 
 # TODO: build each download (results workbook, figures, fit bundle and report);
 # the buttons only show a notice for now.
 download_items <- list(
-  results = list(label = "Results workbook", detail = "Excel: biomass per unit area, totals when the cover model is used, settings and sources", file = "kelpbio-results-%s.xlsx", icon = "file-spreadsheet"),
+  results = list(label = "Results workbook", detail = "Excel: biomass per unit area, total biomass when the cover model is used, settings and sources", file = "kelpbio-results-%s.xlsx", icon = "file-spreadsheet"),
   figures = list(label = "Figures", detail = "ZIP of PNG and PDF figures", file = "kelpbio-figures-%s.zip", icon = "file-image"),
   bundle = list(label = "Fit bundle", detail = "RDS: add it on the Data step to resume this run", file = "kelpbio-fits-%s.rds", icon = "database"),
   report = list(label = "Report", detail = "PDF with methods, diagnostics and results", file = "kelpbio-report-%s.pdf", icon = "file-text")
@@ -112,6 +112,7 @@ mod_export_ui <- function(id) {
 
   main <- tagList(
     page_header("Export", step_description("export")),
+    uiOutput(ns("warnings")),
     panel("Downloads", description = textOutput(ns("downloads_note"), inline = TRUE), div(class = "row g-3", downloads)),
     panel(
       "R script",
@@ -121,17 +122,13 @@ mod_export_ui <- function(id) {
         div(
           class = "d-flex align-items-center justify-content-between border-bottom bg-body-tertiary px-3 py-1",
           span(class = "font-monospace small text-body-secondary", "analysis.R"),
-          actionButton(
-            ns("copy"), span(class = "d-inline-flex align-items-center gap-2", lucide("copy"), "Copy"),
-            class = "btn-light btn-sm",
-            onclick = sprintf("navigator.clipboard.writeText(document.getElementById('%s').innerText)", ns("script"))
-          )
+          copy_button(ns("script"), "script", "Copy the R script")
         ),
         uiOutput(ns("script_block"))
       )
     )
   )
-  layout_columns(col_widths = c(3, 9), div(class = "kb-aside", sidebar), div(main))
+  step_layout(sidebar, main)
 }
 
 mod_export_server <- function(id, store) {
@@ -150,7 +147,19 @@ mod_export_server <- function(id, store) {
       })
     })
 
-    observeEvent(input$copy, store$notify("R code copied to clipboard."))
+    for (cid in component_ids) {
+      local({
+        cid <- cid
+        observeEvent(input[[paste0("settings_", cid)]], store$open_settings(cid))
+        observeEvent(input[[paste0("priors_", cid)]], store$open_settings(cid))
+        observeEvent(input[[paste0("open_", cid)]], store$go_to("models", cid))
+      })
+    }
+
+    output$warnings <- renderUI({
+      notices <- warning_notices(session$ns, store$statuses(), lapply(store$sensitivity, function(r) r()))
+      if (length(notices) > 0) div(class = "d-flex flex-column gap-2 mb-3", notices)
+    })
 
     output$downloads_note <- renderText({
       if (store$biomass_ready()) {
@@ -175,4 +184,32 @@ mod_export_server <- function(id, store) {
       tags$pre(id = session$ns("script"), class = "m-0 px-3 py-3 small bg-white border-0", .noWS = "inside", tags$code(.noWS = "inside", code))
     })
   })
+}
+
+# One notice per warning of the models in use: a failed fit, a convergence
+# warning or a prior sensitivity warning. sensitivity holds the kb_sensitivity()
+# rows of each model fitted to your data.
+warning_notices <- function(ns, statuses, sensitivity) {
+  title <- function(id, key) sprintf("%s model: %s", label_of(id), tolower(warning_help[[key]]$title))
+  notices <- lapply(component_ids, function(id) {
+    status <- statuses[[id]]
+    rows <- sensitivity[[id]]
+    flagged <- if (status$kind == "ready" && !is.null(rows)) rows[!rows$weak_prior, ] else data.frame()
+    list(
+      if (status$kind == "failed") {
+        notice(
+          "x-circle", title(id, "failed"), status$message,
+          tone = "warning", action = button(ns(paste0("open_", id)), "Open model", variant = "outline", size = "sm")
+        )
+      },
+      if (has_warning(status)) convergence_notice(title(id, "convergence"), ns(paste0("settings_", id))),
+      if (nrow(flagged) > 0) {
+        notice(
+          "alert-triangle", title(id, "prior"), paste(prior_influence(flagged), warning_help$prior$advice),
+          tone = "warning", action = button(ns(paste0("priors_", id)), "Open prior settings", "sliders-horizontal", size = "sm")
+        )
+      }
+    )
+  })
+  Filter(Negate(is.null), unlist(notices, recursive = FALSE))
 }

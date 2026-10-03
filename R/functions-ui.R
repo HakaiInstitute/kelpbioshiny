@@ -22,7 +22,7 @@ panel <- function(title, ..., description = NULL, action = NULL, class = NULL, i
           div(class = "kb-card-title", title),
           if (!is.null(description)) div(class = "small text-body-secondary mt-1", description)
         ),
-        action
+        if (!is.null(action)) div(class = "flex-shrink-0", action)
       ),
       ...
     )
@@ -35,7 +35,8 @@ step_marker <- function(number, state = c("todo", "done", "warning", "busy"), cl
   state <- match.arg(state)
   add <- function(x) paste(c("kb-step-marker", x, class), collapse = " ")
   switch(state,
-    done = span(class = add("bg-primary text-white"), `aria-label` = "complete", lucide("check")),
+    # A white disc with a slate tick stands out on the slate navbar.
+    done = span(class = add("bg-white text-secondary-emphasis"), `aria-label` = "complete", lucide("check")),
     warning = span(class = add("bg-warning text-white"), `aria-label` = "complete with warnings", lucide("alert-triangle")),
     busy = span(class = add("bg-primary-subtle text-primary-emphasis"), lucide("loader-2", "kb-spin")),
     todo = span(class = add("kb-step-todo"), number)
@@ -56,6 +57,16 @@ step_item <- function(value, ..., small = TRUE) {
       ),
       ...
     )
+  )
+}
+
+# A step page: the aside (choices and statuses) beside the main content on large
+# screens, and below it on small ones, so a phone shows the content first.
+step_layout <- function(aside, main) {
+  div(
+    class = "row g-4",
+    div(class = "col-lg-3 order-last order-lg-first", div(class = "kb-aside", aside)),
+    div(class = "col-lg-9", main)
   )
 }
 
@@ -80,7 +91,7 @@ notice <- function(icon, title, ..., tone = c("info", "warning", "muted"), actio
       div(class = "fw-medium", title),
       if (length(body) > 0) div(class = "text-body-secondary", body)
     ),
-    action
+    if (!is.null(action)) div(class = "flex-shrink-0", action)
   )
 }
 
@@ -185,6 +196,11 @@ plot_estimates_nav <- function(id, plot, estimates, selected = NULL) {
   )
 }
 
+# Figures render at more than the 96 dpi screen default, so their text is legible;
+# figure_px() scales a height in pixels at 96 dpi to match.
+figure_res <- 120
+figure_px <- function(px) round(px * figure_res / 96)
+
 # A ggplot from kelpbio drawn by render_figure(), with its caption.
 figure_plot <- function(output_id, caption = NULL, class = NULL) {
   tags$figure(
@@ -201,7 +217,7 @@ render_figure <- function(plot, output_id, aspect = 0.5, height = NULL, alt = NA
   value <- function(x) if (is.function(x)) x() else x
   renderPlot(
     plot(),
-    res = 96,
+    res = figure_res,
     alt = alt,
     height = function() {
       if (!is.null(height)) {
@@ -228,15 +244,29 @@ status_list <- function(statuses, notes) {
   )
 }
 
-convergence_advice <- "Increase thinning (nthin) in Sampler settings and refit."
+# Each warning's title and what to do about it, read by the notices, the fit
+# messages and the User guide's warnings section.
+warning_help <- list(
+  convergence = list(
+    title = "Convergence warning",
+    advice = "Increase thinning (nthin) in Sampler settings and refit. For example, set nthin to 2."
+  ),
+  prior = list(
+    title = "Prior sensitivity warning",
+    advice = "If this is unintended, make each flagged prior less informative on the Settings tab and refit."
+  ),
+  failed = list(title = "The fit failed", advice = "Refit the model to see its results."),
+  data_check = list(title = "The data check failed", advice = "Correct the sheet and upload it again."),
+  mismatch = list(title = "Site names differ across sheets", advice = mismatch_advice)
+)
 
 # A convergence warning whose main action opens the model's sampler settings.
 convergence_notice <- function(title, settings_id, ..., secondary = NULL) {
   notice(
-    "alert-triangle", title, convergence_advice, ...,
+    "alert-triangle", title, warning_help$convergence$advice, ...,
     tone = "warning",
     action = div(
-      class = "d-flex flex-wrap gap-2 flex-shrink-0",
+      class = "d-flex flex-wrap gap-2",
       secondary,
       button(settings_id, "Open sampler settings", "sliders-horizontal", size = "sm")
     )
@@ -266,28 +296,31 @@ prior_advice <- function(prior, parameter = NULL) {
   if (is.null(parameter)) "Try a wider prior." else sprintf("For %s, try a wider prior.", parameter)
 }
 
+# "The prior for sYear is influencing the estimate.", from kb_sensitivity() rows
+# whose prior is not weak.
+prior_influence <- function(flagged) {
+  many <- nrow(flagged) > 1
+  sprintf(
+    "The %s for %s %s influencing the %s.", if (many) "priors" else "prior", and_list(flagged$parameter),
+    if (many) "are" else "is", if (many) "estimates" else "estimate"
+  )
+}
+
 # Prior sensitivity: a warning, with a link to the priors, for parameters whose
 # prior is not weak. priors is the fit's priors list, whose entries the rows'
 # prior column names.
 prior_notice <- function(rows, priors, settings_id) {
-  flagged <- rows[!rows$weak_prior, ]
-  if (nrow(flagged) == 0) {
+  if (is.null(rows) || all(rows$weak_prior)) {
     return(NULL)
   }
+  flagged <- rows[!rows$weak_prior, ]
   many <- nrow(flagged) > 1
-  influence <- sprintf(
-    "The %s for %s %s influencing the %s", if (many) "priors" else "prior", and_list(flagged$parameter),
-    if (many) "are" else "is", if (many) "estimates" else "estimate"
-  )
   advice <- vapply(seq_len(nrow(flagged)), function(i) {
     prior_advice(priors[[flagged$prior[i]]], if (many) flagged$parameter[i])
   }, "")
-  body <- paste(
-    sprintf("If this is unintended, try making the %s less informative.", if (many) "priors" else "prior"),
-    paste(advice, collapse = " ")
-  )
   notice(
-    "alert-triangle", "Prior sensitivity warning", paste0(influence, ". ", body),
+    "alert-triangle", warning_help$prior$title,
+    paste(prior_influence(flagged), warning_help$prior$advice, paste(advice, collapse = " ")),
     tone = "warning",
     action = button(settings_id, "Open prior settings", "sliders-horizontal", size = "sm")
   )
@@ -326,6 +359,22 @@ sentence_case <- function(x) paste0(toupper(substr(x, 1, 1)), substring(x, 2))
 # Estimates arrive from kelpbio rounded to 3 significant figures; show them as given.
 number_text <- function(value) as.character(value)
 
+
+# A Copy button for the text of the element with id `target`. Once the text is on
+# the clipboard it sets the `copied` input to `what`, and the server confirms
+# with copied_messages[[what]].
+copied_messages <- c(citation = "Citation copied to the clipboard.", script = "R script copied to the clipboard.")
+
+copy_button <- function(target, what, aria_label) {
+  onclick <- sprintf(
+    "navigator.clipboard.writeText(document.getElementById('%s').innerText).then(() => Shiny.setInputValue('copied', '%s', {priority: 'event'}))",
+    target, what
+  )
+  tags$button(
+    type = "button", class = "btn btn-light border btn-sm", onclick = onclick, `aria-label` = aria_label,
+    span(class = "d-inline-flex align-items-center gap-2", lucide("copy"), "Copy")
+  )
+}
 
 # Shared reactable options, so every table reads the same.
 app_table <- function(data, columns = NULL, page_size = 10, row_style = NULL, height = "auto", pagination = TRUE, ...) {

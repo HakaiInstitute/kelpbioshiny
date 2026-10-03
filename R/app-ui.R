@@ -13,16 +13,17 @@ step_title <- function(value) {
 }
 
 # Inline-flex and vertically centred, so the brand sits on the navbar's centre
-# line with the step tabs rather than at the top of an inline line box.
+# line with the step tabs rather than at the top of an inline line box. Below the
+# md breakpoint only the name shows, so the brand fits beside the menu toggler.
 brand <- function() {
   div(
     class = "d-inline-flex align-items-center align-middle gap-3",
-    tags$img(src = "hakai.png", alt = "Hakai Institute", class = "kb-brand-logo"),
-    span(class = "kb-brand-divider", `aria-hidden` = "true"),
+    tags$img(src = "hakai.png", alt = "Hakai Institute", class = "kb-brand-logo d-none d-md-inline"),
+    span(class = "kb-brand-divider d-none d-md-inline", `aria-hidden` = "true"),
     div(
       class = "lh-sm",
       div(class = "fs-5 fw-semibold", "kelpbio"),
-      div(class = "small fw-normal kb-brand-subtitle", "Bayesian kelp biomass estimation")
+      div(class = "small fw-normal kb-brand-subtitle d-none d-md-block", "Bayesian kelp biomass estimation")
     )
   )
 }
@@ -48,6 +49,7 @@ app_ui <- function() {
     fluid = FALSE,
     fillable = FALSE,
     window_title = "kelpbio",
+    navbar_options = navbar_options(collapsible = TRUE),
     header = tags$head(
       tags$link(rel = "stylesheet", href = "styles.css"),
       tags$link(rel = "icon", type = "image/png", href = "favicon-96x96.png")

@@ -1,6 +1,6 @@
 # Biomass step: locked until every model in use is ready, then a figure and a
 # table of site-year estimates for the chosen output, per unit area or, with a
-# fitted biomass:cover model, as totals for the drone-covered site-years.
+# fitted cover model, as total biomass for the site-years with a canopy area.
 
 # The estimates table: kb_predict_biomass() or kb_predict_biomass_total() rows
 # with a flags column naming the population-level estimates and pre-fit models
@@ -23,7 +23,7 @@ biomass_table <- function(rows, sources, output) {
 
 biomass_scales <- list(
   area = list(label = "Per unit area", detail = "By site-year"),
-  total = list(label = "Total per site-year", detail = "Site-years with drone imagery")
+  total = list(label = "Total biomass", detail = "Site-years with a canopy area")
 )
 
 mod_biomass_ui <- function(id) {
@@ -46,7 +46,7 @@ mod_biomass_ui <- function(id) {
     ),
     uiOutput(ns("main"))
   )
-  layout_columns(col_widths = c(3, 9), div(class = "kb-aside", sidebar), div(main))
+  step_layout(sidebar, main)
 }
 
 # Radio buttons where some choices are shown but cannot be picked.
@@ -80,6 +80,7 @@ mod_biomass_server <- function(id, store) {
     chosen_scale <- reactiveVal("area")
     output_key <- reactive(if (store$outputs()[[chosen()]]$available) chosen() else "wet")
     scale_key <- reactive(if (store$totals()$available) chosen_scale() else "area")
+    locked <- reactive(!store$has_density() || !store$biomass_ready())
 
     observeEvent(input$output, chosen(input$output))
     observeEvent(input$scale, chosen_scale(input$scale))
@@ -96,11 +97,15 @@ mod_biomass_server <- function(id, store) {
       })
     }
 
+    # The choices are disabled while the step is locked.
     output$scale_choice <- renderUI({
       open <- if (store$totals()$available) names(biomass_scales) else "area"
-      choice_group(ns("scale"), names(biomass_scales), open, isolate(scale_key()), function(key, available) {
-        choice_label(biomass_scales[[key]]$label, if (available) biomass_scales[[key]]$detail else "Unavailable")
-      })
+      tags$fieldset(
+        disabled = if (locked()) NA,
+        choice_group(ns("scale"), names(biomass_scales), open, isolate(scale_key()), function(key, available) {
+          choice_label(biomass_scales[[key]]$label, if (available) biomass_scales[[key]]$detail else "Unavailable")
+        })
+      )
     })
 
     output$output_choice <- renderUI({
@@ -108,9 +113,12 @@ mod_biomass_server <- function(id, store) {
       keys <- names(output_info)
       open <- keys[vapply(available, `[[`, logical(1), "available")]
       unit <- if (scale_key() == "total") "Tonnes" else NULL
-      choice_group(ns("output"), keys, open, isolate(output_key()), function(key, available) {
-        choice_label(output_info[[key]]$label, if (available) unit %||% output_info[[key]]$unit else "Unavailable")
-      })
+      tags$fieldset(
+        disabled = if (locked()) NA,
+        choice_group(ns("output"), keys, open, isolate(output_key()), function(key, available) {
+          choice_label(output_info[[key]]$label, if (available) unit %||% output_info[[key]]$unit else "Unavailable")
+        })
+      )
     })
 
     output$sources <- renderUI({
@@ -119,7 +127,7 @@ mod_biomass_server <- function(id, store) {
     })
 
     output$main <- renderUI({
-      if (!store$has_density() || !store$biomass_ready()) {
+      if (locked()) {
         return(locked_state(ns, store))
       }
       key <- output_key()
@@ -144,7 +152,7 @@ mod_biomass_server <- function(id, store) {
             "minus-circle", totals$reason,
             tone = "muted",
             action = if (!statuses$cover$kind %in% c("not-used", "no-data", "data-error")) {
-              button(ns("open_cover"), "Open biomass:cover", variant = "outline", size = "sm")
+              button(ns("open_cover"), "Open cover model", variant = "outline", size = "sm")
             }
           ))
         }
@@ -160,8 +168,8 @@ mod_biomass_server <- function(id, store) {
       )
     })
 
-    # Biomass per unit area, or totals, for the chosen output, or the error
-    # kelpbio gave.
+    # Biomass per unit area, or total biomass, for the chosen output, or the
+    # error kelpbio gave.
     estimates <- reactive({
       req(store$has_density(), store$biomass_ready())
       tryCatch(
@@ -171,9 +179,11 @@ mod_biomass_server <- function(id, store) {
     })
     estimated <- reactive(if (!inherits(estimates(), "error")) estimates() else req(FALSE))
 
+    # One facet per site, so the figure grows with the rows of facets
+    # (kb_plot_biomass() uses facet_wrap()'s default layout).
     output$figure <- render_figure(
       function() kb_plot_biomass(estimated()), "figure",
-      aspect = function() if (scale_key() == "total") 4.5 / 8 else 6 / 8,
+      height = function() figure_px(60 + 170 * ggplot2::wrap_dims(length(unique(estimated()$site)))[1]),
       alt = function() {
         label <- output_info[[output_key()]]$label
         sprintf("Estimated %s by site and year", tolower(if (scale_key() == "total") paste("Total", label) else label))
@@ -255,13 +265,13 @@ total_panels <- function(ns, key) {
     plot = panel(
       with_help(label, "total_biomass"),
       description = sprintf(
-        "Estimated %s (t) by year, faceted by site, with 95%% compatibility intervals, for site-years with drone imagery.",
+        "Estimated %s (t) by year, faceted by site, with 95%% compatibility intervals, for site-years with a canopy area.",
         tolower(label)
       ),
       figure_plot(ns("figure"))
     ),
     estimates = panel(
-      "Totals",
+      "Estimates",
       description = tagList(
         with_help(sprintf("%s (t) with 95%% compatibility intervals, to 3 significant figures.", label), "interval"),
         flags_note(", including the population-level cover relationship for site-years without plot cover.")

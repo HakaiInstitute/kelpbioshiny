@@ -39,3 +39,10 @@ test_that("source labels and notes name the pre-fit reference", {
     c(size = "Pre-fit Hakai Institute", weight = "Pre-fit coastwide")
   )
 })
+
+test_that("each prior entry names the term the diagnostics and sensitivity use", {
+  priors <- default_priors("size")
+  expect_identical(priors$term, c("bDiameter", "bShape", "sSite", "sYear", "sSiteYear"))
+  rows <- kb_sensitivity(.mock_new_fit("size", "nereo", data.frame(), NULL))
+  expect_identical(rows$parameter, priors$term[match(rows$prior, priors$name)])
+})

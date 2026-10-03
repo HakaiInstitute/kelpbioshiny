@@ -12,6 +12,7 @@ test_that("Fit all fits the models in order and becomes Cancel while fitting", {
     expect_true(store$biomass_ready())
     expect_true(store$totals()$available)
     expect_match(html_of(output[["models-status_density"]]), "Ready", fixed = TRUE)
+    expect_match(html_of(output[["models-fit_all_ui"]]), "All models are fitted", fixed = TRUE)
   })
 })
 

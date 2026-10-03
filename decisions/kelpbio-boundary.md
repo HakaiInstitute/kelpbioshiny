@@ -27,6 +27,11 @@ until then, and deletes it once the kelpbio function exists.
 | Units on `kb_predict_biomass()` output and `kb_biomass_models(type, total)` | `output_info` units and output availability rules |
 | Sampler defaults from the fit functions' formals or `kb_sampler_defaults()` | Defaults repeated in the app |
 
+Two smaller additions the app already mocks: each `kb_priors_*()` entry names
+the model term it sets (so warnings and the prior editor use one name), and
+`kb_model_describe(fit, priors = FALSE)` leaves the priors out (the app shows
+priors only in its prior editor).
+
 The export script stays in the app but should be built from the same call
 objects that run each fit, so the script always matches what ran.
 
@@ -35,3 +40,19 @@ objects that run each fit, so the script always matches what ran.
 kelpbio is the reviewed, tested home for model behaviour. Keeping model facts
 there means one source of truth, fewer app changes per sub-model, and an app
 that a single maintainer can keep in step with the package.
+
+## kelpbio articles the app links to
+
+The app's help links point to these kelpbio articles (`kelpbio_articles` in
+`R/help.R`), each still to be written in kelpbio:
+
+- `articles/diagnostics.html`: R-hat, effective sample size, thinning,
+  posterior predictive checks and prior sensitivity.
+- `articles/results.html`: estimates and compatibility intervals,
+  population-level and group predictions, and population-level estimates for
+  site-years without data.
+- `articles/pre-fit-models.html`: the pre-fit models and their reference data.
+- `articles/models.html`: the sub-models, including density in the weight model.
+- `articles/total-biomass.html`: canopy area, percent cover and the cover model
+  that scales biomass per unit area up to total biomass.
+- `articles/priors.html`: the default priors and when to change them.

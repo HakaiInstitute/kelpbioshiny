@@ -48,10 +48,10 @@ components <- list(
     label = "Carbon", detail = "Carbon fraction of dry mass", sheet = "carbon",
     columns = c("site", "year", "dry_mass_g", "carbon_mass_g"), sources = c("user", prefit_source("hakai"), "none")
   ),
-  # Optional: scales biomass per unit area up to a total per site-year. Fitted to
-  # the biomass predictions, so once every other model in use is ready.
+  # Optional: scales biomass per unit area up to total biomass per site-year.
+  # Fitted to the biomass predictions, so once every other model in use is ready.
   cover = list(
-    label = "Biomass:cover", detail = "Relates plot biomass per unit area to plot percent cover", sheet = "cover",
+    label = "Cover", detail = "Relates plot biomass per unit area to plot percent cover", sheet = "cover",
     columns = c("site", "year", "canopy_area_m2", "plot", "plot_percent_cover"), sources = c("user", "none"),
     fn = "biomass_cover"
   )
@@ -107,9 +107,9 @@ species_info <- list(
 )
 
 output_info <- list(
-  wet = list(label = "Wet biomass", unit = "kg/m²"),
-  dry = list(label = "Dry biomass", unit = "kg/m²"),
-  carbon = list(label = "Carbon", unit = "kg/m²")
+  wet = list(label = "Wet biomass", unit = "kg/m\u00b2"),
+  dry = list(label = "Dry biomass", unit = "kg/m\u00b2"),
+  carbon = list(label = "Carbon", unit = "kg/m\u00b2")
 )
 
 output_components <- list(
@@ -181,11 +181,12 @@ site_mismatches <- function(sheets) {
   sort(sites[key %in% key[duplicated(key)]])
 }
 
-mismatch_advice <- "Rename it in the workbook so the names match exactly, then upload again."
+mismatch_advice <- "Rename the sites in the workbook so the names match exactly, then upload again."
 
 # Priors and sampler ----------------------------------------------------------------
 # The prior editor works on a table built from the model's kb_priors_*() list: one
-# row per entry, with its family and hyperparameters (a: mean or rate, b: SD).
+# row per entry, with the model term it applies to (as named in the diagnostics),
+# its family and hyperparameters (a: mean or rate, b: SD).
 
 prior_labels <- c(
   intercept = "Intercept", zero_inflation = "Zero inflation (logit)", dispersion = "Dispersion",
@@ -207,7 +208,8 @@ default_priors <- function(id, species = "nereo") {
     prior <- priors[[name]]
     normal <- inherits(prior, "kb_prior_normal")
     data.frame(
-      name = name, label = prior_label(id, name), family = if (normal) "normal" else "exponential",
+      name = name, term = attr(prior, "term") %||% NA_character_, label = prior_label(id, name),
+      family = if (normal) "normal" else "exponential",
       a = if (normal) prior$mean else prior$rate, b = if (normal) prior$sd else NA_real_
     )
   })
@@ -235,11 +237,12 @@ prior_errors <- function(rows) {
   unlist(stats::setNames(errors, rows$name))
 }
 
+# "Normal(0, 2)", "Exponential(1)".
 format_prior <- function(prior) {
   ifelse(
     prior$family == "normal",
-    sprintf("%s ~ Normal(%s, %s)", prior$name, as.character(prior$a), as.character(prior$b)),
-    sprintf("%s ~ Exponential(%s)", prior$name, as.character(prior$a))
+    sprintf("Normal(%s, %s)", as.character(prior$a), as.character(prior$b)),
+    sprintf("Exponential(%s)", as.character(prior$a))
   )
 }
 
@@ -271,7 +274,7 @@ prediction_groupings <- c(population = "Population level", site = "By site", yea
 # What each model predicts. `along` names the predictor of a curve model; its
 # table, and its by-site-and-year figure, give the value at `at`.
 prediction_info <- list(
-  density = list(response = "density", table = "Density (stipes/m²)"),
+  density = list(response = "density", table = "Density (stipes/m\u00b2)"),
   size = list(response = "mean sub-bulb diameter", table = "Mean sub-bulb diameter (mm)"),
   weight = list(
     response = "wet weight", along = "sub-bulb diameter", at = "a plant with a 50 mm sub-bulb diameter",
@@ -282,7 +285,7 @@ prediction_info <- list(
   carbon = list(response = "carbon fraction of dry mass", table = "Carbon fraction of dry mass"),
   cover = list(
     response = "wet biomass per square metre", along = "plot percent cover",
-    table = "Wet biomass (kg/m²) at 50% plot cover", note = " Points are plots."
+    table = "Wet biomass (kg/m\u00b2) at 50% plot cover", note = " Points are plots."
   )
 )
 

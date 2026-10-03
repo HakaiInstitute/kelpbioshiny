@@ -17,12 +17,22 @@ source_select <- function(input_id, id) {
     tagAppendAttributes(class = "mb-0")
 }
 
-# Keeps a source select and the store in step, in both directions.
+# Keeps a source select and the store in step, in both directions. A change that
+# would discard fits asks first; Cancel puts the select back.
 sync_source_select <- function(input, session, input_id, id, store) {
   if (length(components[[id]]$sources) == 1) {
     return()
   }
-  observeEvent(input[[input_id]], store$set_source(id, input[[input_id]]), ignoreInit = TRUE)
+  observeEvent(input[[input_id]], {
+    value <- input[[input_id]]
+    if (!identical(value, store$sources()[[id]])) {
+      store$confirm_reset(
+        id,
+        function() store$set_source(id, value),
+        function() updateSelectInput(session, input_id, selected = store$sources()[[id]])
+      )
+    }
+  }, ignoreInit = TRUE)
   observe({
     has_sheet <- !is.null(store$sheets()[[id]])
     updateSelectInput(session, input_id, choices = source_choices(id, has_sheet), selected = store$sources()[[id]])
@@ -70,10 +80,13 @@ mod_models_ui <- function(id) {
         class = "overflow-hidden",
         card_body(
           padding = 0,
-          tags$table(
-            class = "table table-hover align-middle mb-0",
-            tags$thead(tags$tr(head_cell(class = "ps-4", "Model"), head_cell(with_help("Source", "prefit")), head_cell(class = "pe-4", "Status"))),
-            tags$tbody(rows)
+          div(
+            class = "table-responsive",
+            tags$table(
+              class = "table table-hover align-middle mb-0",
+              tags$thead(tags$tr(head_cell(class = "ps-4", "Model"), head_cell(with_help("Source", "prefit")), head_cell(class = "pe-4", "Status"))),
+              tags$tbody(rows)
+            )
           )
         )
       ),
@@ -83,9 +96,8 @@ mod_models_ui <- function(id) {
 
   pages <- unname(lapply(component_ids, function(cid) nav_panel_hidden(cid, mod_model_ui(ns(cid), cid))))
 
-  layout_columns(
-    col_widths = c(3, 9),
-    div(class = "kb-aside", card(card_body(padding = "0.5rem", uiOutput(ns("subnav"))))),
+  step_layout(
+    card(card_body(padding = "0.5rem", uiOutput(ns("subnav")))),
     do.call(navset_hidden, c(list(id = ns("view"), nav_panel_hidden("hub", hub)), pages))
   )
 }
@@ -134,7 +146,15 @@ mod_models_server <- function(id, store) {
       if (!is.null(store$fitting())) {
         return(button(session$ns("cancel"), "Cancel", "x", "outline"))
       }
-      button(session$ns("fit_all"), "Fit all", "play", disabled = length(store$fit_plan()$ids) == 0)
+      plan <- store$fit_plan()
+      if (length(plan$ids) > 0) {
+        return(button(session$ns("fit_all"), "Fit all", "play"))
+      }
+      div(
+        class = "d-flex align-items-center gap-2",
+        span(class = "small text-body-secondary", fit_all_reason(store$statuses(), plan)),
+        button(session$ns("fit_all"), "Fit all", "play", disabled = TRUE)
+      )
     })
 
     output$skipped <- renderUI({
@@ -153,7 +173,7 @@ mod_models_server <- function(id, store) {
       mismatches <- store$mismatches()
       if (length(mismatches) > 0) {
         return(notice(
-          "alert-triangle", "Site names differ across sheets",
+          "alert-triangle", warning_help$mismatch$title,
           sprintf("%s. %s", and_list(sprintf("\"%s\"", mismatches)), mismatch_advice),
           tone = "warning"
         ))
@@ -163,7 +183,7 @@ mod_models_server <- function(id, store) {
         return(notice(
           "arrow-right", "All models are ready",
           if (cover %in% c("not-fitted", "queued", "fitting")) {
-            "Biomass per unit area can now be estimated. Totals follow once the biomass:cover model is fitted."
+            "Biomass per unit area can now be estimated. Total biomass follows once the cover model is fitted."
           } else {
             "Biomass can now be estimated."
           },
@@ -201,4 +221,16 @@ mod_models_server <- function(id, store) {
       )
     })
   })
+}
+
+# Why Fit all has nothing to fit.
+fit_all_reason <- function(statuses, plan) {
+  if (length(plan$skipped) > 0) {
+    return("Fix the settings marked in red")
+  }
+  own <- Filter(function(status) status$source == "user", statuses)
+  if (all(vapply(own, function(status) status$kind == "ready", logical(1)))) {
+    return("All models are fitted")
+  }
+  "No model can be fitted yet"
 }

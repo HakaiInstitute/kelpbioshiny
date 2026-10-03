@@ -15,7 +15,9 @@ app_palette <- list(
 
 app_status_colours <- list(
   success = "#187c49", success_muted = "#daf7e3",
-  warning = "#a76100", warning_muted = "#fff0cc", warning_border = "#f3d68f",
+  # warning_fg keeps small warning text (badges, notices) at WCAG AA contrast on
+  # warning_muted and white.
+  warning = "#a76100", warning_fg = "#8a5000", warning_muted = "#fff0cc", warning_border = "#f3d68f",
   danger = "#e7000b"
 )
 
@@ -62,7 +64,7 @@ app_theme <- function() {
     "success-text-emphasis" = col$success,
     "warning-bg-subtle" = col$warning_muted,
     "warning-border-subtle" = col$warning_border,
-    "warning-text-emphasis" = col$warning,
+    "warning-text-emphasis" = col$warning_fg,
     # Cards
     "card-bg" = col$card,
     "card-border-radius" = "0.875rem",
@@ -120,7 +122,6 @@ app_theme <- function() {
     "accordion-border-color" = col$border,
     "accordion-button-active-bg" = col$card,
     "accordion-button-active-color" = col$fg,
-    "accordion-button-focus-box-shadow" = "none",
     "accordion-button-padding-y" = "0.875rem",
     "accordion-button-padding-x" = "1rem",
     "accordion-body-padding-x" = "1rem",

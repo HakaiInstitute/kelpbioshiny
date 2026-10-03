@@ -1,8 +1,8 @@
 # The Help tab: a user guide and an about page, as two pills. Help is not a
 # step, so it carries no step marker and takes no part in step completion. The guide is built
 # from the definitions the app already uses (app_steps, components, prefit_info,
-# help_topics), so it changes when they do; only the connecting sentences are
-# written here.
+# warning_help, help_topics), so it changes when they do; only the connecting
+# sentences are written here.
 
 source_url <- "https://github.com/HakaiInstitute/kelpbioshiny"
 
@@ -79,6 +79,19 @@ guide_glossary <- function() {
   )
 }
 
+# The warnings the app shows, each with what to do about it, from warning_help.
+guide_warnings <- function() {
+  tags$dl(
+    class = "row mb-0",
+    lapply(warning_help, function(warning) {
+      tagList(
+        tags$dt(class = "col-md-3 fw-medium", warning$title),
+        tags$dd(class = "col-md-9 text-body-secondary mb-3", warning$advice)
+      )
+    })
+  )
+}
+
 # The pointer to kelpbio, which explains the statistics the app runs.
 guide_docs_callout <- function() {
   card(card_body(div(
@@ -119,6 +132,7 @@ help_guide_ui <- function() {
           })
         )
       ),
+      panel("Warnings and how to fix them", description = "The warnings a model or sheet can show.", guide_warnings()),
       guide_docs_callout(),
       panel("Glossary", description = "The terms behind the help icons in the app.", guide_glossary())
     )
@@ -152,22 +166,14 @@ kelpbio_citation <- function() {
 # style would show R's markup characters.
 citation_html <- function(citation) HTML(paste(format(citation, style = "html"), collapse = " "))
 
-# A citation in a code block, with a button that copies its text and then tells
-# the server, which shows a confirmation.
+# A citation in a code block, with a button that copies its text.
 citation_block <- function(id, label, citation) {
-  copy <- sprintf(
-    "navigator.clipboard.writeText(document.getElementById('%s').innerText).then(() => Shiny.setInputValue('citation_copied', Date.now(), {priority: 'event'}))",
-    id
-  )
   div(
     class = "d-flex flex-column gap-2",
     div(
       class = "d-flex align-items-center justify-content-between gap-3",
       div(class = "fw-medium", label),
-      tags$button(
-        type = "button", class = "btn btn-light border btn-sm", onclick = copy, `aria-label` = paste("Copy the", label, "citation"),
-        span(class = "d-inline-flex align-items-center gap-2", lucide("copy"), "Copy")
-      )
+      copy_button(id, "citation", paste("Copy the", label, "citation"))
     ),
     div(id = id, class = "kb-citation small bg-body-tertiary border rounded-3 p-3", citation_html(citation))
   )

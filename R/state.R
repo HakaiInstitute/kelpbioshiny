@@ -39,6 +39,13 @@ reset_records <- function(records, ids) {
   records
 }
 
+# The fitted and running models a reset of `ids` discards: the ids and, for a
+# biomass model, the cover model.
+reset_count <- function(records, ids) {
+  affected <- unique(c(ids, if (any(ids %in% biomass_ids)) "cover"))
+  sum(record_status(records[affected]) %in% c("fitted", "fitting"))
+}
+
 cancel_records <- function(records) {
   pending <- names(records)[record_status(records) %in% c("queued", "fitting")]
   records[pending] <- list(new_record())
@@ -137,17 +144,17 @@ fit_all_plan <- function(statuses, invalid = character()) {
   list(ids = unname(ids), skipped = unname(skipped))
 }
 
-# Totals need a fitted biomass:cover model; the reason is shown when they are unavailable.
+# Total biomass needs a fitted cover model; the reason is shown when it is unavailable.
 total_availability <- function(sources, sheets, status) {
   if (status$kind == "ready") {
     return(list(available = TRUE))
   }
   reason <- if (is.null(sheets$cover)) {
-    "Totals unavailable: add a cover sheet with canopy area to estimate total biomass per site-year."
+    "Total biomass unavailable: add a cover sheet with canopy area to estimate total biomass per site-year."
   } else if (sources[["cover"]] == "none") {
-    "Totals unavailable: the biomass:cover model is not used. Choose Your data for it on the Models step."
+    "Total biomass unavailable: the cover model is not used. Choose Your data for it on the Models step."
   } else {
-    "Totals unavailable until the biomass:cover model is fitted."
+    "Total biomass unavailable until the cover model is fitted."
   }
   list(available = FALSE, reason = reason)
 }
@@ -214,6 +221,14 @@ mirai_fit_runner <- function() {
 }
 
 # The store ---------------------------------------------------------------------
+# A reactiveVal only invalidates when its value changes, so routing a reactive
+# through one stops downstream outputs re-rendering on unrelated state changes.
+dedupe <- function(r) {
+  value <- reactiveVal()
+  observe(value(r()), priority = 100)
+  value
+}
+
 
 new_store <- function(session, run_fit = mirai_fit_runner) {
   s <- new.env()
@@ -266,15 +281,37 @@ new_store <- function(session, run_fit = mirai_fit_runner) {
     if (source == "user") s$records()[[id]]$fit
   }
 
-  # Biomass per unit area by site-year, and totals from the biomass:cover model.
-  s$biomass <- function(type) {
-    kb_predict_biomass(
-      density = s$fit_of("density"), size = s$fit_of("size"), weight = s$fit_of("weight"),
-      blade = s$fit_of("blade"), wetdry = s$fit_of("wetdry"), carbon = s$fit_of("carbon"),
-      type = type
-    )
-  }
-  s$biomass_total <- function(type) kb_predict_biomass_total(s$fit_of("cover"), s$biomass(type))
+  # Each kelpbio result below is a reactive on the fits it uses, routed through
+  # dedupe(), so it is computed once per change of those fits and shared by
+  # every output that shows it.
+
+  # Prior sensitivity of each model's fit to your data; NULL until fitted.
+  s$sensitivity <- lapply(component_ids, function(id) {
+    fit <- dedupe(reactive(s$records()[[id]]$fit))
+    reactive(if (!is.null(fit())) kb_sensitivity(fit()))
+  })
+
+  # Biomass per unit area by site-year, by output type, and total biomass from
+  # the cover model.
+  biomass_fits <- dedupe(reactive(lapply(biomass_ids, s$fit_of)))
+  cover_fit <- dedupe(reactive(s$fit_of("cover")))
+  biomass <- lapply(names(output_info), function(type) {
+    reactive({
+      fits <- biomass_fits()
+      kb_predict_biomass(
+        density = fits$density, size = fits$size, weight = fits$weight,
+        blade = fits$blade, wetdry = fits$wetdry, carbon = fits$carbon,
+        type = type
+      )
+    })
+  })
+  names(biomass) <- names(output_info)
+  biomass_total <- lapply(names(output_info), function(type) {
+    reactive(kb_predict_biomass_total(cover_fit(), biomass[[type]]()))
+  })
+  names(biomass_total) <- names(output_info)
+  s$biomass <- function(type) biomass[[type]]()
+  s$biomass_total <- function(type) biomass_total[[type]]()
 
   # Invalid prior and sampler settings, by model: list(priors, sampler), each a
   # named character vector of error messages.
@@ -303,6 +340,37 @@ new_store <- function(session, run_fit = mirai_fit_runner) {
     ui <- if (is.null(title)) text else tagList(div(class = "fw-semibold", title), div(text))
     showNotification(ui, action = action, type = type, duration = duration, id = id, session = session)
   }
+
+  # Runs `action`, a change that resets the fits of `ids`, after asking first
+  # when any of them is fitted or fitting. Cancel runs `cancel`, which puts the
+  # input that asked for the change back.
+  pending_reset <- NULL
+  s$confirm_reset <- function(ids, action, cancel = function() NULL) {
+    n <- reset_count(isolate(s$records()), ids)
+    if (n == 0) {
+      return(action())
+    }
+    pending_reset <<- list(action = action, cancel = cancel)
+    showModal(
+      modalDialog(
+        sprintf("This resets %d fitted %s. Continue?", n, if (n == 1) "model" else "models"),
+        footer = tagList(
+          button("reset_cancel", "Cancel", variant = "outline"),
+          button("reset_continue", "Continue")
+        ),
+        size = "s"
+      ),
+      session = session
+    )
+  }
+  resolve_reset <- function(choice) {
+    removeModal(session)
+    pending <- pending_reset
+    pending_reset <<- NULL
+    if (!is.null(pending)) pending[[choice]]()
+  }
+  observeEvent(session$input$reset_continue, resolve_reset("action"))
+  observeEvent(session$input$reset_cancel, resolve_reset("cancel"))
 
   # The fit that is running: its model and progress directory.
   running <- NULL
@@ -512,7 +580,7 @@ new_store <- function(session, run_fit = mirai_fit_runner) {
       return()
     }
     s$notify(
-      convergence_advice,
+      warning_help$convergence$advice,
       type = "warning",
       title = sprintf("%s model fitted with a convergence warning", label_of(id)),
       action = div(

@@ -297,7 +297,7 @@ kb_check_data_biomass_cover_nereo <- function(data, x_name = chk::deparse_backti
   }
   gaps <- sum(!tapply(!is.na(cover), key, any))
   if (gaps > 0) {
-    message(sprintf("%d site-years have canopy area but no plot cover; totals use the population-level relationship.", gaps))
+    message(sprintf("%d site-years have canopy area but no plot cover; total biomass uses the population-level relationship.", gaps))
   }
   invisible(data)
 }
@@ -336,6 +336,18 @@ kb_prior_exponential <- function(rate = 1) {
   structure(list(rate = rate), class = c("kb_prior_exponential", "kb_prior"))
 }
 
+# Planned: each entry of a kb_priors_*() list names, in its "term" attribute, the
+# model term it applies to, as tidy(), kb_convergence() and kb_sensitivity() name
+# it, so the app shows one name per parameter. The macro-only entries are added
+# to the mock's (Nereocystis) term names.
+.mock_macro_terms <- list(size = c(bDispersion = "dispersion"), weight = c(bFronds = "fronds", bShape = "shape"))
+
+.mock_with_terms <- function(priors, model) {
+  terms <- c(.mock_terms[[model]], .mock_macro_terms[[model]])
+  for (name in names(priors)) attr(priors[[name]], "term") <- names(terms)[match(name, terms)]
+  priors
+}
+
 .mock_sd_priors <- function() {
   list(
     sd_site = kb_prior_exponential(rate = 1),
@@ -346,7 +358,7 @@ kb_prior_exponential <- function(rate = 1) {
 
 # Exists.
 kb_priors_density_nereo <- function() {
-  c(
+  priors <- c(
     list(
       intercept = kb_prior_normal(mean = 0, sd = 2),
       zero_inflation = kb_prior_normal(mean = 0, sd = 2),
@@ -354,20 +366,26 @@ kb_priors_density_nereo <- function() {
     ),
     .mock_sd_priors()
   )
+  .mock_with_terms(priors, "density")
 }
 # Exists.
 kb_priors_density_macro <- function() {
-  c(list(intercept = kb_prior_normal(mean = 0, sd = 2), dispersion = kb_prior_exponential(rate = 1)), .mock_sd_priors())
+  priors <- c(list(intercept = kb_prior_normal(mean = 0, sd = 2), dispersion = kb_prior_exponential(rate = 1)), .mock_sd_priors())
+  .mock_with_terms(priors, "density")
 }
 # Exists.
 kb_priors_size_nereo <- function() {
-  c(list(intercept = kb_prior_normal(mean = 0, sd = 2), shape = kb_prior_exponential(rate = 0.1)), .mock_sd_priors())
+  priors <- c(list(intercept = kb_prior_normal(mean = 0, sd = 2), shape = kb_prior_exponential(rate = 0.1)), .mock_sd_priors())
+  .mock_with_terms(priors, "size")
 }
 # Exists.
-kb_priors_size_macro <- kb_priors_density_macro
+kb_priors_size_macro <- function() {
+  priors <- c(list(intercept = kb_prior_normal(mean = 0, sd = 2), dispersion = kb_prior_exponential(rate = 1)), .mock_sd_priors())
+  .mock_with_terms(priors, "size")
+}
 # Exists.
 kb_priors_weight_nereo <- function() {
-  c(
+  priors <- c(
     list(
       intercept = kb_prior_normal(mean = 0, sd = 2),
       power = kb_prior_normal(mean = 2, sd = 1),
@@ -377,10 +395,11 @@ kb_priors_weight_nereo <- function() {
     .mock_sd_priors(),
     list(sd_residual = kb_prior_exponential(rate = 1))
   )
+  .mock_with_terms(priors, "weight")
 }
 # Exists.
 kb_priors_weight_macro <- function() {
-  c(
+  priors <- c(
     list(
       intercept = kb_prior_normal(mean = 0, sd = 2),
       fronds = kb_prior_normal(mean = 1, sd = 0.5),
@@ -388,33 +407,35 @@ kb_priors_weight_macro <- function() {
     ),
     .mock_sd_priors()
   )
+  .mock_with_terms(priors, "weight")
 }
 # Exists in the working tree.
 kb_priors_wetdry_nereo <- function() {
-  list(intercept = kb_prior_normal(mean = 0, sd = 2), precision = kb_prior_exponential(rate = 0.01))
+  .mock_with_terms(list(intercept = kb_prior_normal(mean = 0, sd = 2), precision = kb_prior_exponential(rate = 0.01)), "wetdry")
 }
 # Exists in the working tree.
 kb_priors_wetdry_macro <- kb_priors_wetdry_nereo
 # Planned.
 kb_priors_blade_nereo <- function() {
-  list(intercept = kb_prior_normal(mean = 0, sd = 1), sd_site = kb_prior_exponential(rate = 1))
+  .mock_with_terms(list(intercept = kb_prior_normal(mean = 0, sd = 1), sd_site = kb_prior_exponential(rate = 1)), "blade")
 }
 # Planned.
 kb_priors_blade_macro <- kb_priors_blade_nereo
 # Planned.
 kb_priors_carbon_nereo <- function() {
-  list(intercept = kb_prior_normal(mean = -1, sd = 1), sd_site = kb_prior_exponential(rate = 1))
+  .mock_with_terms(list(intercept = kb_prior_normal(mean = -1, sd = 1), sd_site = kb_prior_exponential(rate = 1)), "carbon")
 }
 # Planned.
 kb_priors_carbon_macro <- kb_priors_carbon_nereo
 # Planned.
 kb_priors_biomass_cover_nereo <- function() {
-  list(
+  priors <- list(
     intercept = kb_prior_normal(mean = 0, sd = 2),
     cover = kb_prior_normal(mean = 0, sd = 1),
     sd_site = kb_prior_exponential(rate = 1),
     sd_residual = kb_prior_exponential(rate = 1)
   )
+  .mock_with_terms(priors, "biomass_cover")
 }
 # Planned.
 kb_priors_biomass_cover_macro <- kb_priors_biomass_cover_nereo
@@ -496,7 +517,7 @@ kb_fit_carbon_macro <- function(data, priors = NULL, ..., prior_only = FALSE, ch
   .mock_fit("carbon", "macro", data, priors, chains, niters, nthin, progress, progress_dir)
 }
 
-# The response of the biomass:cover model: each plot's wet biomass per unit area,
+# The response of the cover model: each plot's wet biomass per unit area,
 # from the biomass predictions, fake here as scatter around the fake cover curves.
 .mock_cover_response <- function(data) {
   plots <- data[!is.na(data$plot_percent_cover), ]
@@ -625,7 +646,7 @@ kb_convergence <- function(fit, ..., rhat = 1.01, esr = 0.1) {
   tibble::tibble(term = s$variable, rhat = round(s$rhat, 3), ess_bulk = round(s$ess_bulk), esr = round(rate, 3), converged = ok)
 }
 
-# Exists. The mock gives fitted values and residuals for the biomass:cover model
+# Exists. The mock gives fitted values and residuals for the cover model
 # only; the app plots its plots over the predictions.
 #' @exportS3Method generics::augment
 #' @noRd
@@ -712,7 +733,7 @@ augment.kb_fit <- function(x, ...) {
   carbon = .mock_fraction_description("Carbon fraction", "carbon mass / dry mass", "bCarbon"),
   # Placeholder: the model's exact form is still to be designed in kelpbio.
   biomass_cover = paste(
-    "Biomass:cover - Nereocystis luetkeana",
+    "Cover - Nereocystis luetkeana",
     "Response: plot biomass per unit area, from the biomass predictions",
     "Predictor: plot percent cover, from drone imagery",
     "",
@@ -731,11 +752,16 @@ augment.kb_fit <- function(x, ...) {
   )
 )
 
-# Exists.
-kb_model_describe <- function(fit, prose = FALSE) {
+# Exists; the `priors` argument is planned: priors = FALSE leaves out the priors
+# section, for a view that shows the priors elsewhere.
+kb_model_describe <- function(fit, prose = FALSE, ..., priors = TRUE) {
   text <- .mock_descriptions()[[fit$meta$model]]
   if (fit$meta$species == "macro") text <- sub("Nereocystis luetkeana", "Macrocystis pyrifera", text, fixed = TRUE)
   lines <- strsplit(text, "\n", fixed = TRUE)[[1]]
+  if (!priors) {
+    lines <- lines[seq_len(which(startsWith(lines, "Priors"))[1] - 1)]
+    while (lines[length(lines)] == "") lines <- lines[-length(lines)]
+  }
   cat(lines, sep = "\n")
   invisible(lines)
 }
@@ -1114,7 +1140,7 @@ kb_predict_biomass <- function(density, size, weight, blade = NULL, wetdry = NUL
 }
 
 # Planned. Total biomass (t) per site-year with a canopy area, from a fitted
-# biomass:cover model and kb_predict_biomass() output. population_cover marks
+# cover model and kb_predict_biomass() output. population_cover marks
 # site-years without plot cover, which use the population-level cover relationship;
 # the per-area population flags are carried over.
 kb_predict_biomass_total <- function(fit, biomass, ..., conf_level = 0.95, estimate = stats::median, sig_fig = 3) {

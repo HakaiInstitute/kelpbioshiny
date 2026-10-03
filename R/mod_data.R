@@ -2,14 +2,14 @@
 
 coverage_ids <- c("density", "size", "weight")
 
-# Site-year coverage across the density, size and weight sheets, plus drone
-# coverage from the cover sheet, with notes on gaps and on site names that
+# Site-year coverage across the density, size and weight sheets, plus the
+# site-years in the cover sheet, with notes on gaps and on site names that
 # differ across sheets only in case or spacing.
 coverage <- function(sheets, sources) {
   sets <- lapply(stats::setNames(nm = coverage_ids), function(id) {
     if (is.null(sheets[[id]])) NULL else site_years(sheets[[id]]$rows)
   })
-  drone <- if (is.null(sheets$cover)) NULL else site_years(sheets$cover$rows)
+  cover <- if (is.null(sheets$cover)) NULL else site_years(sheets$cover$rows)
   no_plot <- if (is.null(sheets$cover)) character() else no_plot_cover(sheets$cover$rows)
   mismatched <- site_mismatches(sheets)
   keys <- unique(unlist(sets, use.names = FALSE))
@@ -47,14 +47,14 @@ coverage <- function(sheets, sources) {
     }
     plot_missing <- keys[i] %in% no_plot && isTRUE(present[["density"]])
     if (plot_missing) {
-      cover_note <- "No plot cover: total uses the population-level cover relationship"
+      cover_note <- "No plot cover: total biomass uses the population-level cover relationship"
       note <- if (is.na(note)) cover_note else paste0(note, "; ", tolower(cover_note))
       tone <- tone %|NA|% "info"
     }
     data.frame(
       site = site[i], year = year[i],
       density = present[["density"]], size = present[["size"]], weight = present[["weight"]],
-      drone = if (is.null(drone)) NA else keys[i] %in% drone,
+      cover = if (is.null(cover)) NA else keys[i] %in% cover,
       note = note, tone = tone,
       # For the issues summary, not shown in the table.
       issue = issue, no_size = "size" %in% missing, no_weight = "weight" %in% missing, no_plot = plot_missing
@@ -129,8 +129,8 @@ mod_data_ui <- function(id) {
         uiOutput(ns("dropzone_text")),
         div(
           class = "d-flex flex-wrap justify-content-center align-items-start gap-2",
-          fileInput(ns("workbook"), NULL, accept = c(".xlsx", ".xls"), buttonLabel = "Browse files", width = "20rem") |>
-            tagAppendAttributes(class = "mb-0"),
+          fileInput(ns("workbook"), NULL, accept = c(".xlsx", ".xls"), buttonLabel = "Browse files", width = "100%") |>
+            tagAppendAttributes(class = "mb-0 kb-file-input"),
           button(ns("example"), "Use example workbook")
         )
       ),
@@ -149,19 +149,28 @@ mod_data_ui <- function(id) {
     uiOutput(ns("sheets"))
   )
 
-  layout_columns(
-    col_widths = c(3, 9),
-    div(class = "kb-aside", sidebar),
-    div(main)
-  )
+  step_layout(sidebar, main)
 }
 
 mod_data_server <- function(id, store) {
   moduleServer(id, function(input, output, session) {
     show_all <- reactiveVal(FALSE)
     loaded <- reactive(length(store$sheets()) > 0)
+    cov <- reactive(coverage(store$sheets(), store$sources()))
 
-    observeEvent(input$species, store$set_species(input$species), ignoreInit = TRUE)
+    # Each of these replaces the data, so it resets every fit.
+    replace_data <- function(action) store$confirm_reset(component_ids, action)
+
+    observeEvent(input$species, {
+      value <- input$species
+      if (!identical(value, store$species())) {
+        store$confirm_reset(
+          component_ids,
+          function() store$set_species(value),
+          function() updateRadioButtons(session, "species", selected = store$species())
+        )
+      }
+    }, ignoreInit = TRUE)
     observeEvent(store$species(), {
       if (!identical(input$species, store$species())) updateRadioButtons(session, "species", selected = store$species())
     })
@@ -170,17 +179,23 @@ mod_data_server <- function(id, store) {
     observeEvent(input$template, {
       store$notify(sprintf("Prototype: kelpbio-template-%s.xlsx is not generated.", species_info[[store$species()]]$suffix))
     })
-    observeEvent(input$welcome_example, store$load_example())
+    observeEvent(input$welcome_example, replace_data(store$load_example))
     observeEvent(input$guide, store$open_help("guide"))
     observeEvent(input$bundle, store$notify("Prototype: resuming from a fit bundle is not simulated."))
-    observeEvent(input$workbook, store$load_workbook(input$workbook$name))
-    observeEvent(input$example, store$load_example())
-    observeEvent(input$clear, store$clear_data())
+    observeEvent(input$workbook, {
+      file <- input$workbook$name
+      replace_data(function() store$load_workbook(file))
+    })
+    observeEvent(input$example, replace_data(store$load_example))
+    observeEvent(input$clear, replace_data(store$clear_data))
     observeEvent(input$continue, store$go_to("models"))
     observeEvent(input$toggle_all, show_all(!show_all()))
 
     lapply(component_ids, function(cid) {
-      observeEvent(input[[paste0("csv_", cid)]], store$load_csv(cid, input[[paste0("csv_", cid)]]$name))
+      observeEvent(input[[paste0("csv_", cid)]], {
+        file <- input[[paste0("csv_", cid)]]$name
+        store$confirm_reset(cid, function() store$load_csv(cid, file))
+      })
       output[[paste0("csv_file_", cid)]] <- renderText(store$sheets()[[cid]]$file)
       output[[paste0("csv_columns_", cid)]] <- renderText(paste(sheet_columns(cid, store$species()), collapse = ", "))
     })
@@ -224,7 +239,7 @@ mod_data_server <- function(id, store) {
       present <- component_ids[component_ids %in% names(sheets)]
       absent <- setdiff(component_ids, present)
       tagList(
-        issues_summary(session$ns, sheets, coverage(sheets, sources)$rows),
+        issues_summary(session$ns, sheets, cov()$rows),
         panel(
           "Recognised sheets",
           id = session$ns("sheets_card"),
@@ -244,14 +259,13 @@ mod_data_server <- function(id, store) {
             notice("x-circle", "A density sheet is required", "Biomass cannot be estimated without your density data.", tone = "warning")
           }
         ),
-        coverage_panel(session$ns, sheets, sources, show_all())
+        coverage_panel(session$ns, sheets, cov(), show_all())
       )
     })
 
     output$coverage <- reactable::renderReactable({
-      cov <- coverage(store$sheets(), store$sources())
-      req(cov$rows)
-      rows <- if (show_all()) cov$rows else cov$rows[!is.na(cov$rows$note), ]
+      rows <- req(cov()$rows)
+      if (!show_all()) rows <- rows[!is.na(rows$note), ]
       req(nrow(rows) > 0)
       coverage_table(rows, store$sheets(), store$sources(), show_all())
     })
@@ -365,8 +379,7 @@ issues_summary <- function(ns, sheets, rows) {
   )
 }
 
-coverage_panel <- function(ns, sheets, sources, show_all) {
-  cov <- coverage(sheets, sources)
+coverage_panel <- function(ns, sheets, cov, show_all) {
   flagged <- sum(!is.na(cov$rows$note))
   visible <- if (show_all) nrow(cov$rows) else flagged
   mismatches <- site_mismatches(sheets)
@@ -376,12 +389,12 @@ coverage_panel <- function(ns, sheets, sources, show_all) {
     description = tagList(
       "Site-years in each dataset. Biomass is estimated for every site-year with density data;",
       "gaps in size or weight use a", with_help("population-level estimate.", "population"),
-      "Drone coverage marks site-years with a", with_help("canopy area", "canopy_area"), "where totals can be estimated."
+      "Cover marks site-years with a", with_help("canopy area", "canopy_area"), "where total biomass can be estimated."
     ),
-    action = button(ns("toggle_all"), if (show_all) "Show gaps only" else "Show all site-years", variant = "ghost", size = "sm"),
+    action = button(ns("toggle_all"), if (show_all) "Show gaps only" else "Show all", variant = "ghost", size = "sm"),
     if (length(mismatches) > 0) {
       notice(
-        "alert-triangle", "Site names differ across sheets",
+        "alert-triangle", warning_help$mismatch$title,
         sprintf("%s. Biomass cannot be estimated until they match. %s", and_list(sprintf("\"%s\"", mismatches)), mismatch_advice),
         tone = "warning"
       )
@@ -405,7 +418,7 @@ coverage_table <- function(rows, sheets, sources, show_all) {
     if (is.na(value)) {
       return(as.character(span(class = "small text-body-secondary", "n/a")))
     }
-    as.character(if (value) lucide("check", "text-primary") else lucide("minus", "text-body-secondary opacity-50"))
+    as.character(if (value) lucide("check", "text-success") else lucide("minus", "text-body-secondary opacity-50"))
   }
   presence_col <- function(id, label = label_of(id), width = 100) {
     header <- if (is.null(sheets[[id]])) {
@@ -433,7 +446,7 @@ coverage_table <- function(rows, sheets, sources, show_all) {
       density = presence_col("density"),
       size = presence_col("size"),
       weight = presence_col("weight"),
-      drone = presence_col("cover", "Drone coverage", 130),
+      cover = presence_col("cover"),
       note = reactable::colDef(name = "Note", na = "", style = list(color = "var(--bs-secondary-color)"), minWidth = 260),
       tone = reactable::colDef(show = FALSE),
       issue = reactable::colDef(show = FALSE),

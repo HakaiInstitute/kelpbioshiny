@@ -251,3 +251,22 @@ test_that("site names that differ only in case or spacing block biomass", {
     expect_false(store$biomass_ready())
   })
 })
+
+test_that("a change that would discard fits waits for confirmation", {
+  local_stub_fits()
+  shiny::testServer(store_app(), {
+    expect_identical(reset_count(store$records(), component_ids), 0L)
+    store$queue_fits(c("density", "size"))
+    finish_fits(session, runner)
+    expect_identical(reset_count(store$records(), "size"), 1L)
+
+    store$confirm_reset("size", function() store$set_source("size", "prefit_hakai"))
+    session$setInputs(reset_cancel = 1)
+    expect_identical(store$sources()[["size"]], "user")
+
+    store$confirm_reset(component_ids, store$clear_data)
+    expect_length(store$sheets(), 4)
+    session$setInputs(reset_continue = 1)
+    expect_length(store$sheets(), 0)
+  })
+})

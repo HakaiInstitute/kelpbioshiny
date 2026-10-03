@@ -60,6 +60,8 @@ mod_model_server <- function(id, store) {
     # fit to your data once fitted.
     fit <- dedupe(reactive(store$fit_of(cid)))
     fitted_fit <- reactive(req(fit(), page()$mode == "user"))
+    # Prior sensitivity of the fit to your data, shared with the other steps.
+    sensitivity <- reactive(req(store$sensitivity[[cid]]()))
     errors <- reactive(store$setting_errors()[[cid]])
 
     # A pre-fit model shows only its predictions and description; the page opens
@@ -147,17 +149,17 @@ mod_model_server <- function(id, store) {
         )
       } else if (status$kind == "data-error") {
         notice(
-          "x-circle", "The data check failed", status$message, "Correct the sheet and upload it again.",
+          "x-circle", warning_help$data_check$title, status$message, warning_help$data_check$advice,
           tone = "warning", action = button(ns("to_data"), "Go to data", variant = "outline", size = "sm")
         )
       } else if (status$kind == "failed") {
-        notice("x-circle", "The fit failed", status$message, tone = "warning")
+        notice("x-circle", warning_help$failed$title, status$message, tone = "warning")
       } else if (status$kind == "not-fitted" && status$blocked) {
         notice("clock", "Fitted once biomass per unit area is ready", "Every other model in use must be ready first.", tone = "muted")
       } else if (mode == "user" && status$kind == "ready") {
         tagList(
-          if (has_warning(status)) convergence_notice("Convergence warning", ns("open_settings")),
-          prior_notice(kb_sensitivity(fit()), fit()$meta$priors, ns("open_priors"))
+          if (has_warning(status)) convergence_notice(warning_help$convergence$title, ns("open_settings")),
+          prior_notice(store$sensitivity[[cid]](), fit()$meta$priors, ns("open_priors"))
         )
       }
       if (length(notice_ui) > 0) div(class = "d-flex flex-column gap-2 mb-3", notice_ui)
@@ -249,7 +251,7 @@ mod_model_server <- function(id, store) {
         return(description_panel(fit()))
       }
       switch(page()$mode,
-        user = fit_pending_state(kind(), "Fit the model to see its description, with its priors and fitted effects."),
+        user = fit_pending_state(kind(), "Fit the model to see its description, with its fitted effects."),
         "no-sheet" = no_sheet("The description appears once the model is fitted to your data."),
         none = not_used(),
         NULL
@@ -290,10 +292,8 @@ mod_model_server <- function(id, store) {
       store$species()
       current <- isolate(store$priors()[[cid]])
       # After a fit, mark the priors the sensitivity check found influential.
-      influential <- if (kind() == "ready" && !is.null(isolate(fit()))) {
-        rows <- kb_sensitivity(isolate(fit()))
-        rows$prior[!rows$weak_prior]
-      }
+      rows <- if (kind() == "ready") isolate(store$sensitivity[[cid]]())
+      influential <- rows$prior[!rows$weak_prior]
       tags$fieldset(
         disabled = if (pending()) NA,
         div(
@@ -307,6 +307,7 @@ mod_model_server <- function(id, store) {
                   "border rounded-3 p-3 h-100 d-flex flex-column gap-1",
                   if (p$name %in% influential) "border-warning"
                 ),
+                # The term, as the diagnostics and warnings name it, with its prior.
                 div(
                   class = "d-flex flex-wrap align-items-center justify-content-between gap-2",
                   tags$code(textOutput(ns(paste0("label_", p$name)), inline = TRUE)),
@@ -330,7 +331,8 @@ mod_model_server <- function(id, store) {
       output[[paste0("label_", name)]] <- renderText({
         current <- store$priors()[[cid]]
         req(name %in% current$name)
-        format_prior(current[current$name == name, ])
+        row <- current[current$name == name, ]
+        paste(row$term, "~", format_prior(row))
       })
       output[[paste0("error_", name)]] <- renderText(error_text(errors()$priors, name))
       observeEvent(input[[paste0(name, "_a")]], store$update_prior(cid, name, "a", input[[paste0(name, "_a")]]))
@@ -401,7 +403,7 @@ mod_model_server <- function(id, store) {
 
     output$trace <- render_figure(
       function() kb_plot_trace(fitted_fit()), "trace",
-      height = function() 70 + 150 * ceiling(nrow(tidy(fitted_fit())) / 2),
+      height = function() figure_px(70 + 150 * ceiling(nrow(tidy(fitted_fit())) / 2)),
       alt = sprintf("Trace plots of the %s model parameters by chain", lower_label(cid))
     )
     output$ppc_dens <- render_figure(
@@ -433,11 +435,18 @@ mod_model_server <- function(id, store) {
       )
     })
 
+    # The predictions for the figure, and for the table: the same call unless the
+    # model predicts along a predictor, where the table is at its reference value.
+    predictions <- reactive(model_predictions(cid, req(fit()), prediction_grouping()))
+    predictions_at <- reactive({
+      if (is.null(prediction_info[[cid]]$along)) predictions() else model_predictions(cid, req(fit()), prediction_grouping(), at = TRUE)
+    })
+
     output$prediction_plot <- render_figure(
       function() {
         grouping <- prediction_grouping()
-        plot <- kb_plot_predictions(model_predictions(cid, req(fit()), grouping))
-        # The plots the biomass:cover model was fitted to, over its curves.
+        plot <- kb_plot_predictions(predictions())
+        # The plots the cover model was fitted to, over its curves.
         if (cid == "cover" && grouping != "site_year") {
           plot <- plot + ggplot2::geom_point(
             ggplot2::aes(.data$plot_percent_cover, .data$biomass_kg_m2),
@@ -452,7 +461,7 @@ mod_model_server <- function(id, store) {
     )
 
     output$predictions_table <- reactable::renderReactable({
-      rows <- model_predictions(cid, req(fit()), prediction_grouping(), at = TRUE)
+      rows <- predictions_at()
       number <- function(name) reactable::colDef(name = name, cell = number_text, align = "right")
       app_table(rows[intersect(c("site", "year", "estimate", "lower", "upper"), names(rows))], columns = Filter(Negate(is.null), list(
         site = if ("site" %in% names(rows)) reactable::colDef(name = "Site"),
@@ -463,10 +472,10 @@ mod_model_server <- function(id, store) {
       )))
     })
 
-    output$sensitivity_note <- renderUI(data_strength_notice(kb_sensitivity(fitted_fit())))
+    output$sensitivity_note <- renderUI(data_strength_notice(sensitivity()))
 
     output$sensitivity <- reactable::renderReactable({
-      rows <- kb_sensitivity(fitted_fit())[c("parameter", "prior_cjs", "lik_cjs", "weak_prior", "strong_data")]
+      rows <- sensitivity()[c("parameter", "prior_cjs", "lik_cjs", "weak_prior", "strong_data")]
       flag <- function(value) if (value) success_badge("Yes", NULL) else warning_badge("No", NULL)
       app_table(
         rows,
@@ -488,10 +497,10 @@ fit_pending_state <- function(kind, description) {
     return(empty_state("loader-2", "Fitting", "Results appear here when the fit finishes."))
   }
   if (kind == "failed") {
-    return(empty_state("x-circle", "The fit failed", "Refit the model to see its results."))
+    return(empty_state("x-circle", warning_help$failed$title, warning_help$failed$advice))
   }
   if (kind == "data-error") {
-    return(empty_state("x-circle", "The data check failed", "Correct the sheet and upload it again to fit this model."))
+    return(empty_state("x-circle", warning_help$data_check$title, warning_help$data_check$advice))
   }
   empty_state("play", "Not fitted yet", description)
 }
@@ -588,19 +597,12 @@ predictions_panel <- function(ns, cid, prefit, species) {
 }
 
 # kb_model_describe() prints the description and returns its lines invisibly.
+# The priors are left out: the Settings tab shows them.
 description_panel <- function(fit) {
-  lines <- withr::with_output_sink(nullfile(), kb_model_describe(fit))
+  lines <- withr::with_output_sink(nullfile(), kb_model_describe(fit, priors = FALSE))
   panel(
     "Model description",
-    description = "Likelihood, random effects and priors",
+    description = "Likelihood and random effects",
     tags$pre(class = "bg-body-tertiary rounded-3 p-3 small mb-0", paste(lines, collapse = "\n"))
   )
-}
-
-# A reactiveVal only invalidates when its value changes, so routing a reactive
-# through one stops downstream outputs re-rendering on unrelated state changes.
-dedupe <- function(r) {
-  value <- reactiveVal()
-  observe(value(r()), priority = 100)
-  value
 }

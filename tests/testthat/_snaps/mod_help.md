@@ -55,7 +55,7 @@
       site, year, dry_mass_g, carbon_mass_g
       Optional
       cover
-      Biomass:cover
+      Cover
       site, year, canopy_area_m2, plot, plot_percent_cover
       Optional
       2
@@ -76,7 +76,7 @@
       Your data, Pre-fit Hakai Institute, Not used
       Carbon
       Your data, Pre-fit Hakai Institute, Not used
-      Biomass:cover
+      Cover
       Your data, Not used
       3
       Biomass
@@ -84,6 +84,18 @@
       4
       Export
       Save the results, or rerun the whole analysis in R.
+      Warnings and how to fix them
+      The warnings a model or sheet can show.
+      Convergence warning
+      Increase thinning (nthin) in Sampler settings and refit. For example, set nthin to 2.
+      Prior sensitivity warning
+      If this is unintended, make each flagged prior less informative on the Settings tab and refit.
+      The fit failed
+      Refit the model to see its results.
+      The data check failed
+      Correct the sheet and upload it again.
+      Site names differ across sheets
+      Rename the sites in the workbook so the names match exactly, then upload again.
       Statistical details
       The models, priors and diagnostics are explained in the kelpbio documentation.
       Open the kelpbio documentation
@@ -126,7 +138,7 @@
       The percentage of a plot covered by kelp canopy in the drone imagery. It links the biomass measured in plots to what the drone sees.
       Learn more (https://hakaiinstitute.github.io/kelpbio/articles/total-biomass.html)
       Total biomass
-      Biomass per unit area is predicted from percent cover with the biomass:cover model, then scaled up by the canopy area. The uncertainty in every model is carried through to the limits. Site-years with canopy area but no plot cover use the population-level cover relationship.
+      Biomass per unit area is predicted from percent cover with the cover model, then scaled up by the canopy area. The uncertainty in every model is carried through to the limits. Site-years with canopy area but no plot cover use the population-level cover relationship.
       Learn more (https://hakaiinstitute.github.io/kelpbio/articles/total-biomass.html)
       Priors
       A prior states which parameter values are plausible before the data are seen. The defaults rule out implausible values but leave the data to decide the estimates, so most analyses keep them.
