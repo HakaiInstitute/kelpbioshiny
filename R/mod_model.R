@@ -100,26 +100,26 @@ mod_model_server <- function(id, store) {
       }
     })
 
-    output$status <- renderUI({
-      status <- status()
-      status_badge(status, if (status$kind == "fitting") store$progress() else 0)
-    })
+    output$status <- renderUI(status_badge(status()))
 
     output$fit_action <- renderUI(fit_control(ns("fit"), ns("cancel"), status(), cid %in% store$invalid(), fit_label = "Fit model"))
 
+    # Rendered when the fit starts; only the bar and the percentage then update,
+    # so the rest does not re-render as the fit moves.
     output$fit_progress <- renderUI({
       req(kind() == "fitting")
-      progress <- store$progress()
       div(
-        class = "d-flex flex-column gap-2 mb-3",
-        progress_bar(progress),
+        class = "kb-progress d-flex flex-column gap-2 mb-3",
+        uiOutput(ns("fit_bar")),
         div(
           class = "d-flex justify-content-between small text-body-secondary kb-tabular",
           span("Sampling"),
-          span(sprintf("%d%%", floor(progress)))
+          textOutput(ns("fit_percent"), inline = TRUE)
         )
       )
     })
+    output$fit_bar <- renderUI(progress_bar(store$progress()))
+    output$fit_percent <- renderText(percent_text(store$progress()))
 
     # One notice per warning, whichever tab is open.
     output$notices <- renderUI({
@@ -182,8 +182,9 @@ mod_model_server <- function(id, store) {
             if (cid == "cover") {
               span(
                 class = "d-inline-flex flex-wrap align-items-center gap-1 ms-1",
-                "One row per plot, with the site-year's", with_help("canopy area", "canopy_area"),
-                "and the plot's", with_help("percent cover.", "percent_cover")
+                "One row per drone survey of a plot, with its", with_help("canopy area,", "canopy_area"),
+                "polygon area and", with_help("tide height.", "tide_cover"),
+                "The wet biomass of each survey's site-year is added before fitting."
               )
             }
           ),

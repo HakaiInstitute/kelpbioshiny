@@ -150,3 +150,55 @@
   width: 100%;
   max-width: 20rem;
 }
+
+/* Coverage grid: one square per site-year, filled where a model has data,
+   outlined where its estimate is borrowed, hatched where there is no biomass. */
+.kb-cov {
+  display: inline-block;
+  width: 1.125rem;
+  height: 1.125rem;
+  border-radius: 0.1875rem;
+  vertical-align: middle;
+}
+
+.kb-cov-data {
+  background-color: var(--bs-info);
+}
+
+.kb-cov-gap {
+  background-color: var(--bs-info-bg-subtle);
+  border: 1.5px solid var(--bs-info);
+}
+
+.kb-cov-none {
+  border: 1px solid var(--bs-border-color);
+  background-image: repeating-linear-gradient(
+    45deg,
+    var(--bs-border-color) 0 1.5px,
+    transparent 1.5px 4px
+  );
+}
+
+/* The soft button: a step still to do, filled with the primary's subtle tint.
+   It sets Bootstrap's own .btn variables, so states follow the theme. */
+.kb-btn-soft {
+  --bs-btn-color: var(--bs-primary-text-emphasis);
+  --bs-btn-bg: var(--bs-primary-bg-subtle);
+  --bs-btn-border-color: transparent;
+  --bs-btn-hover-color: var(--bs-primary-text-emphasis);
+  --bs-btn-hover-bg: var(--bs-primary-border-subtle);
+  --bs-btn-hover-border-color: transparent;
+  --bs-btn-active-color: var(--bs-primary-text-emphasis);
+  --bs-btn-active-bg: var(--bs-primary-border-subtle);
+  --bs-btn-active-border-color: transparent;
+  --bs-btn-disabled-color: var(--bs-primary-text-emphasis);
+  --bs-btn-disabled-bg: var(--bs-primary-bg-subtle);
+  --bs-btn-disabled-border-color: transparent;
+}
+
+/* Fit progress, which updates on every tick of a fit. Shiny's busy spinner
+   reserves room in an output while it recalculates, which made the banner
+   jump on each tick; a zero spinner size reserves none here. */
+.kb-progress {
+  --shiny-spinner-size: 0px;
+}

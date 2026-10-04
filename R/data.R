@@ -48,14 +48,16 @@ components <- list(
   ),
   carbon = list(
     label = "Carbon", detail = "Carbon fraction of dry mass", sheet = "carbon",
-    columns = c("site", "year", "dry_mass_g", "carbon_mass_g"), sources = c("user", prefit_source("hakai"), "none")
+    columns = c("sample_mass_mg", "carbon_mass_ug"), sources = c("user", prefit_source("hakai"), "none")
   ),
   # Optional: scales biomass per unit area up to total biomass per site-year.
-  # Fitted to the biomass predictions, so once every other model in use is ready.
+  # Fitted to the drone surveys with the biomass predictions for their
+  # site-years added, so once every other model in use is ready. The sheet holds
+  # the surveys only, so its check is the surveys check (`check`).
   cover = list(
-    label = "Cover", detail = "Relates plot biomass per unit area to plot percent cover", sheet = "cover",
-    columns = c("site", "year", "canopy_area_m2", "plot", "plot_percent_cover"), sources = c("user", "none"),
-    fn = "biomass_cover"
+    label = "Cover", detail = "Relates plot wet biomass to canopy cover from drone surveys", sheet = "cover",
+    columns = c("site", "year", "canopy_m2", "polygon_m2", "tide_height_m"), sources = c("user", "none"),
+    check = "cover_surveys"
   )
 )
 
@@ -67,21 +69,22 @@ sheet_columns <- function(id, species) {
 # The models that combine into biomass per unit area; the cover model builds on them.
 biomass_ids <- component_ids[component_ids != "cover"]
 
-# kelpbio model names (as in kb_fit_<model>_<species>()).
-fn_of <- function(id) components[[id]]$fn %||% id
+# The kelpbio name a model's sheet is checked under (as in kb_check_data_<name>_<species>()).
+check_name <- function(id) components[[id]]$check %||% id
 
 # The kelpbio function for a model and species: kelpbio_fn("fit", "cover", "nereo")
-# is kb_fit_biomass_cover_nereo(). In the package these resolve to the functions
+# is kb_fit_cover_nereo(). In the package these resolve to the functions
 # imported from kelpbio.
 kelpbio_verbs <- c(check = "check_data", priors = "priors", fit = "fit", prefit = "prefit")
 kelpbio_fn <- function(verb, id, species) {
-  get(sprintf("kb_%s_%s_%s", kelpbio_verbs[[verb]], fn_of(id), species), mode = "function")
+  name <- if (verb == "check") check_name(id) else id
+  get(sprintf("kb_%s_%s_%s", kelpbio_verbs[[verb]], name, species), mode = "function")
 }
 
 # The example workbooks the Data step offers, by kb_example_data()'s `example`,
 # in the order shown.
 example_workbooks <- list(
-  full = list(label = "All sheets", detail = "Density, size, weight, wet:dry and carbon, so every model is fitted to the data"),
+  full = list(label = "All sheets", detail = "Density, size, weight, wet:dry, carbon and cover, each fitted to the data, through to total biomass"),
   density_size = list(label = "Density and size", detail = "As a typical monitoring program collects; weight, wet:dry and carbon are pre-fit"),
   bad_weight = list(label = "A sheet with a data error", detail = "Density and size, and a weight sheet with missing years"),
   size_only = list(label = "Size only", detail = "Plant diameters, to predict the weight of each plant")
@@ -223,7 +226,8 @@ mismatch_advice <- "Rename the sites in the workbook so the names match exactly,
 prior_labels <- c(
   intercept = "Intercept", zero_inflation = "Zero inflation (logit)", dispersion = "Dispersion",
   shape = "Shape", power = "Power", floor = "Floor", density = "Density", fronds = "Fronds",
-  precision = "Precision", cover = "Cover slope", sd_site = "SD of site effect", sd_year = "SD of year effect",
+  precision = "Precision", canopy = "Canopy (log)", tide = "Tide", scaling = "Scaling",
+  sd_site = "SD of site effect", sd_year = "SD of year effect",
   sd_site_year = "SD of site-year effect", sd_residual = "Residual SD"
 )
 
@@ -302,7 +306,7 @@ default_arg <- function(fn, name) eval(formals(fn)[[name]])
 # Predictions ---------------------------------------------------------------------
 
 prediction_groupings <- c(
-  population = "Population level", site = "By site", year = "By year", site_year = "By site and year",
+  population = "Overall", site = "By site", year = "By year", site_year = "By site and year",
   plant = "Individual plant"
 )
 
@@ -320,8 +324,8 @@ prediction_info <- list(
   wetdry = list(response = "ratio of dry to wet mass", table = "Ratio of dry to wet mass"),
   carbon = list(response = "carbon fraction of dry mass", table = "Carbon fraction of dry mass"),
   cover = list(
-    response = "wet biomass per square metre", along = "plot percent cover",
-    table = "Wet biomass (kg/m\u00b2) at 50% plot cover", note = " Points are plots."
+    response = "wet biomass per square metre", along = "tide-corrected cover", at = "a tide-corrected cover of 0.5",
+    table = "Wet biomass (kg/m\u00b2) at a tide-corrected cover of 0.5"
   )
 )
 
@@ -331,7 +335,7 @@ has_effect <- function(id, effect, species = "nereo") {
 }
 
 # The groupings a model's predictions can be shown at. A pre-fit model was
-# fitted to other sites and years, so only its population-level predictions
+# fitted to other sites and years, so only its overall predictions
 # apply. The weight model can also predict each plant in the size sheet
 # (`plants`, from plant_rows()).
 prediction_choices <- function(id, prefit = FALSE, species = "nereo", plants = FALSE) {
@@ -363,7 +367,7 @@ prediction_by <- list(population = NULL, site = "site", year = "year", site_year
 
 # A model's predictions at a grouping: curves along the predictor for the figure,
 # or, for the table (at = TRUE) and the by-site-and-year figure, the value at a
-# reference predictor value: a 50 mm plant, 50% cover. The plant grouping
+# reference predictor value: a 50 mm plant, a cover of 0.5. The plant grouping
 # predicts the weight of each row of `plants`.
 model_predictions <- function(id, fit, grouping, at = FALSE, plants = NULL) {
   if (grouping == "plant") {
@@ -377,8 +381,8 @@ model_predictions <- function(id, fit, grouping, at = FALSE, plants = NULL) {
     weight = kb_predict_weight_by(fit, by, diameter_mm = if (at) 50),
     blade = kb_predict_blade_by(fit, by),
     wetdry = kb_predict_wetdry(fit),
-    carbon = kb_predict_carbon_by(fit, by),
-    cover = kb_predict_biomass_cover_by(fit, by, plot_percent_cover = if (at) 50)
+    carbon = kb_predict_carbon(fit),
+    cover = kb_predict_cover_by(fit, by, cover = if (at) 0.5)
   )
 }
 
@@ -416,5 +420,5 @@ prediction_caption <- function(id, grouping) {
     year = paste0(if (curve) ", faceted by year" else " by year", ", for a typical site"),
     site_year = " by year, faceted by site"
   )
-  sprintf("Predicted %s%s, with 95%% compatibility intervals.%s", what, by, info$note %||% "")
+  sprintf("Predicted %s%s, with 95%% compatibility intervals.", what, by)
 }

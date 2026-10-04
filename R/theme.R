@@ -1,6 +1,10 @@
 # The theme: the Hakai palette of the kelpbio pkgdown site (Hakai red on a dark
 # slate navbar) expressed as Bootstrap Sass variables. Everything else in the app
 # reads colours from var(--bs-*) rather than from this palette.
+#
+# Hakai red is Bootstrap's primary: primary and soft buttons, links, the active
+# tab and pill, checked radios and progress bars. Errors use the brighter danger
+# red, always with an icon and text.
 
 app_palette <- list(
   bg = "#f6f7f9", fg = "#1d2733", card = "#ffffff",
@@ -90,7 +94,7 @@ app_theme <- function() {
     "badge-padding-y" = "0.25rem",
     "badge-padding-x" = "0.5rem",
     "badge-border-radius" = "0.375rem",
-    "progress-bg" = col$accent,
+    "progress-bg" = col$muted,
     "progress-height" = "0.5rem",
     # Navigation: the navbar colours are set directly so the dark navbar keeps
     # readable text.

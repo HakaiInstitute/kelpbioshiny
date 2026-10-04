@@ -16,8 +16,8 @@
 #
 # Each mock is marked:
 # - Exists: kelpbio has the function today; the mock's signature and checks match it.
-# - Exists in the working tree: in kelpbio's open add-wetdry-models change, not
-#   yet merged, so it may change.
+# - Exists in the working tree: on an unmerged kelpbio branch (add-wetdry-models,
+#   add-carbon-models or add-cover-models), so it may change.
 # - Planned: not in kelpbio yet; named and shaped following the package conventions.
 
 #' @importFrom ggplot2 ggplot aes geom_ribbon geom_line geom_pointrange facet_wrap
@@ -43,8 +43,6 @@ NULL
 .mock_biomass <- function() .mock_json("fake-biomass")
 .mock_totals <- function() .mock_json("fake-totals")
 
-# The fake JSON is keyed by the app's model ids, where biomass_cover is "cover".
-.mock_key <- function(model) if (model == "biomass_cover") "cover" else model
 
 # Each model's terms (tidy() rows) and the prior entry (kb_priors_*()) each draws on.
 .mock_terms <- list(
@@ -59,8 +57,8 @@ NULL
   ),
   blade = c(bBlade = "intercept", sSite = "sd_site"),
   wetdry = c(bDryWet = "intercept", bPrecision = "precision"),
-  carbon = c(bCarbon = "intercept", sSite = "sd_site"),
-  biomass_cover = c(bCover0 = "intercept", bCover = "cover", sSite = "sd_site", sCover = "sd_residual")
+  carbon = c(bCarbon = "intercept", bPrecision = "precision"),
+  cover = c(bCanopy = "canopy", bFloor = "floor", bTide = "tide", bScaling = "scaling", sSite = "sd_site", sYear = "sd_year")
 )
 
 # Sampler diagnostics at the default 4 chains of 1000 draws with no thinning.
@@ -91,7 +89,7 @@ NULL
 }
 
 # Simulated sampling time, in seconds, at 1000 draws per chain without thinning.
-.mock_fit_seconds <- c(density = 3, size = 4, weight = 5, blade = 3, wetdry = 3, carbon = 3, biomass_cover = 3)
+.mock_fit_seconds <- c(density = 3, size = 4, weight = 5, blade = 3, wetdry = 3, carbon = 3, cover = 3)
 
 # Runs code with a fixed seed and leaves the session's random numbers untouched.
 .mock_with_seed <- function(seed, code) withr::with_seed(seed, code)
@@ -272,37 +270,54 @@ kb_check_data_blade_nereo <- function(data, x_name = chk::deparse_backtick_chk(s
 }
 # Planned.
 kb_check_data_blade_macro <- kb_check_data_blade_nereo
-# Planned.
+# Exists in the working tree. One row per dried tissue sample; no site or year.
 kb_check_data_carbon_nereo <- function(data, x_name = chk::deparse_backtick_chk(substitute(data))) {
-  .mock_chk_columns(data, c("dry_mass_g", "carbon_mass_g", "site", "year"), x_name)
-  .mock_chk_number_column(data, "dry_mass_g", x_name, gt = 0)
-  .mock_chk_number_column(data, "carbon_mass_g", x_name, gt = 0)
-  .mock_chk_groups(data, x_name)
+  .mock_chk_columns(data, c("sample_mass_mg", "carbon_mass_ug"), x_name)
+  .mock_chk_number_column(data, "sample_mass_mg", x_name, gt = 0)
+  .mock_chk_number_column(data, "carbon_mass_ug", x_name, gt = 0)
+  fraction <- data$carbon_mass_ug / 1000 / data$sample_mass_mg
+  if (any(fraction >= 1)) {
+    stop(sprintf("%s must be less than the sample mass.", .mock_xname(x_name, "carbon_mass_ug")), call. = FALSE)
+  }
+  n <- sum(fraction < 0.10 | fraction > 0.50)
+  if (n > 0) {
+    warning(sprintf(
+      "%d %s in %s %s outside 0.10 to 0.50, the plausible range for kelp tissue.",
+      n, if (n == 1) "sample" else "samples", x_name, if (n == 1) "has a carbon fraction" else "have carbon fractions"
+    ), call. = FALSE)
+  }
   invisible(data)
 }
-# Planned.
+# Exists in the working tree.
 kb_check_data_carbon_macro <- kb_check_data_carbon_nereo
-# Planned. Also reports the site-years with a canopy area but no plot cover.
-kb_check_data_biomass_cover_nereo <- function(data, x_name = chk::deparse_backtick_chk(substitute(data))) {
-  .mock_chk_columns(data, c("site", "year", "canopy_area_m2", "plot", "plot_percent_cover"), x_name)
-  .mock_chk_number_column(data, "canopy_area_m2", x_name, gt = 0)
+# Planned. The drone-survey columns that kelpbio's kb_check_data_cover_nereo()
+# checks, for a sheet of surveys before the in situ biomass is added
+# (kb_add_biomass()).
+kb_check_data_cover_surveys_nereo <- function(data, x_name = chk::deparse_backtick_chk(substitute(data))) {
+  .mock_chk_columns(data, c("canopy_m2", "polygon_m2", "tide_height_m", "site", "year"), x_name)
+  .mock_chk_number_column(data, "canopy_m2", x_name, gte = 0)
+  .mock_chk_number_column(data, "polygon_m2", x_name, gt = 0)
+  .mock_chk_number_column(data, "tide_height_m", x_name)
+  if (any(data$canopy_m2 > data$polygon_m2)) {
+    stop(sprintf("%s must be at least canopy_m2.", .mock_xname(x_name, "polygon_m2")), call. = FALSE)
+  }
   .mock_chk_groups(data, x_name)
-  key <- paste(data$site, data$year)
-  if (any(tapply(data$canopy_area_m2, key, function(x) length(unique(x))) > 1)) {
-    stop(sprintf("%s must be the same on every row of a site-year.", .mock_xname(x_name, "canopy_area_m2")), call. = FALSE)
-  }
-  cover <- data$plot_percent_cover
-  if (any(!is.na(cover) & (cover < 0 | cover > 100))) {
-    stop(sprintf("%s must be between 0 and 100.", .mock_xname(x_name, "plot_percent_cover")), call. = FALSE)
-  }
-  gaps <- sum(!tapply(!is.na(cover), key, any))
-  if (gaps > 0) {
-    message(sprintf("%d site-years have canopy area but no plot cover; total biomass uses the population-level relationship.", gaps))
-  }
   invisible(data)
 }
 # Planned.
-kb_check_data_biomass_cover_macro <- kb_check_data_biomass_cover_nereo
+kb_check_data_cover_surveys_macro <- kb_check_data_cover_surveys_nereo
+# Exists in the working tree. One row per drone survey of a plot, with the in
+# situ wet biomass (kg/m2) and its limits; the cover fits check their data with it.
+kb_check_data_cover_nereo <- function(data, x_name = chk::deparse_backtick_chk(substitute(data))) {
+  kb_check_data_cover_surveys_nereo(data, x_name)
+  for (column in c("estimate", "lower", "upper")) .mock_chk_number_column(data, column, x_name, gt = 0)
+  if (any(data$lower > data$estimate | data$estimate > data$upper | data$lower >= data$upper)) {
+    stop(sprintf("%s must satisfy lower <= estimate <= upper, with lower < upper.", x_name), call. = FALSE)
+  }
+  invisible(data)
+}
+# Exists in the working tree.
+kb_check_data_cover_macro <- kb_check_data_cover_nereo
 
 # Planned; the name is a proposal. Adds stipes_m2, the observed stipe density of
 # each row's site-year (stipes counted over the area surveyed), from Nereocystis
@@ -317,6 +332,21 @@ kb_add_stipes_m2 <- function(data, density) {
   area <- tapply(density$area_m2, key(density), sum)
   data$stipes_m2 <- unname((stipes / area)[key(data)])
   data
+}
+
+# Planned; the name is a proposal. Adds the in situ wet biomass of each drone
+# survey's site-year (estimate, lower and upper, kg/m2) from kb_predict_biomass()
+# output, for the cover model. Surveys of site-years without a biomass estimate
+# are dropped.
+kb_add_biomass <- function(data, biomass) {
+  if (!inherits(biomass, "kb_biomass") || attr(biomass, "kb_type") != "wet" || attr(biomass, "kb_scale") != "area") {
+    stop("`biomass` must be wet biomass per unit area from kb_predict_biomass().", call. = FALSE)
+  }
+  chk::chk_data(data)
+  chk::chk_superset(names(data), c("site", "year"))
+  i <- match(paste(data$site, data$year), paste(biomass$site, biomass$year))
+  data[c("estimate", "lower", "upper")] <- as.data.frame(biomass)[i, c("estimate", "lower", "upper")]
+  data[!is.na(i), ]
 }
 
 # Priors -----------------------------------------------------------------------------
@@ -421,24 +451,31 @@ kb_priors_blade_nereo <- function() {
 }
 # Planned.
 kb_priors_blade_macro <- kb_priors_blade_nereo
-# Planned.
+# Exists in the working tree.
 kb_priors_carbon_nereo <- function() {
-  .mock_with_terms(list(intercept = kb_prior_normal(mean = -1, sd = 1), sd_site = kb_prior_exponential(rate = 1)), "carbon")
+  .mock_with_terms(list(intercept = kb_prior_normal(mean = -0.8, sd = 0.3), precision = kb_prior_exponential(rate = 0.001)), "carbon")
 }
-# Planned.
+# Exists in the working tree.
 kb_priors_carbon_macro <- kb_priors_carbon_nereo
 # Planned.
-kb_priors_biomass_cover_nereo <- function() {
+kb_priors_cover_nereo <- function() {
   priors <- list(
-    intercept = kb_prior_normal(mean = 0, sd = 2),
-    cover = kb_prior_normal(mean = 0, sd = 1),
+    canopy = kb_prior_normal(mean = 2, sd = 1),
+    floor = kb_prior_normal(mean = 0, sd = 0.1),
+    tide = kb_prior_normal(mean = 0.276, sd = 0.04),
+    scaling = kb_prior_normal(mean = 1, sd = 0.5),
     sd_site = kb_prior_exponential(rate = 1),
-    sd_residual = kb_prior_exponential(rate = 1)
+    sd_year = kb_prior_exponential(rate = 1)
   )
-  .mock_with_terms(priors, "biomass_cover")
+  .mock_with_terms(priors, "cover")
 }
-# Planned.
-kb_priors_biomass_cover_macro <- kb_priors_biomass_cover_nereo
+# Exists in the working tree.
+kb_priors_cover_macro <- function() {
+  priors <- kb_priors_cover_nereo()
+  priors$floor <- kb_prior_normal(mean = 0.4, sd = 0.3)
+  priors$tide <- kb_prior_normal(mean = 0.227, sd = 0.03)
+  .mock_with_terms(priors, "cover")
+}
 
 # Fitting -----------------------------------------------------------------------------------
 # The mock fits check their arguments and data as kelpbio does, then sample for a
@@ -504,49 +541,31 @@ kb_fit_blade_macro <- function(data, priors = NULL, ..., prior_only = FALSE, cha
                                progress_dir = NULL) {
   .mock_fit("blade", "macro", data, priors, chains, niters, nthin, progress, progress_dir)
 }
-# Planned.
+# Exists in the working tree.
 kb_fit_carbon_nereo <- function(data, priors = NULL, ..., prior_only = FALSE, chains = 4L, niters = 1000L,
                                 nthin = 1L, cores = NULL, seed = NULL, progress = c("bar", "verbose", "none"),
                                 progress_dir = NULL) {
   .mock_fit("carbon", "nereo", data, priors, chains, niters, nthin, progress, progress_dir)
 }
-# Planned.
+# Exists in the working tree.
 kb_fit_carbon_macro <- function(data, priors = NULL, ..., prior_only = FALSE, chains = 4L, niters = 1000L,
                                 nthin = 1L, cores = NULL, seed = NULL, progress = c("bar", "verbose", "none"),
                                 progress_dir = NULL) {
   .mock_fit("carbon", "macro", data, priors, chains, niters, nthin, progress, progress_dir)
 }
 
-# The response of the cover model: each plot's wet biomass per unit area,
-# from the biomass predictions, fake here as scatter around the fake cover curves.
-.mock_cover_response <- function(data) {
-  plots <- data[!is.na(data$plot_percent_cover), ]
-  site <- .mock_predictions()$cover$site
-  at_50 <- site$estimate[match(plots$site, site$site)]
-  noise <- .mock_with_seed(42, stats::rlnorm(nrow(plots), 0, 0.25))
-  plots$biomass_kg_m2 <- signif(at_50 * exp(0.018 * (plots$plot_percent_cover - 50)) * noise, 3)
-  plots
+# Exists in the working tree. `data` holds the drone surveys with the in situ
+# wet biomass of each (kb_add_biomass()); conf_level is the level of its limits.
+kb_fit_cover_nereo <- function(data, priors = NULL, ..., conf_level = 0.95, prior_only = FALSE, chains = 4L,
+                               niters = 1000L, nthin = 1L, cores = NULL, seed = NULL,
+                               progress = c("bar", "verbose", "none"), progress_dir = NULL) {
+  .mock_fit("cover", "nereo", data, priors, chains, niters, nthin, progress, progress_dir)
 }
-
-.mock_fit_cover <- function(species, data, priors, biomass, chains, niters, nthin, progress, progress_dir) {
-  if (!inherits(biomass, "kb_biomass")) stop("`biomass` must be the output of kb_predict_biomass().", call. = FALSE)
-  fit <- .mock_fit("biomass_cover", species, data, priors, chains, niters, nthin, progress, progress_dir)
-  fit$data <- tibble::as_tibble(.mock_cover_response(data))
-  fit
-}
-
-# Planned. `biomass` is the per-unit-area output of kb_predict_biomass() for the
-# site-years in `data`; it is name-only so priors stays second.
-kb_fit_biomass_cover_nereo <- function(data, priors = NULL, ..., biomass, prior_only = FALSE, chains = 4L,
-                                       niters = 1000L, nthin = 1L, cores = NULL, seed = NULL,
-                                       progress = c("bar", "verbose", "none"), progress_dir = NULL) {
-  .mock_fit_cover("nereo", data, priors, biomass, chains, niters, nthin, progress, progress_dir)
-}
-# Planned.
-kb_fit_biomass_cover_macro <- function(data, priors = NULL, ..., biomass, prior_only = FALSE, chains = 4L,
-                                       niters = 1000L, nthin = 1L, cores = NULL, seed = NULL,
-                                       progress = c("bar", "verbose", "none"), progress_dir = NULL) {
-  .mock_fit_cover("macro", data, priors, biomass, chains, niters, nthin, progress, progress_dir)
+# Exists in the working tree.
+kb_fit_cover_macro <- function(data, priors = NULL, ..., conf_level = 0.95, prior_only = FALSE, chains = 4L,
+                               niters = 1000L, nthin = 1L, cores = NULL, seed = NULL,
+                               progress = c("bar", "verbose", "none"), progress_dir = NULL) {
+  .mock_fit("cover", "macro", data, priors, chains, niters, nthin, progress, progress_dir)
 }
 
 # Exists.
@@ -646,21 +665,6 @@ kb_convergence <- function(fit, ..., rhat = 1.01, esr = 0.1) {
   tibble::tibble(term = s$variable, rhat = round(s$rhat, 3), ess_bulk = round(s$ess_bulk), esr = round(rate, 3), converged = ok)
 }
 
-# Exists. The mock gives fitted values and residuals for the cover model
-# only; the app plots its plots over the predictions.
-#' @exportS3Method generics::augment
-#' @noRd
-augment.kb_fit <- function(x, ...) {
-  data <- x$data
-  if (x$meta$model == "biomass_cover") {
-    site <- .mock_predictions()$cover$site
-    data$fitted <- site$estimate[match(data$site, site$site)] * exp(0.018 * (data$plot_percent_cover - 50))
-    data$residual <- log(data$biomass_kg_m2 / data$fitted) / 0.25
-  }
-  data
-}
-
-
 # Model description -------------------------------------------------------------------
 
 .mock_fraction_description <- function(title, response, parameter) {
@@ -730,24 +734,41 @@ augment.kb_fit <- function(x, ...) {
     "  bPrecision ~ Exponential(0.01)",
     sep = "\n"
   ),
-  carbon = .mock_fraction_description("Carbon fraction", "carbon mass / dry mass", "bCarbon"),
-  # Placeholder: the model's exact form is still to be designed in kelpbio.
-  biomass_cover = paste(
-    "Cover - Nereocystis luetkeana",
-    "Response: plot biomass per unit area, from the biomass predictions",
-    "Predictor: plot percent cover, from drone imagery",
+  carbon = paste(
+    "Carbon fraction - Nereocystis luetkeana",
+    "Response: carbon_fraction = carbon_mass_ug / 1000 / sample_mass_mg, the fraction of a dry sample's mass that is carbon",
     "",
-    "Likelihood (placeholder, prototype only)",
-    "  log(biomass density) ~ Normal(bCover0 + bCover * percent cover + bSite[site], sCover)",
-    "",
-    "Random effects",
-    "  bSite[site] ~ Normal(0, sSite)",
+    "Likelihood",
+    "  carbon_fraction ~ Beta(mu * bPrecision, (1 - mu) * bPrecision)",
+    "  logit(mu) = bCarbon",
     "",
     "Priors",
-    "  bCover0 ~ Normal(0, 2)",
-    "  bCover  ~ Normal(0, 1)",
-    "  sSite   ~ Exponential(1)",
-    "  sCover  ~ Exponential(1)",
+    "  bCarbon        ~ Normal(-0.8, 0.3)",
+    "  bPrecision     ~ Exponential(0.001)",
+    sep = "\n"
+  ),
+  cover = paste(
+    "Cover - Nereocystis luetkeana",
+    "Response: estimate, the in situ wet biomass of a plot (kg/m\u00b2), with compatibility limits lower and upper",
+    "",
+    "Likelihood",
+    "  log(estimate) ~ Normal(log(mu), bScaling * sd)",
+    "  mu = bFloor",
+    "     + bCanopy * exp(bYear[year] + bSite[site]) * cover",
+    "  cover = min(1, canopy_m2 * (1 + bTide * tide_height_m) / polygon_m2)",
+    "  sd = (log(upper) - log(lower)) / (2 * 1.96)  (log-scale SD of the in situ estimate)",
+    "",
+    "Random effects",
+    "  bYear[year] ~ Normal(0, sYear)  year effect on log(bCanopy)",
+    "  bSite[site] ~ Normal(0, sSite)  site effect on log(bCanopy)",
+    "",
+    "Priors",
+    "  log(bCanopy)   ~ Normal(2, 1)",
+    "  bFloor         ~ Normal(0, 0.1) T[0, ]",
+    "  bTide          ~ Normal(0.276, 0.04) T[0, ]",
+    "  bScaling       ~ Normal(1, 0.5) T[0, ]",
+    "  sYear          ~ Exponential(1)",
+    "  sSite          ~ Exponential(1)",
     sep = "\n"
   )
 )
@@ -789,9 +810,9 @@ kb_model_describe <- function(fit, prose = FALSE, ..., priors = TRUE) {
 }
 
 # Fake estimates per group, from fake-predictions.json; a curve model's are its
-# value at the reference predictor value (50 mm, 50% cover).
+# value at the reference predictor value (50 mm, a cover of 0.5).
 .mock_group_rows <- function(fit, by) {
-  key <- .mock_key(fit$meta$model)
+  key <- fit$meta$model
   grouping <- .mock_grouping(by)
   rows <- .mock_predictions()[[key]][[grouping]]
   if (is.null(rows)) {
@@ -820,7 +841,7 @@ kb_model_describe <- function(fit, prose = FALSE, ..., priors = TRUE) {
 }
 
 .mock_point_predictions <- function(fit, by, response, y_label) {
-  population <- if (is.null(.mock_predictions()[[.mock_key(fit$meta$model)]]$year)) "All sites" else "All sites and years"
+  population <- if (is.null(.mock_predictions()[[fit$meta$model]]$year)) "All sites" else "All sites and years"
   .mock_new_predictions(.mock_group_rows(fit, by)$rows, by, response, y_label = y_label, population = population)
 }
 
@@ -894,29 +915,33 @@ kb_predict_wetdry <- function(fit, ..., conf_level = 0.95, estimate = stats::med
   .mock_new_predictions(.mock_predictions()$wetdry$population, NULL, "dry_wet_ratio", y_label = "Ratio of dry to wet mass", population = "All samples")
 }
 
-# Planned.
-kb_predict_carbon_by <- function(fit, by = NULL, ..., new_levels = c("average", "sample"), conf_level = 0.95,
-                                 estimate = stats::median, sig_fig = 3) {
-  .mock_point_predictions(fit, by, "carbon_fraction", "Carbon fraction of dry mass")
+# Exists in the working tree. One row: the expected carbon fraction of dry mass.
+kb_predict_carbon <- function(fit, ..., conf_level = 0.95, estimate = stats::median, sig_fig = 3) {
+  .mock_new_predictions(.mock_predictions()$carbon$population, NULL, "carbon_fraction", y_label = "Carbon fraction of dry mass", population = "All samples")
 }
 
-# Planned.
-kb_predict_biomass_cover_by <- function(fit, by = NULL, plot_percent_cover = NULL, ...,
-                                        new_levels = c("average", "sample"), conf_level = 0.95,
-                                        estimate = stats::median, sig_fig = 3) {
-  y_label <- expression("Wet biomass (kg/m"^2 * ")")
-  if (length(plot_percent_cover) == 1) {
-    rows <- .mock_group_rows(fit, by)$rows
-    shift <- exp(0.018 * (plot_percent_cover - 50))
-    rows[c("estimate", "lower", "upper")] <- lapply(rows[c("estimate", "lower", "upper")], function(v) signif(v * shift, 3))
-    rows$plot_percent_cover <- plot_percent_cover
-    return(.mock_new_predictions(rows, by, "biomass", "plot_percent_cover", y_label = y_label))
-  }
-  x <- plot_percent_cover %||% seq(0, 100, by = 2)
-  rows <- .mock_curves(fit, by, x, function(v) log(v) - 0.018 * 50, function(x, eta) exp(eta + 0.018 * x), 55, 0.8)
+# The fake cover floor: the wet biomass (kg/m2) at zero cover, and its limits.
+.mock_cover_floor <- c(estimate = 0.144, lower = 0.0874, upper = 0.217)
+
+# Exists in the working tree. Curves over tide-corrected cover (0 to 1); the mock
+# draws each group's straight line from the floor at zero cover through its fake
+# value at a cover of 0.5.
+kb_predict_cover_by <- function(fit, by = NULL, cover = NULL, ..., new_levels = c("average", "sample"),
+                                conf_level = 0.95, estimate = stats::median, sig_fig = 3) {
+  x <- cover %||% seq(0, 1, length.out = 30)
+  group <- .mock_group_rows(fit, by)$rows
+  keys <- group[intersect(c("site", "year"), names(group))]
+  rows <- do.call(rbind, lapply(seq_len(nrow(group)), function(i) {
+    curve <- data.frame(cover = x)
+    for (column in c("estimate", "lower", "upper")) {
+      floor <- .mock_cover_floor[[column]]
+      curve[[column]] <- signif(floor + (group[[column]][i] - floor) * 2 * x, 3)
+    }
+    if (ncol(keys) == 0) curve else cbind(keys[rep(i, length(x)), , drop = FALSE], curve, row.names = NULL)
+  }))
   .mock_new_predictions(
-    .mock_rename_x(rows, "plot_percent_cover"), by, "biomass", "plot_percent_cover",
-    curve = TRUE, x_label = "Plot percent cover (%)", y_label = y_label
+    rows, by, "biomass_kg_m2", "cover",
+    curve = length(x) > 1, x_label = "Tide-corrected cover", y_label = expression("Wet biomass (kg/m"^2 * ")")
   )
 }
 
@@ -1048,8 +1073,8 @@ kb_plot_trace <- function(fit) {
     blade = list(mu = fractions(120, 0.5, 0.3), family = .mock_beta(30), x = "Blade fraction"),
     wetdry = list(mu = fractions(150, 0.1, 0.2), family = .mock_beta(150), x = "Ratio of dry to wet mass"),
     carbon = list(mu = fractions(110, 0.3, 0.15), family = .mock_beta(120), x = "Carbon fraction of dry mass"),
-    biomass_cover = list(
-      mu = exp(log(0.6) + 0.018 * stats::runif(27, 15, 92)), family = .mock_lognormal(0.35),
+    cover = list(
+      mu = .mock_cover_floor[["estimate"]] + 2.7 * stats::runif(27, 0, 1), family = .mock_lognormal(0.35),
       x = expression("Wet biomass (kg/m"^2 * ")")
     )
   )
@@ -1104,7 +1129,7 @@ kb_ppc_resid <- function(fit) {
 # lik_cjs is at least `lik_cjs`. In the mock, widening a prior from its default
 # lowers its prior CJS in proportion.
 kb_sensitivity <- function(fit, ..., prior_cjs = 0.1, lik_cjs = 0.05) {
-  rows <- .mock_sensitivity()[[.mock_key(fit$meta$model)]]
+  rows <- .mock_sensitivity()[[fit$meta$model]]
   rows$prior <- unname(.mock_terms[[fit$meta$model]][rows$parameter])
   defaults <- get(sprintf("kb_priors_%s_%s", fit$meta$model, fit$meta$species))()
   ratio <- vapply(rows$prior, function(name) {
@@ -1172,20 +1197,20 @@ kb_predict_biomass <- function(density, size, weight, blade = NULL, wetdry = NUL
   structure(rows, class = c("kb_biomass", class(rows)), kb_type = type, kb_scale = "area")
 }
 
-# Planned. Total biomass (t) per site-year with a canopy area, from a fitted
-# cover model and kb_predict_biomass() output. population_cover marks
-# site-years without plot cover, which use the population-level cover relationship;
-# the per-area population flags are carried over.
+# Planned; the inputs are a proposal. Total biomass (t) per site-year with a
+# drone survey in the cover model's data, from the fitted cover model and
+# kb_predict_biomass() output, with the site-year's canopy area (m2). The
+# per-area population flags are carried over.
 kb_predict_biomass_total <- function(fit, biomass, ..., conf_level = 0.95, estimate = stats::median, sig_fig = 3) {
   type <- attr(biomass, "kb_type")
   area_key <- paste(.mock_normalise_site(biomass$site), biomass$year)
+  surveyed <- paste(.mock_normalise_site(fit$data$site), fit$data$year)
   totals <- .mock_totals()
-  totals <- totals[paste(totals$site, totals$year) %in% area_key, ]
+  totals <- totals[paste(totals$site, totals$year) %in% intersect(area_key, surveyed), ]
   i <- match(paste(totals$site, totals$year), area_key)
   rows <- tibble::tibble(
-    site = totals$site, year = totals$year, canopy_area_m2 = totals$canopy_area,
+    site = totals$site, year = totals$year, canopy_m2 = totals$canopy_area,
     estimate = totals[[type]], lower = totals[[paste0(type, "_lower")]], upper = totals[[paste0(type, "_upper")]],
-    population_cover = totals$population,
     population_size = biomass$population_size[i],
     population_weight = biomass$population_weight[i]
   )

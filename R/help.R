@@ -57,9 +57,9 @@ help_topics <- list(
     link = kelpbio_articles[["diagnostics"]]
   ),
   prediction_groups = list(
-    title = "Population-level and group predictions",
+    title = "Overall and group predictions",
     body = paste(
-      "Population-level predictions are for a typical site in a typical year. They leave out the differences between sites and between years, so they suit sites and years that were not sampled.",
+      "Overall predictions are for a typical site in a typical year. They leave out the differences between sites and between years, so they suit sites and years that were not sampled.",
       "Predictions by site or by year add the estimated difference for each sampled site or year, so they describe those sites and years. Predictions by site and year include both."
     ),
     link = kelpbio_articles[["results"]]
@@ -102,11 +102,20 @@ help_topics <- list(
     ),
     link = kelpbio_articles[["prefit"]]
   ),
+  coverage = list(
+    title = "Site-years without data",
+    body = paste(
+      "When a model has no data for a site-year, its estimate there uses the site's estimate from other years and the year's estimate from other sites.",
+      "What is specific to that site-year is drawn from the variation the model estimated between site-years, so its compatibility interval is wider.",
+      "With neither the site nor the year in the data, the estimate is for a typical site and year."
+    ),
+    link = kelpbio_articles[["results"]]
+  ),
   population = list(
     title = "Population-level estimate",
     body = paste(
-      "When a site-year has no data for a model, the typical value across all sites and years is used instead of a value for that site-year.",
-      "Biomass is still estimated, but it does not reflect conditions specific to that site-year."
+      "A population-level estimate is for a typical site in a typical year.",
+      "A model uses it for a site-year when neither the site nor the year is in that model's data."
     ),
     link = kelpbio_articles[["results"]]
   ),
@@ -119,30 +128,28 @@ help_topics <- list(
     ),
     link = kelpbio_articles[["models"]]
   ),
-  # Cover and total biomass: the exact formulation is a placeholder until the
-  # cover model is designed in kelpbio.
+  # Total biomass: a placeholder until total biomass is designed in kelpbio.
   canopy_area = list(
     title = "Canopy area",
     body = paste(
-      "The total area of kelp canopy at a site in a year, in square metres, measured from drone imagery.",
-      "It is the same on every row of that site-year in the cover sheet."
+      "The area of kelp canopy the drone imagery delineated within a plot polygon, in square metres.",
+      "A survey with no canopy has a canopy area of 0."
     ),
     link = kelpbio_articles[["total_biomass"]]
   ),
-  percent_cover = list(
-    title = "Percent cover",
+  tide_cover = list(
+    title = "Tide-corrected cover",
     body = paste(
-      "The percentage of a plot covered by kelp canopy in the drone imagery.",
-      "It links the biomass measured in plots to what the drone sees."
+      "Less of the canopy shows at the surface at higher tides, so the cover model corrects the canopy area for the tide height at the survey.",
+      "Cover is the corrected canopy area as a proportion of the polygon area, from 0 to 1."
     ),
     link = kelpbio_articles[["total_biomass"]]
   ),
   total_biomass = list(
     title = "Total biomass",
     body = paste(
-      "Biomass per unit area is predicted from percent cover with the cover model, then scaled up by the canopy area.",
-      "The uncertainty in every model is carried through to the limits.",
-      "Site-years with canopy area but no plot cover use the population-level cover relationship."
+      "The cover model relates the wet biomass of surveyed plots to their tide-corrected canopy cover, and total biomass scales it up to each surveyed site-year.",
+      "The uncertainty in every model is carried through to the limits."
     ),
     link = kelpbio_articles[["total_biomass"]]
   ),

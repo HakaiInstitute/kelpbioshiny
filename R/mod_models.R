@@ -66,8 +66,24 @@ mod_models_ui <- function(id) {
   head_cell <- function(...) tags$th(class = "bg-body-tertiary text-body-secondary small", ...)
 
   hub <- tagList(
-    page_header("Models", uiOutput(ns("description"), inline = TRUE), uiOutput(ns("fit_all_ui"), inline = TRUE)),
-    uiOutput(ns("progress")),
+    page_header("Models", step_description("models"), uiOutput(ns("fit_all_ui"), inline = TRUE)),
+    # While fits run: the model fitting, a full-width bar and the fits queued.
+    # The banner is part of the page; only its text and bar update.
+    conditionalPanel(
+      "output.fitting_active",
+      div(
+        class = "kb-progress d-flex flex-column gap-2 border rounded-3 p-3 mb-3 bg-primary-subtle border-primary-subtle",
+        div(
+          class = "d-flex flex-wrap align-items-center justify-content-between gap-2",
+          span(
+            class = "d-inline-flex align-items-center gap-2 fw-medium",
+            lucide("loader-2", "kb-spin text-primary"), textOutput(ns("progress_title"), inline = TRUE)
+          ),
+          textOutput(ns("progress_detail"), inline = TRUE) |> tagAppendAttributes(class = "small text-body-secondary kb-tabular")
+        ),
+        uiOutput(ns("progress_bar"))
+      )
+    ),
     conditionalPanel(
       "!output.has_data",
       ns = ns,
@@ -137,21 +153,16 @@ mod_models_server <- function(id, store) {
       output[[paste0("status_", cid)]] <- renderUI({
         status <- store$statuses()[[cid]]
         tagList(
-          status_badge(status, if (status$kind == "fitting") store$progress() else 0),
+          status_badge(status),
           if (!is.null(status$message)) div(class = "small text-danger-emphasis mt-1", status$message)
         )
       })
       output[[paste0("fit_", cid)]] <- renderUI({
         fit_control(
           session$ns(paste0("fit_model_", cid)), session$ns(paste0("cancel_", cid)), store$statuses()[[cid]],
-          cid %in% store$invalid(), variant = "outline", size = "sm", model = cid
+          cid %in% store$invalid(), variant = "soft", size = "sm", model = cid
         )
       })
-    })
-
-    output$description <- renderUI({
-      sp <- species_info[[store$species()]]
-      tagList(step_description("models"), " Species: ", species_phrase(sp, "."))
     })
 
     output$fit_all_ui <- renderUI({
@@ -168,24 +179,13 @@ mod_models_server <- function(id, store) {
       span(class = "small text-body-secondary", fit_all_reason(store$statuses(), plan))
     })
 
-    # While fits run: the model fitting, a full-width bar and the fits queued.
-    output$progress <- renderUI({
-      id <- req(store$fitting())
-      progress <- store$progress()
+    output$progress_title <- renderText(sprintf("Fitting the %s model", lower_label(req(store$fitting()))))
+    output$progress_detail <- renderText({
+      req(store$fitting())
       queued <- sum(record_status(store$records()) == "queued")
-      div(
-        class = "d-flex flex-column gap-2 border rounded-3 p-3 mb-3 bg-primary-subtle border-primary-subtle",
-        div(
-          class = "d-flex flex-wrap align-items-center justify-content-between gap-2",
-          span(class = "d-inline-flex align-items-center gap-2 fw-medium", lucide("loader-2", "kb-spin text-primary"), sprintf("Fitting the %s model", lower_label(id))),
-          span(
-            class = "small text-body-secondary kb-tabular",
-            sprintf("%d%%%s", floor(progress), if (queued > 0) sprintf(" \u00b7 %d queued", queued) else "")
-          )
-        ),
-        progress_bar(progress)
-      )
+      paste0(percent_text(store$progress()), if (queued > 0) sprintf(" \u00b7 %d queued", queued))
     })
+    output$progress_bar <- renderUI(progress_bar(store$progress()))
 
     output$skipped <- renderUI({
       skipped <- store$fit_plan()$skipped
@@ -210,7 +210,11 @@ mod_models_server <- function(id, store) {
       }
       statuses <- store$statuses()
       unready <- Filter(function(id) !is_ready_status(statuses[[id]]), component_ids)
-      view <- if (store$any_estimate()) button(session$ns("view_estimates"), "View estimates", size = "sm")
+      # The next step once every model in use is ready (primary); until then
+      # Fit all is, so the link to the estimates ready so far is outline.
+      view <- if (store$any_estimate()) {
+        button(session$ns("view_estimates"), "View estimates", variant = if (length(unready) == 0) "primary" else "outline", size = "sm")
+      }
       if (length(unready) == 0) {
         return(notice("arrow-right", "All models in use are ready", "Their estimates are on the Estimates step.", action = view))
       }

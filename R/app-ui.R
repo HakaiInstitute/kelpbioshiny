@@ -59,7 +59,7 @@ fit_activity <- function() {
     actionLink(
       "activity",
       span(
-        class = "badge rounded-pill d-inline-flex align-items-center gap-2 border border-primary-subtle bg-primary-subtle text-primary-emphasis kb-tabular",
+        class = "kb-progress badge rounded-pill d-inline-flex align-items-center gap-2 border border-primary-subtle bg-primary-subtle text-primary-emphasis kb-tabular",
         lucide("loader-2", "kb-spin"), textOutput("activity_label", inline = TRUE)
       ),
       class = "text-decoration-none"
@@ -78,10 +78,14 @@ app_ui <- function() {
     window_title = "kelpbio",
     lang = "en",
     navbar_options = navbar_options(collapsible = TRUE),
-    header = tags$head(
-      tags$link(rel = "stylesheet", href = "styles.css"),
+    # Shiny's busy pulse would flash at the top of the page on every tick of a
+    # fit; the fit progress shows in the app instead.
+    header = tagList(useBusyIndicators(pulse = FALSE), tags$head(
+      # Versioned by the file's modification time, so a browser fetches the
+      # stylesheet again when it changes rather than using a cached copy.
+      tags$link(rel = "stylesheet", href = paste0("styles.css?v=", styles_version())),
       tags$link(rel = "icon", type = "image/png", href = "favicon-96x96.png")
-    ),
+    )),
     nav_spacer(),
     nav_item(fit_activity()),
     nav_panel(step_title("data"), value = "data", step_main(mod_data_ui("data"))),
@@ -96,4 +100,9 @@ app_ui <- function() {
       sprintf("kelpbioshiny v%s \u00b7 Hakai Institute \u00b7 Poisson Consulting", utils::packageVersion("kelpbioshiny"))
     )
   )
+}
+
+styles_version <- function() {
+  path <- system.file("app", "www", "styles.css", package = "kelpbioshiny")
+  as.integer(file.mtime(path))
 }

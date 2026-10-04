@@ -216,7 +216,7 @@ total_availability <- function(sources, sheets, status) {
     return(list(available = TRUE))
   }
   reason <- if (is.null(sheets$cover)) {
-    "Total biomass unavailable: add a cover sheet with canopy area to estimate total biomass per site-year."
+    "Total biomass unavailable: add a cover sheet of drone surveys to estimate total biomass per site-year."
   } else if (sources[["cover"]] == "none") {
     "Total biomass unavailable: the cover model is not used. Choose Your data for it on the Models step."
   } else {
@@ -247,18 +247,19 @@ output_availability <- function(sources) {
 
 # The kb_fit_*() call for a model fitted to your data, as list(fn, args). The
 # Nereocystis weight model takes the observed stipe density of each site-year
-# from the density data, when there are any; cover takes biomass per unit area.
+# from the density data, when there are any; the cover model takes the drone
+# surveys with the wet biomass per unit area of their site-years.
 fit_call <- function(id, species, sheets, priors, sampler, progress_dir, biomass = NULL) {
   data <- sheets[[id]]$rows
   if (id == "weight" && species == "nereo" && !is.null(sheets$density)) {
     data <- kb_add_stipes_m2(data, sheets$density$rows)
   }
+  if (id == "cover") data <- kb_add_biomass(data, biomass)
   args <- list(
     data = data, priors = prior_list(priors),
     chains = sampler$chains, niters = sampler$niters, nthin = sampler$nthin,
     progress = "none", progress_dir = progress_dir
   )
-  if (id == "cover") args$biomass <- biomass
   list(fn = kelpbio_fn("fit", id, species), args = args)
 }
 

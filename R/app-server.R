@@ -32,7 +32,7 @@ app_server <- function(input, output, session) {
     req(store$fitting())
     queued <- sum(record_status(store$records()) == "queued")
     paste0(
-      sprintf("Fitting %s %d%%", lower_label(store$fitting()), floor(store$progress())),
+      sprintf("Fitting %s %s", lower_label(store$fitting()), percent_text(store$progress())),
       if (queued > 0) sprintf(" \u00b7 %d queued", queued)
     )
   })

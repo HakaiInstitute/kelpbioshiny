@@ -187,19 +187,11 @@ mod_estimate_server <- function(id, store) {
       function() {
         grouping <- grouping()
         predictions <- predictions()
-        plot <- if (grouping == "plant") {
+        if (grouping == "plant") {
           kb_plot_predictions(predictions, x = attr(predictions, "kb_predictor"))
         } else {
           kb_plot_predictions(predictions)
         }
-        # The plots the cover model was fitted to, over its curves.
-        if (cid == "cover" && grouping != "site_year") {
-          plot <- plot + ggplot2::geom_point(
-            ggplot2::aes(.data$plot_percent_cover, .data$biomass_kg_m2),
-            data = augment(fit()), alpha = 0.6, inherit.aes = FALSE
-          )
-        }
-        plot
       },
       "plot",
       aspect = function() prediction_aspect(cid, grouping()),
@@ -245,16 +237,16 @@ default_grouping <- function(choices) {
 predictions_panel <- function(ns, cid, prefit, species, plants) {
   choices <- prediction_choices(cid, prefit, species, plants)
   note <- if (prefit) {
-    "A pre-fit model's predictions are at the population level. Biomass estimates use site-level estimates for sites in the reference data."
+    "A pre-fit model's predictions are overall, for a typical site and year. Biomass estimates use site-level estimates for sites in the reference data."
   } else if (!has_effect(cid, "site", species)) {
-    "This model has no site or year effects, so its predictions are at the population level."
+    "This model has no site or year effects, so its predictions are overall, for a typical site and year."
   } else if (!has_effect(cid, "year", species)) {
     "This model has a site effect but no year effect, so there are no predictions by year."
   }
   tagList(
     div(
       class = "d-flex flex-wrap align-items-center column-gap-3 row-gap-1 mb-3",
-      span(class = "small fw-medium", with_help(span(id = ns("grouping_title"), if (length(choices) > 1) "Group by" else "Population level"), "prediction_groups")),
+      span(class = "small fw-medium", with_help(span(id = ns("grouping_title"), if (length(choices) > 1) "Group by" else "Overall"), "prediction_groups")),
       if (length(choices) > 1) {
         radioButtons(
           ns("grouping"), NULL,
@@ -282,7 +274,7 @@ mod_biomass_estimate_ui <- function(id, eid) {
   tagList(
     estimate_header(
       title,
-      if (eid == "total") "Site-years with a canopy area, from the cover model" else "By site-year, from the combined models",
+      if (eid == "total") "Site-years with a drone survey, from the cover model" else "By site-year, from the combined models",
       button(ns("change_sources"), "Change sources", variant = "outline", size = "sm")
     ),
     uiOutput(ns("notices")),
@@ -372,7 +364,7 @@ mod_biomass_estimate_server <- function(id, store) {
         columns = Filter(Negate(is.null), list(
           site = reactable::colDef(name = "Site"),
           year = reactable::colDef(name = "Year"),
-          canopy_area_m2 = if (total) {
+          canopy_m2 = if (total) {
             reactable::colDef(
               name = "Canopy area (m²)", align = "right", class = "kb-tabular",
               format = reactable::colFormat(separators = TRUE, digits = 0)
@@ -403,22 +395,20 @@ mod_biomass_estimate_server <- function(id, store) {
 # uses. The sources, pre-fit or not, are the same for every row and are listed
 # on the Models step.
 biomass_table <- function(rows) {
-  population_cover <- if ("population_cover" %in% names(rows)) rows$population_cover else rep(FALSE, nrow(rows))
   flags <- vapply(seq_len(nrow(rows)), function(i) {
     paste(c(
-      if (population_cover[i]) "Population-level cover",
       if (rows$population_size[i]) "Population-level size",
       if (rows$population_weight[i]) "Population-level weight"
     ), collapse = "|")
   }, character(1))
-  columns <- intersect(c("site", "year", "canopy_area_m2", "estimate", "lower", "upper"), names(rows))
+  columns <- intersect(c("site", "year", "canopy_m2", "estimate", "lower", "upper"), names(rows))
   data.frame(as.data.frame(rows)[columns], flags = flags)
 }
 
-flags_note <- function(end) {
+flags_note <- function() {
   span(
     class = "d-inline-flex flex-wrap align-items-center gap-1",
-    "Flags show where a", with_help("population-level estimate", "population"), paste0("was used", end)
+    "Flags show where a", with_help("population-level estimate", "population"), "was used."
   )
 }
 
@@ -432,7 +422,7 @@ biomass_panels <- function(ns, key, total) {
       label,
       description = sprintf(
         "Estimated %s (%s) by year, faceted by site, with 95%% compatibility intervals%s.",
-        tolower(label), unit, if (total) ", for site-years with a canopy area" else ""
+        tolower(label), unit, if (total) ", for site-years with a drone survey" else ""
       ),
       figure_plot(ns("figure"))
     ),
@@ -440,11 +430,7 @@ biomass_panels <- function(ns, key, total) {
       "Estimates",
       description = tagList(
         with_help(sprintf("%s (%s) with 95%% compatibility intervals, to 3 significant figures.", label, unit), "interval"),
-        if (total) {
-          flags_note(", including the population-level cover relationship for site-years without plot cover.")
-        } else {
-          flags_note(".")
-        }
+        flags_note()
       ),
       reactable::reactableOutput(ns("table"))
     )

@@ -117,12 +117,16 @@ badge <- function(text, class, icon = NULL) {
 success_badge <- function(text, icon = "check-circle-2") badge(text, "bg-success-subtle text-success-emphasis", icon)
 warning_badge <- function(text, icon = "alert-triangle") badge(text, "bg-warning-subtle text-warning-emphasis", icon)
 
-# Buttons: "btn-primary" is the default variant, "btn-light border" the outline
-# variant and "btn-light" the ghost variant ($light is white in the theme).
-button <- function(id, label, icon = NULL, variant = c("primary", "outline", "ghost"), size = NULL, ...) {
+# Buttons: "btn-primary" is the default variant (the next step of the run, one
+# per screen), "kb-btn-soft" the soft variant (a step still to do, such as a
+# model's Fit in the Models list), "btn-light border" the outline variant (any
+# other action) and "btn-light" the ghost variant (a small adjustment inside a
+# panel); $light is white in the theme. Each non-primary variant carries
+# btn-light, which keeps Shiny's btn-default styles off the button.
+button <- function(id, label, icon = NULL, variant = c("primary", "soft", "outline", "ghost"), size = NULL, ...) {
   variant <- match.arg(variant)
   class <- c(
-    switch(variant, primary = "btn-primary", outline = "btn-light border", ghost = "btn-light"),
+    switch(variant, primary = "btn-primary", soft = "btn-light kb-btn-soft", outline = "btn-light border", ghost = "btn-light"),
     if (!is.null(size)) paste0("btn-", size)
   )
   if (is.character(icon) && !inherits(icon, "html")) icon <- lucide(icon)
@@ -166,7 +170,9 @@ status_icon <- function(status) {
   )
 }
 
-status_badge <- function(status, progress = 0) {
+# A fit's progress shows in the Models list banner and on the model page, so
+# the fitting badge carries no percentage and does not re-render as it moves.
+status_badge <- function(status) {
   label <- status_label(status)
   switch(status$kind,
     "not-used" = span(class = "small text-body-secondary", label),
@@ -175,8 +181,8 @@ status_badge <- function(status, progress = 0) {
     "not-fitted" = badge(label, "bg-secondary-subtle text-secondary-emphasis", "circle-dashed"),
     "queued" = badge(label, "border text-body", "clock"),
     "fitting" = span(
-      class = "badge d-inline-flex align-items-center gap-1 border border-primary-subtle text-primary kb-tabular",
-      lucide("loader-2", "kb-spin"), sprintf("Fitting %d%%", floor(progress))
+      class = "badge d-inline-flex align-items-center gap-1 border border-primary-subtle text-primary",
+      lucide("loader-2", "kb-spin"), label
     ),
     "ready" = if (has_warning(status)) warning_badge(label) else success_badge(label),
     "failed" = badge(label, "text-bg-danger", "x-circle")
@@ -222,6 +228,12 @@ and_list <- function(x) {
 }
 
 block_reason <- function(status) tolower(status_label(status))
+
+# A fit's progress as "45%", padded to three digits with figure spaces (as wide
+# as a digit in tabular figures), so text around it does not shift as it grows.
+percent_text <- function(value) {
+  paste0(gsub(" ", "\u2007", formatC(floor(value), width = 3), fixed = TRUE), "%")
+}
 
 progress_bar <- function(value) {
   div(
@@ -422,12 +434,6 @@ data_strength_notice <- function(rows) {
     ),
     tone = "muted"
   )
-}
-
-# "bull kelp (Nereocystis luetkeana)", with no spaces inside the brackets.
-# One HTML string, since separate tags would be rendered with whitespace between them.
-species_phrase <- function(sp, end = "") {
-  HTML(sprintf("%s (<em>%s</em>)%s", htmltools::htmlEscape(sp$common), htmltools::htmlEscape(sp$latin), end))
 }
 
 sentence_case <- function(x) paste0(toupper(substr(x, 1, 1)), substring(x, 2))

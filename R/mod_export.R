@@ -22,7 +22,7 @@ export_script <- function(species, sources, sheets, workbook, priors, samplers) 
       reference <- prefit_reference(sources[[id]])
       return(c(
         sprintf("# %s model", prefit_info[[reference]]$label),
-        sprintf("fit_%s <- kb_prefit_%s_%s(reference = \"%s\")", id, fn_of(id), sp, reference)
+        sprintf("fit_%s <- kb_prefit_%s_%s(reference = \"%s\")", id, id, sp, reference)
       ))
     }
     changed <- priors[[id]][format_prior(priors[[id]]) != format_prior(default_priors(id, species)), ]
@@ -30,14 +30,13 @@ export_script <- function(species, sources, sheets, workbook, priors, samplers) 
     args <- c(
       id,
       if (nrow(changed) > 0) sprintf("priors = priors_%s", id),
-      if (id == "cover") "biomass = biomass",
       if (sampler$chains != 4) sprintf("chains = %s", sampler$chains),
       if (sampler$niters != 1000) sprintf("niters = %s", sampler$niters),
       if (sampler$nthin != 1) sprintf("nthin = %s", sampler$nthin)
     )
     prior_lines <- if (nrow(changed) > 0) {
       c(
-        sprintf("priors_%s <- kb_priors_%s_%s()", id, fn_of(id), sp),
+        sprintf("priors_%s <- kb_priors_%s_%s()", id, id, sp),
         ifelse(
           changed$family == "normal",
           sprintf("priors_%s$%s <- kb_prior_normal(%s, %s)", id, changed$name, changed$a, changed$b),
@@ -45,7 +44,7 @@ export_script <- function(species, sources, sheets, workbook, priors, samplers) 
         )
       )
     }
-    c(prior_lines, sprintf("fit_%s <- kb_fit_%s_%s(%s)", id, fn_of(id), sp, paste(args, collapse = ", ")))
+    c(prior_lines, sprintf("fit_%s <- kb_fit_%s_%s(%s)", id, id, sp, paste(args, collapse = ", ")))
   }
   in_biomass <- setdiff(used, "cover")
   biomass <- biomass_possible(sources)
@@ -58,7 +57,7 @@ export_script <- function(species, sources, sheets, workbook, priors, samplers) 
       "",
       read,
       "",
-      sprintf("kb_check_data_%s_%s(%s)", vapply(from_data, fn_of, ""), sp, from_data),
+      sprintf("kb_check_data_%s_%s(%s)", vapply(from_data, check_name, ""), sp, from_data),
       if ("weight" %in% from_data && sp == "nereo" && !is.null(sheets$density)) {
         c("", "# The observed stipe density of each site-year, for the weight model", "weight <- kb_add_stipes_m2(weight, density)")
       },
@@ -80,7 +79,9 @@ export_script <- function(species, sources, sheets, workbook, priors, samplers) 
       if (biomass && "cover" %in% used) {
         c(
           "",
-          "# Total biomass per site-year from the cover model",
+          "# Total biomass per site-year from the cover model, fitted to the drone",
+          "# surveys with the biomass of their site-years added",
+          "cover <- kb_add_biomass(cover, biomass)",
           fit_lines("cover"),
           "totals <- kb_predict_biomass_total(fit_cover, biomass)",
           "kb_plot_biomass(totals)"

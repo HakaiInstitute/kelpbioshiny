@@ -103,7 +103,7 @@ guide_docs_callout <- function() {
       div(class = "small text-body-secondary mt-1", "The models, priors and diagnostics are explained in the kelpbio documentation.")
     ),
     tags$a(
-      href = kelpbio_url, target = "_blank", rel = "noopener", class = "btn btn-primary",
+      href = kelpbio_url, target = "_blank", rel = "noopener", class = "btn btn-light border",
       span(class = "d-inline-flex align-items-center gap-2", "Open the kelpbio documentation", lucide("external-link"))
     )
   )))
