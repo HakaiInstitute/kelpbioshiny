@@ -86,7 +86,7 @@ app_ui <- function() {
     nav_item(fit_activity()),
     nav_panel(step_title("data"), value = "data", step_main(mod_data_ui("data"))),
     nav_panel(step_title("models"), value = "models", step_main(mod_models_ui("models"))),
-    nav_panel(step_title("biomass"), value = "biomass", step_main(mod_biomass_ui("biomass"))),
+    nav_panel(step_title("estimates"), value = "estimates", step_main(mod_estimates_ui("estimates"))),
     nav_panel(step_title("export"), value = "export", step_main(mod_export_ui("export"))),
     # Help is not a step, so its tab carries no marker. The spacer above already
     # pushes the tabs right, so Help needs none of its own.

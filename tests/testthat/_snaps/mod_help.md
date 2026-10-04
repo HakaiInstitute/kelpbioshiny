@@ -10,11 +10,10 @@
       1
       Data
       Load the survey data, from a workbook or a CSV file per model.
-      The columns of each sheet. Other columns are ignored.
+      The columns of each sheet. Every sheet is optional, and other columns are ignored.
       Sheet
       Model
       Columns
-      Sheet needed
       density
       Density
       Nereocystis luetkeana
@@ -23,7 +22,6 @@
       Macrocystis pyrifera
       :
       site, year, plants, area_m2
-      Required
       size
       Size
       Nereocystis luetkeana
@@ -32,7 +30,6 @@
       Macrocystis pyrifera
       :
       site, year, fronds
-      Optional
       weight
       Weight
       Nereocystis luetkeana
@@ -41,23 +38,18 @@
       Macrocystis pyrifera
       :
       site, year, fronds, weight_kg
-      Optional
       blade
       Blade fraction
       site, year, blade_weight_kg, total_weight_kg
-      Optional
       wetdry
       Wet:dry
       wet_mass_g, dry_mass_g
-      Optional
       carbon
       Carbon
       site, year, dry_mass_g, carbon_mass_g
-      Optional
       cover
       Cover
       site, year, canopy_area_m2, plot, plot_percent_cover
-      Optional
       2
       Models
       Fit each model to the data or choose a pre-fit model, then check the diagnostics.
@@ -65,9 +57,9 @@
       Model
       Sources
       Density
-      Your data
+      Your data, Not used
       Size
-      Your data, Pre-fit Hakai Institute
+      Your data, Pre-fit Hakai Institute, Not used
       Weight
       Your data, Pre-fit coastwide, Pre-fit Hakai Institute
       Blade fraction
@@ -79,11 +71,11 @@
       Cover
       Your data, Not used
       3
-      Biomass
-      Review the annual biomass estimates for each site from the combined models.
+      Estimates
+      Review the estimates from each model, and biomass by site and year from the combined models.
       4
       Export
-      Save the results, or rerun the whole analysis in R.
+      Save the estimates, or rerun the whole analysis in R.
       Warnings and how to fix them
       The warnings a model or sheet can show.
       Convergence warning

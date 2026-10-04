@@ -15,7 +15,7 @@ test_that("the app boots, loads the example and shows the Models step without Ja
   )
   withr::defer(app$stop())
 
-  app$click("data-example")
+  app$click("data-example_density_size")
   app$wait_for_idle()
   expect_true(app$get_js("!!document.querySelector('#data-sheets .list-unstyled')"))
 

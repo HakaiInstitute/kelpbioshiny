@@ -24,6 +24,7 @@ Imports:
     jsonlite,
     mirai,
     reactable,
+    readxl,
     rlang,
     scales,
     shiny,

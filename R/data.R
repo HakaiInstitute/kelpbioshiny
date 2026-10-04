@@ -18,18 +18,20 @@ component_ids <- c("density", "size", "weight", "blade", "wetdry", "carbon", "co
 names(component_ids) <- component_ids
 
 # A model's sources: "user" (your data), its pre-fit sources, and "none" (not
-# used). The first pre-fit source is the default when there is no sheet.
+# used). Your data is the default when there is a sheet; otherwise the first
+# pre-fit source, or none. No model is required: a run can, for example, use
+# only a size sheet and a pre-fit weight model to predict plant weights.
 # `columns` are the sheet's required columns, by species where they differ.
 components <- list(
   density = list(
     label = "Density", detail = "Stipes per square metre by site-year", sheet = "density",
     columns = list(nereo = c("site", "year", "stipes", "area_m2"), macro = c("site", "year", "plants", "area_m2")),
-    sources = "user"
+    sources = c("user", "none")
   ),
   size = list(
     label = "Size", detail = "Distribution of plant size", sheet = "size",
     columns = list(nereo = c("site", "year", "diameter_mm"), macro = c("site", "year", "fronds")),
-    sources = c("user", prefit_source("hakai"))
+    sources = c("user", prefit_source("hakai"), "none")
   ),
   weight = list(
     label = "Weight", detail = "Wet weight by plant size", sheet = "weight",
@@ -76,9 +78,19 @@ kelpbio_fn <- function(verb, id, species) {
   get(sprintf("kb_%s_%s_%s", kelpbio_verbs[[verb]], fn_of(id), species), mode = "function")
 }
 
-# A sheet is required when the model can only be fitted to your data.
-sheet_required <- function(id) identical(components[[id]]$sources, "user")
-required_sheets <- function() Filter(sheet_required, component_ids)
+# The example workbooks the Data step offers, by kb_example_data()'s `example`,
+# in the order shown.
+example_workbooks <- list(
+  full = list(label = "All sheets", detail = "Density, size, weight, wet:dry and carbon, so every model is fitted to the data"),
+  density_size = list(label = "Density and size", detail = "As a typical monitoring program collects; weight, wet:dry and carbon are pre-fit"),
+  bad_weight = list(label = "A sheet with a data error", detail = "Density and size, and a weight sheet with missing years"),
+  size_only = list(label = "Size only", detail = "Plant diameters, to predict the weight of each plant")
+)
+
+# Biomass per unit area combines these models at the least, so each must be in
+# use (fitted to your data or pre-fit).
+biomass_core_ids <- c("density", "size", "weight")
+biomass_possible <- function(sources) all(sources[biomass_core_ids] != "none")
 
 label_of <- function(id) components[[id]]$label
 lower_label <- function(id) tolower(label_of(id))
@@ -111,6 +123,11 @@ output_info <- list(
   dry = list(label = "Dry biomass", unit = "kg/m\u00b2"),
   carbon = list(label = "Carbon", unit = "kg/m\u00b2")
 )
+
+# The estimates on the Estimates step: each model's predictions, then biomass
+# per unit area and total biomass from the combined models.
+estimate_ids <- c(component_ids, biomass = "biomass", total = "total")
+estimate_label <- function(id) switch(id, biomass = "Biomass per unit area", total = "Total biomass", label_of(id))
 
 output_components <- list(
   wet = c("density", "size", "weight", "blade"),
@@ -161,6 +178,24 @@ new_sheet <- function(id, rows, file, species) {
     note = if (length(notes) > 0) paste(notes, collapse = " ")
   )
 }
+
+# Uploaded rows as a data frame with site and year as text: spreadsheets store
+# years as numbers, and the kelpbio checks take site and year as text.
+as_sheet_rows <- function(rows) {
+  rows <- as.data.frame(rows)
+  for (column in intersect(c("site", "year"), names(rows))) rows[[column]] <- as.character(rows[[column]])
+  rows
+}
+
+# The rows of each sheet in an Excel workbook named after a model's sheet, by
+# model; other sheets are ignored.
+read_workbook <- function(path) {
+  present <- readxl::excel_sheets(path)
+  ids <- Filter(function(id) components[[id]]$sheet %in% present, component_ids)
+  lapply(ids, function(id) as_sheet_rows(readxl::read_excel(path, sheet = components[[id]]$sheet)))
+}
+
+read_csv_rows <- function(path) as_sheet_rows(utils::read.csv(path, check.names = FALSE))
 
 site_years <- function(rows) {
   rows <- rows[!is.na(rows$year), ]
@@ -266,7 +301,10 @@ default_arg <- function(fn, name) eval(formals(fn)[[name]])
 
 # Predictions ---------------------------------------------------------------------
 
-prediction_groupings <- c(population = "Population level", site = "By site", year = "By year", site_year = "By site and year")
+prediction_groupings <- c(
+  population = "Population level", site = "By site", year = "By year", site_year = "By site and year",
+  plant = "Individual plant"
+)
 
 # What each model predicts. `along` names the predictor of a curve model; its
 # table, and its by-site-and-year figure, give the value at `at`.
@@ -275,7 +313,8 @@ prediction_info <- list(
   size = list(response = "mean sub-bulb diameter", table = "Mean sub-bulb diameter (mm)"),
   weight = list(
     response = "wet weight", along = "sub-bulb diameter", at = "a plant with a 50 mm sub-bulb diameter",
-    table = "Wet weight (kg) of a plant with a 50 mm sub-bulb diameter"
+    table = "Wet weight (kg) of a plant with a 50 mm sub-bulb diameter",
+    plant_table = "Wet weight (kg) of each plant in the size sheet"
   ),
   blade = list(response = "blade fraction", table = "Blade fraction"),
   wetdry = list(response = "ratio of dry to wet mass", table = "Ratio of dry to wet mass"),
@@ -292,20 +331,44 @@ has_effect <- function(id, effect, species = "nereo") {
 }
 
 # The groupings a model's predictions can be shown at. A pre-fit model was
-# fitted to other sites and years, so only its population-level predictions apply.
-prediction_choices <- function(id, prefit = FALSE, species = "nereo") {
-  if (prefit || !has_effect(id, "site", species)) {
-    return(prediction_groupings["population"])
+# fitted to other sites and years, so only its population-level predictions
+# apply. The weight model can also predict each plant in the size sheet
+# (`plants`, from plant_rows()).
+prediction_choices <- function(id, prefit = FALSE, species = "nereo", plants = FALSE) {
+  groups <- if (prefit || !has_effect(id, "site", species)) {
+    "population"
+  } else if (has_effect(id, "year", species)) {
+    c("population", "site", "year", "site_year")
+  } else {
+    c("population", "site")
   }
-  if (has_effect(id, "year", species)) prediction_groupings else prediction_groupings[c("population", "site")]
+  if (id == "weight" && plants) groups <- c(groups, "plant")
+  prediction_groupings[groups]
+}
+
+# The plants to predict the weight of: the rows of the size sheet, once it
+# passes its check. For Nereocystis, each row also gets its site-year's observed
+# stipe density from a density sheet that passes its check; site-years without
+# one take the model's mean density.
+plant_rows <- function(sheets, species) {
+  size <- sheets$size
+  if (is.null(size) || !is.null(size$error)) {
+    return(NULL)
+  }
+  density <- sheets$density
+  if (species == "nereo" && !is.null(density) && is.null(density$error)) kb_add_stipes_m2(size$rows, density$rows) else size$rows
 }
 
 prediction_by <- list(population = NULL, site = "site", year = "year", site_year = c("site", "year"))
 
 # A model's predictions at a grouping: curves along the predictor for the figure,
 # or, for the table (at = TRUE) and the by-site-and-year figure, the value at a
-# reference predictor value: a 50 mm plant, 50% cover.
-model_predictions <- function(id, fit, grouping, at = FALSE) {
+# reference predictor value: a 50 mm plant, 50% cover. The plant grouping
+# predicts the weight of each row of `plants`.
+model_predictions <- function(id, fit, grouping, at = FALSE, plants = NULL) {
+  if (grouping == "plant") {
+    return(kb_predict_weight(fit, new_data = plants))
+  }
   by <- prediction_by[[grouping]]
   at <- at || grouping == "site_year"
   switch(id,
@@ -321,6 +384,9 @@ model_predictions <- function(id, fit, grouping, at = FALSE) {
 
 # A predictions figure's height as a share of its width.
 prediction_aspect <- function(id, grouping) {
+  if (grouping == "plant") {
+    return(4 / 8)
+  }
   curve <- !is.null(prediction_info[[id]]$along) && grouping != "site_year"
   if (grouping == "population") {
     return(if (curve) 4 / 6 else 3.5 / 4)
@@ -336,6 +402,9 @@ prediction_aspect <- function(id, grouping) {
 
 prediction_caption <- function(id, grouping) {
   info <- prediction_info[[id]]
+  if (grouping == "plant") {
+    return(sprintf("Predicted %s of each plant in the size sheet by %s, with 95%% compatibility intervals.", info$response, info$along))
+  }
   site <- has_effect(id, "site")
   year <- has_effect(id, "year")
   curve <- !is.null(info$along)

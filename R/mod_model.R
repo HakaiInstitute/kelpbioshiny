@@ -1,11 +1,12 @@
 # One model's detail page: a header (name, source, status, fit button and
-# progress) above tabs for data, settings, diagnostics, predictions and the
-# model description. A single module, instantiated per model. A pre-fit model
-# has no data, settings or diagnostics of its own, so it shows only the
-# predictions and description tabs.
+# progress) above tabs for data, settings, diagnostics and the model
+# description; its predictions are on the Estimates step. A single module,
+# instantiated per model. A pre-fit model has no data or settings of its own,
+# so it shows only the diagnostics and description of the model as fitted in
+# advance.
 
-model_tabs <- c(data = "Data", settings = "Settings", diagnostics = "Diagnostics", predictions = "Predictions", description = "Description")
-own_fit_tabs <- c("data", "settings", "diagnostics")
+model_tabs <- c(data = "Data", settings = "Settings", diagnostics = "Diagnostics", description = "Description")
+own_fit_tabs <- c("data", "settings")
 
 mod_model_ui <- function(id, cid) {
   ns <- NS(id)
@@ -29,7 +30,8 @@ mod_model_ui <- function(id, cid) {
         class = "d-flex flex-wrap align-items-center gap-2",
         uiOutput(ns("status"), inline = TRUE),
         source_select(ns("source"), cid),
-        uiOutput(ns("fit_action"), inline = TRUE)
+        uiOutput(ns("fit_action"), inline = TRUE),
+        button(ns("view_estimates"), "View estimates", "arrow-right", "outline")
       )
     ),
     uiOutput(ns("fit_progress")),
@@ -59,12 +61,15 @@ mod_model_server <- function(id, store) {
     # The kelpbio fit behind every number and figure: the pre-fit model, or the
     # fit to your data once fitted.
     fit <- dedupe(reactive(store$fit_of(cid)))
-    fitted_fit <- reactive(req(fit(), page()$mode == "user"))
-    # Prior sensitivity of the fit to your data, shared with the other steps.
-    sensitivity <- reactive(req(store$sensitivity[[cid]]()))
+    fitted_fit <- reactive(req(fit()))
+    # Prior sensitivity: of the fit to your data, shared with the other steps,
+    # or of the pre-fit model.
+    sensitivity <- reactive({
+      if (page()$mode == "prefit") kb_sensitivity(fitted_fit()) else req(store$sensitivity[[cid]]())
+    })
     errors <- reactive(store$setting_errors()[[cid]])
 
-    # A pre-fit model shows only its predictions and description; the page opens
+    # A pre-fit model shows only its diagnostics and description; the page opens
     # on the first tab shown.
     prefit_mode <- dedupe(reactive(page()$mode == "prefit"))
     observeEvent(prefit_mode(), {
@@ -72,7 +77,7 @@ mod_model_server <- function(id, store) {
       for (tab in own_fit_tabs) {
         if (prefit) nav_hide("tab", tab, session = session) else nav_show("tab", tab, session = session)
       }
-      nav_select("tab", if (prefit) "predictions" else "data", session = session)
+      nav_select("tab", if (prefit) "diagnostics" else "data", session = session)
     })
 
     sync_source_select(input, session, "source", cid, store)
@@ -80,7 +85,8 @@ mod_model_server <- function(id, store) {
     observeEvent(input$back, store$open("hub"))
     observeEvent(input$to_data, store$go_to("data"))
     observeEvent(input$fit, store$queue_fits(cid))
-    observeEvent(input$cancel, store$cancel_fits())
+    observeEvent(input$cancel, store$cancel_fit(cid))
+    observeEvent(input$view_estimates, store$open_estimate(cid))
     observeEvent(input$open_settings, store$open_settings(cid))
     observeEvent(input$open_priors, store$open_settings(cid))
     observeEvent(store$tab_request(), {
@@ -99,20 +105,7 @@ mod_model_server <- function(id, store) {
       status_badge(status, if (status$kind == "fitting") store$progress() else 0)
     })
 
-    output$fit_action <- renderUI({
-      status <- status()
-      if (status$source != "user" || status$kind %in% c("no-data", "data-error")) {
-        return(NULL)
-      }
-      if (is_pending_status(status)) {
-        return(button(ns("cancel"), "Cancel", "x", "outline"))
-      }
-      refit <- status$kind %in% c("ready", "failed")
-      button(
-        ns("fit"), if (refit) "Refit" else "Fit model", "play", if (refit) "outline" else "primary",
-        disabled = !can_fit(status) || cid %in% store$invalid()
-      )
-    })
+    output$fit_action <- renderUI(fit_control(ns("fit"), ns("cancel"), status(), cid %in% store$invalid(), fit_label = "Fit model"))
 
     output$fit_progress <- renderUI({
       req(kind() == "fitting")
@@ -135,7 +128,7 @@ mod_model_server <- function(id, store) {
       notice_ui <- if (mode == "prefit" && status$kind != "failed") {
         notice(
           "layout-list", with_help(sprintf("Fitted in advance to %s", prefit_info[[page()$reference]]$data), "prefit"),
-          "No fitting needed. Biomass uses this model's saved results."
+          "No fitting needed. The estimates use this model's saved results."
         )
       } else if (mode == "none") {
         notice(
@@ -143,7 +136,7 @@ mod_model_server <- function(id, store) {
           if (cid == "cover") {
             "Add a cover sheet with canopy area to estimate total biomass per site-year."
           } else {
-            sprintf("Outputs that need %s are unavailable on the Biomass step.", tolower(def$label))
+            sprintf("Estimates that need %s are unavailable.", tolower(def$label))
           },
           tone = "muted"
         )
@@ -155,7 +148,11 @@ mod_model_server <- function(id, store) {
       } else if (status$kind == "failed") {
         notice("x-circle", warning_help$failed$title, status$message, tone = "warning")
       } else if (status$kind == "not-fitted" && status$blocked) {
-        notice("clock", "Fitted once biomass per unit area is ready", "Every other model in use must be ready first.", tone = "muted")
+        if (biomass_possible(store$sources())) {
+          notice("clock", "Fitted once biomass per unit area is ready", "Every other model in use must be ready first.", tone = "muted")
+        } else {
+          notice("minus-circle", "Needs biomass per unit area", "Biomass needs the density, size and weight models, each fitted to your data or pre-fit.", tone = "muted")
+        }
       } else if (mode == "user" && status$kind == "ready") {
         tagList(
           if (isTRUE(status$convergence)) convergence_notice(warning_help$convergence$title, ns("open_settings")),
@@ -222,24 +219,22 @@ mod_model_server <- function(id, store) {
     output$tab_diagnostics <- renderUI({
       mode <- page()$mode
       if (mode == "user" && kind() == "ready") {
-        return(diagnostics_panel(ns))
+        return(diagnostics_panel(ns, "your data"))
+      }
+      if (mode == "prefit" && !is.null(fit())) {
+        return(tagList(
+          notice(
+            "info", "Diagnostics of the model as fitted in advance",
+            sprintf("Fitted to %s. It cannot be refitted here.", prefit_info[[page()$reference]]$data),
+            tone = "muted"
+          ) |>
+            tagAppendAttributes(class = "mb-3"),
+          diagnostics_panel(ns, "the reference data")
+        ))
       }
       switch(mode,
         user = fit_pending_state(kind(), "Fit the model to check its convergence, posterior predictive check and prior sensitivity."),
         "no-sheet" = no_sheet("Diagnostics appear once the model is fitted to your data."),
-        none = not_used(),
-        NULL
-      )
-    })
-
-    output$tab_predictions <- renderUI({
-      mode <- page()$mode
-      if (!is.null(fit())) {
-        return(predictions_panel(ns, cid, mode == "prefit", isolate(store$species())))
-      }
-      switch(mode,
-        user = fit_pending_state(kind(), "Fit the model to see its predictions."),
-        "no-sheet" = no_sheet("Predictions appear once the model is fitted to your data."),
         none = not_used(),
         NULL
       )
@@ -417,59 +412,6 @@ mod_model_server <- function(id, store) {
       alt = sprintf("Density of the observed deviance residuals over those of simulated data for the %s model", lower_label(cid))
     )
 
-    # Predictions: one figure and table per grouping of the predictions.
-    prediction_grouping <- reactive({
-      choices <- prediction_choices(cid, page()$mode == "prefit", store$species())
-      grouping <- input$grouping
-      if (is.null(grouping) || !grouping %in% names(choices)) default_grouping(choices) else grouping
-    })
-
-    # The Group by choice above names the grouping, so the figure has no title.
-    output$prediction_figure <- renderUI({
-      grouping <- prediction_grouping()
-      card(card_body(figure_plot(
-        ns("prediction_plot"), prediction_caption(cid, grouping),
-        class = if (grouping == "population") "kb-figure-narrow"
-      )))
-    })
-
-    # The predictions for the figure, and for the table: the same call unless the
-    # model predicts along a predictor, where the table is at its reference value.
-    predictions <- reactive(model_predictions(cid, req(fit()), prediction_grouping()))
-    predictions_at <- reactive({
-      if (is.null(prediction_info[[cid]]$along)) predictions() else model_predictions(cid, req(fit()), prediction_grouping(), at = TRUE)
-    })
-
-    output$prediction_plot <- render_figure(
-      function() {
-        grouping <- prediction_grouping()
-        plot <- kb_plot_predictions(predictions())
-        # The plots the cover model was fitted to, over its curves.
-        if (cid == "cover" && grouping != "site_year") {
-          plot <- plot + ggplot2::geom_point(
-            ggplot2::aes(.data$plot_percent_cover, .data$biomass_kg_m2),
-            data = augment(fit()), alpha = 0.6, inherit.aes = FALSE
-          )
-        }
-        plot
-      },
-      "prediction_plot",
-      aspect = function() prediction_aspect(cid, prediction_grouping()),
-      alt = function() sprintf("Predicted %s for the %s model", prediction_info[[cid]]$response, lower_label(cid))
-    )
-
-    output$predictions_table <- reactable::renderReactable({
-      rows <- predictions_at()
-      number <- function(name) reactable::colDef(name = name, cell = number_text, align = "right", class = "kb-tabular")
-      app_table(rows[intersect(c("site", "year", "estimate", "lower", "upper"), names(rows))], columns = Filter(Negate(is.null), list(
-        site = if ("site" %in% names(rows)) reactable::colDef(name = "Site"),
-        year = if ("year" %in% names(rows)) reactable::colDef(name = "Year"),
-        estimate = number("Estimate"),
-        lower = number("Lower"),
-        upper = number("Upper")
-      )))
-    })
-
     output$sensitivity_note <- renderUI(data_strength_notice(sensitivity()))
 
     output$sensitivity <- reactable::renderReactable({
@@ -501,10 +443,11 @@ fit_pending_state <- function(kind, description) {
   empty_state("play", "Not fitted yet", description)
 }
 
-# The diagnostics of a fit to your data, in one scrolling tab: convergence and
-# trace plots, posterior predictive checks and prior sensitivity.
-diagnostics_panel <- function(ns) {
-  div(class = "d-flex flex-column gap-3", convergence_panel(ns), ppc_panel(ns), sensitivity_panel(ns))
+# The diagnostics of a fit, in one scrolling tab: convergence and trace plots,
+# posterior predictive checks and prior sensitivity. `data` names the data the
+# model was fitted to: "your data", or "the reference data" of a pre-fit model.
+diagnostics_panel <- function(ns, data) {
+  div(class = "d-flex flex-column gap-3", convergence_panel(ns), ppc_panel(ns, data), sensitivity_panel(ns))
 }
 
 sensitivity_panel <- function(ns) {
@@ -517,19 +460,25 @@ sensitivity_panel <- function(ns) {
 }
 
 # The captions name the legend labels.
-ppc_panel <- function(ns) {
+ppc_panel <- function(ns, data) {
   panel(
     with_help("Posterior predictive check", "ppc"),
-    description = "Datasets simulated from the fitted model, compared with your data.",
+    description = sprintf("Datasets simulated from the fitted model, compared with %s.", data),
     h3(class = "fs-6 fw-medium mb-0", "Density overlay"),
     figure_plot(
       ns("ppc_dens"),
-      HTML("Densities of your data (<em>y</em>) and of 50 datasets simulated from the fitted model (<em>y</em><sub>rep</sub>). The dark line for your data should sit within the light lines.")
+      HTML(sprintf(
+        "Densities of %s (<em>y</em>) and of 50 datasets simulated from the fitted model (<em>y</em><sub>rep</sub>). The dark line for the data should sit within the light lines.",
+        data
+      ))
     ),
     h3(class = "fs-6 fw-medium mb-0", "Deviance residuals overlay"),
     figure_plot(
       ns("ppc_resid"),
-      HTML("Densities of the deviance residuals of your data (<em>y</em>) and of the 50 simulated datasets (<em>y</em><sub>rep</sub>). The shapes should match.")
+      HTML(sprintf(
+        "Densities of the deviance residuals of %s (<em>y</em>) and of the 50 simulated datasets (<em>y</em><sub>rep</sub>). The shapes should match.",
+        data
+      ))
     )
   )
 }
@@ -545,47 +494,6 @@ convergence_panel <- function(ns) {
     uiOutput(ns("convergence_summary")),
     reactable::reactableOutput(ns("convergence")),
     figure_plot(ns("trace"), "Draws for each chain by iteration. Well-mixed chains overlap.")
-  )
-}
-
-# By site where the model has site effects, as that is what most users want
-# to see; pre-fit models show the population level only, as their sites are
-# the reference data's rather than the user's.
-default_grouping <- function(choices) if ("site" %in% names(choices)) "site" else "population"
-
-predictions_panel <- function(ns, cid, prefit, species) {
-  choices <- prediction_choices(cid, prefit, species)
-  note <- if (prefit) {
-    "Biomass estimates use site-level estimates for sites in the reference data."
-  } else if (!has_effect(cid, "site", species)) {
-    "This model has no site or year effects, so its predictions are at the population level."
-  } else if (!has_effect(cid, "year", species)) {
-    "This model has a site effect but no year effect, so there are no predictions by year."
-  }
-  tagList(
-    div(
-      class = "d-flex flex-wrap align-items-center column-gap-3 row-gap-1 mb-3",
-      span(class = "small fw-medium", with_help(span(id = ns("grouping_title"), if (length(choices) > 1) "Group by" else "Population level"), "prediction_groups")),
-      if (length(choices) > 1) {
-        radioButtons(
-          ns("grouping"), NULL,
-          choices = stats::setNames(names(choices), choices), selected = default_grouping(choices), inline = TRUE
-        ) |>
-          tagAppendAttributes(class = "mb-0", `aria-labelledby` = ns("grouping_title"))
-      },
-      if (!is.null(note)) div(class = "small text-body-secondary w-100", note)
-    ),
-    plot_estimates_nav(
-      ns("prediction_section"),
-      uiOutput(ns("prediction_figure")),
-      panel(
-        "Estimates",
-        description = with_help(
-          sprintf("%s with 95%% compatibility intervals, to 3 significant figures.", prediction_info[[cid]]$table), "interval"
-        ),
-        reactable::reactableOutput(ns("predictions_table"))
-      )
-    )
   )
 }
 

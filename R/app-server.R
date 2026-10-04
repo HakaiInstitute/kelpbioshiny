@@ -4,24 +4,25 @@ app_server <- function(input, output, session) {
 
   mod_data_server("data", store)
   mod_models_server("models", store)
-  mod_biomass_server("biomass", store)
+  mod_estimates_server("estimates", store)
   mod_export_server("export", store)
 
   # The states of the step markers in the navbar (step_marker_switch()): "todo",
-  # "done", "warning" or "busy". Biomass is done once its estimates have been
-  # opened, and Export once they have been downloaded or the R script copied.
-  output$mark_data <- reactive(if (store$has_density()) "done" else "todo")
+  # "done", "warning" or "busy". Models is done once every model in use is
+  # ready, Estimates once an estimate has been opened, and Export once the
+  # estimates have been downloaded or the R script copied.
+  output$mark_data <- reactive(if (store$has_data()) "done" else "todo")
   output$mark_models <- reactive({
     if (!is.null(store$fitting())) {
       "busy"
-    } else if (store$has_density() && store$biomass_ready()) {
+    } else if (store$has_data() && all(vapply(store$statuses(), is_ready_status, logical(1)))) {
       if (any(vapply(store$statuses(), has_warning, logical(1)))) "warning" else "done"
     } else {
       "todo"
     }
   })
-  output$mark_biomass <- reactive(if (store$reviewed() && store$biomass_ready()) "done" else "todo")
-  output$mark_export <- reactive(if (store$exported() && store$biomass_ready()) "done" else "todo")
+  output$mark_estimates <- reactive(if (store$reviewed() && store$any_estimate()) "done" else "todo")
+  output$mark_export <- reactive(if (store$exported() && store$any_estimate()) "done" else "todo")
   for (step in names(steps)) outputOptions(output, paste0("mark_", step), suspendWhenHidden = FALSE)
 
   output$fitting_active <- reactive(!is.null(store$fitting()))

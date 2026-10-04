@@ -4,7 +4,8 @@ coverage_ids <- c("density", "size", "weight")
 
 # Site-year coverage across the density, size and weight sheets, plus the
 # site-years in the cover sheet, with notes on gaps and on site names that
-# differ across sheets only in case or spacing.
+# differ across sheets only in case or spacing. The notes on gaps are about
+# biomass, which needs density data, so they apply only with a density sheet.
 coverage <- function(sheets, sources) {
   sets <- lapply(stats::setNames(nm = coverage_ids), function(id) {
     if (is.null(sheets[[id]])) NULL else site_years(sheets[[id]]$rows)
@@ -30,7 +31,9 @@ coverage <- function(sheets, sources) {
       tone <- "warning"
       issue <- "mismatch"
       note <- "Site name differs across sheets only in case or spacing"
-    } else if (!isTRUE(present[["density"]])) {
+    } else if (is.na(present[["density"]])) {
+      # No density sheet, so no biomass to note gaps for.
+    } else if (!present[["density"]]) {
       note <- "No density data: biomass not estimated"
       tone <- "warning"
       issue <- "no_density"
@@ -147,7 +150,7 @@ mod_data_ui <- function(id) {
               tagAppendAttributes(class = "mb-0") |>
               file_names("Upload a workbook", "Chosen workbook")
           ),
-          button(ns("example"), "Use example workbook", variant = "outline")
+          example_menu(ns)
         ),
         uiOutput(ns("loaded"))
       ),
@@ -200,18 +203,20 @@ mod_data_server <- function(id, store) {
     observeEvent(input$guide, store$open_help("guide"))
     observeEvent(input$bundle, store$notify("Prototype: resuming from a fit bundle is not simulated."))
     observeEvent(input$workbook, {
-      file <- input$workbook$name
-      replace_data(function() store$load_workbook(file))
+      upload <- input$workbook
+      replace_data(function() store$load_workbook(upload$name, upload$datapath))
     })
-    observeEvent(input$example, replace_data(store$load_example))
+    lapply(names(example_workbooks), function(key) {
+      observeEvent(input[[paste0("example_", key)]], replace_data(function() store$load_example(key)))
+    })
     observeEvent(input$clear, replace_data(store$clear_data))
     observeEvent(input$continue, store$go_to("models"))
     observeEvent(input$toggle_all, show_all(!show_all()))
 
     lapply(component_ids, function(cid) {
       observeEvent(input[[paste0("csv_", cid)]], {
-        file <- input[[paste0("csv_", cid)]]$name
-        store$confirm_reset(cid, function() store$load_csv(cid, file))
+        upload <- input[[paste0("csv_", cid)]]
+        store$confirm_reset(cid, function() store$load_csv(cid, upload$name, upload$datapath))
       })
       output[[paste0("csv_file_", cid)]] <- renderText(store$sheets()[[cid]]$file)
       output[[paste0("csv_columns_", cid)]] <- renderText(paste(sheet_columns(cid, store$species()), collapse = ", "))
@@ -266,9 +271,6 @@ mod_data_server <- function(id, store) {
                 ". You can change sources on the Models step."
               )
             )
-          },
-          if (is.null(sheets$density)) {
-            notice("x-circle", "A density sheet is required", "Biomass cannot be estimated without your density data.", tone = "warning")
           }
         ),
         coverage_panel(session$ns, sheets, cov(), show_all())
@@ -282,6 +284,31 @@ mod_data_server <- function(id, store) {
       coverage_table(rows, store$sheets(), store$sources(), show_all())
     })
   })
+}
+
+# A dropdown of the example workbooks, each with a line on what it holds.
+# Bootstrap's own dropdown opens it, positioned as fixed so the card around it
+# does not clip it.
+example_menu <- function(ns) {
+  div(
+    class = "dropdown",
+    tags$button(
+      type = "button", class = "btn btn-light border dropdown-toggle",
+      `data-bs-toggle` = "dropdown", `aria-expanded` = "false",
+      `data-bs-config` = '{"popperConfig": {"strategy": "fixed"}}', "Use example workbook"
+    ),
+    tags$ul(
+      class = "dropdown-menu", style = "width: 24rem",
+      lapply(names(example_workbooks), function(key) {
+        example <- example_workbooks[[key]]
+        tags$li(actionLink(
+          ns(paste0("example_", key)),
+          div(div(class = "fw-medium", example$label), div(class = "small text-body-secondary text-wrap", example$detail)),
+          class = "dropdown-item py-2"
+        ))
+      })
+    )
+  )
 }
 
 # Shown on the Data step until data are loaded: what the app does and its steps.
@@ -306,9 +333,9 @@ welcome_card <- function(ns) {
 
 # The one description of the workbook's sheets; the columns are in the guide and
 # under the CSV uploads.
-sheets_description <- sprintf(
-  "An Excel workbook with one sheet per model, named after the model. The %s sheet is required; leave out the sheets you do not have. A cover sheet adds total biomass per site-year.",
-  and_list(unname(required_sheets()))
+sheets_description <- paste(
+  "An Excel workbook with one sheet per model, named after the model; leave out the sheets you do not have.",
+  "Biomass needs density, size and weight, from your data or pre-fit models, and a cover sheet adds total biomass per site-year."
 )
 
 # A sheet whose model uses a pre-fit model or none shows its check muted, as it
@@ -365,7 +392,6 @@ issues_summary <- function(ns, sheets, rows, sources) {
   site_years <- function(n, what) paste(count(n, "site-year"), what)
   link <- function(text, target) tags$a(href = paste0("#", ns(target)), class = "link-body-emphasis", text)
   sheet_issues <- list(
-    if (is.null(sheets$density)) "No density sheet",
     if (errors > 0) count(errors, "sheet error")
   )
   coverage_counts <- c(

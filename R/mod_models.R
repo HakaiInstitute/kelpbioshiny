@@ -50,14 +50,16 @@ mod_models_ui <- function(id) {
         actionLink(ns(paste0("open_", cid)), label_of(cid), class = "fw-medium text-body"),
         div(class = "small text-body-secondary", components[[cid]]$detail)
       ),
-      # Phones show only the model and its status; the model page has the source.
+      # Phones show only the model and its status; the model page has the
+      # source and the fit control.
       tags$td(class = "d-none d-sm-table-cell", source_select(ns(paste0("source_", cid)), cid)),
-      tags$td(class = "pe-4", uiOutput(ns(paste0("status_", cid))))
+      tags$td(uiOutput(ns(paste0("status_", cid)))),
+      tags$td(class = "pe-4 text-end d-none d-sm-table-cell", uiOutput(ns(paste0("fit_", cid)), inline = TRUE))
     )
   })
   # The cover model is optional and builds on the others, so it sits in its own group.
   group_row <- tags$tr(tags$td(
-    colspan = 3, class = "ps-4 py-2 bg-body-tertiary small text-body-secondary",
+    colspan = 4, class = "ps-4 py-2 bg-body-tertiary small text-body-secondary",
     span(class = "fw-medium text-body", "Total biomass"), " (optional): fitted after the models above"
   ))
   rows <- append(rows, list(group_row), after = length(biomass_ids))
@@ -65,17 +67,18 @@ mod_models_ui <- function(id) {
 
   hub <- tagList(
     page_header("Models", uiOutput(ns("description"), inline = TRUE), uiOutput(ns("fit_all_ui"), inline = TRUE)),
+    uiOutput(ns("progress")),
     conditionalPanel(
-      "!output.has_density",
+      "!output.has_data",
       ns = ns,
       empty_state(
         "file-spreadsheet", "Add data first",
-        "Density data are required. Upload a workbook or use the example workbook.",
+        "Upload a workbook or use the example workbook.",
         div(class = "mt-2", button(ns("to_data"), "Go to data", variant = "outline"))
       )
     ),
     conditionalPanel(
-      "output.has_density",
+      "output.has_data",
       ns = ns,
       uiOutput(ns("skipped")),
       card(
@@ -90,7 +93,8 @@ mod_models_ui <- function(id) {
               tags$thead(tags$tr(
                 head_cell(class = "ps-4", "Model"),
                 head_cell(class = "d-none d-sm-table-cell", style = "width: 14rem", with_help("Source", "prefit")),
-                head_cell(class = "pe-4", style = "width: 13rem", "Status")
+                head_cell(style = "width: 13rem", "Status"),
+                head_cell(class = "pe-4 d-none d-sm-table-cell", style = "width: 7rem", span(class = "visually-hidden", "Fit"))
               )),
               tags$tbody(rows)
             )
@@ -115,28 +119,32 @@ mod_models_server <- function(id, store) {
 
     observe(nav_select("view", store$open(), session = session))
 
-    output$has_density <- reactive(store$has_density())
-    outputOptions(output, "has_density", suspendWhenHidden = FALSE)
+    output$has_data <- reactive(store$has_data())
+    outputOptions(output, "has_data", suspendWhenHidden = FALSE)
 
     observeEvent(input$hub, store$open("hub"))
     observeEvent(input$to_data, store$go_to("data"))
     observeEvent(input$fit_all, store$fit_all())
     observeEvent(input$cancel, store$cancel_fits())
-    observeEvent(input$view_biomass, store$go_to("biomass"))
+    observeEvent(input$view_estimates, store$go_to("estimates"))
 
     lapply(component_ids, function(cid) {
       observeEvent(input[[paste0("open_", cid)]], store$open(cid))
       observeEvent(input[[paste0("nav_", cid)]], store$open(cid))
-      observeEvent(input[[paste0("refit_", cid)]], store$queue_fits(cid))
+      observeEvent(input[[paste0("fit_model_", cid)]], store$queue_fits(cid))
+      observeEvent(input[[paste0("cancel_", cid)]], store$cancel_fit(cid))
       sync_source_select(input, session, paste0("source_", cid), cid, store)
       output[[paste0("status_", cid)]] <- renderUI({
         status <- store$statuses()[[cid]]
         tagList(
           status_badge(status, if (status$kind == "fitting") store$progress() else 0),
-          if (!is.null(status$message)) div(class = "small text-danger-emphasis mt-1", status$message),
-          if (status$kind == "failed" && status$source == "user") {
-            actionLink(session$ns(paste0("refit_", cid)), "Refit", class = "small")
-          }
+          if (!is.null(status$message)) div(class = "small text-danger-emphasis mt-1", status$message)
+        )
+      })
+      output[[paste0("fit_", cid)]] <- renderUI({
+        fit_control(
+          session$ns(paste0("fit_model_", cid)), session$ns(paste0("cancel_", cid)), store$statuses()[[cid]],
+          cid %in% store$invalid(), variant = "outline", size = "sm", model = cid
         )
       })
     })
@@ -147,7 +155,7 @@ mod_models_server <- function(id, store) {
     })
 
     output$fit_all_ui <- renderUI({
-      if (!store$has_density()) {
+      if (!store$has_data()) {
         return(NULL)
       }
       if (!is.null(store$fitting())) {
@@ -158,6 +166,25 @@ mod_models_server <- function(id, store) {
         return(button(session$ns("fit_all"), "Fit all", "play"))
       }
       span(class = "small text-body-secondary", fit_all_reason(store$statuses(), plan))
+    })
+
+    # While fits run: the model fitting, a full-width bar and the fits queued.
+    output$progress <- renderUI({
+      id <- req(store$fitting())
+      progress <- store$progress()
+      queued <- sum(record_status(store$records()) == "queued")
+      div(
+        class = "d-flex flex-column gap-2 border rounded-3 p-3 mb-3 bg-primary-subtle border-primary-subtle",
+        div(
+          class = "d-flex flex-wrap align-items-center justify-content-between gap-2",
+          span(class = "d-inline-flex align-items-center gap-2 fw-medium", lucide("loader-2", "kb-spin text-primary"), sprintf("Fitting the %s model", lower_label(id))),
+          span(
+            class = "small text-body-secondary kb-tabular",
+            sprintf("%d%%%s", floor(progress), if (queued > 0) sprintf(" \u00b7 %d queued", queued) else "")
+          )
+        ),
+        progress_bar(progress)
+      )
     })
 
     output$skipped <- renderUI({
@@ -181,44 +208,34 @@ mod_models_server <- function(id, store) {
           tone = "warning"
         ))
       }
-      if (store$biomass_ready()) {
-        cover <- store$statuses()$cover$kind
-        return(notice(
-          "arrow-right", "All models are ready",
-          if (cover %in% c("not-fitted", "queued", "fitting")) {
-            "Biomass per unit area can now be estimated. Total biomass follows once the cover model is fitted."
-          } else {
-            "Biomass can now be estimated."
-          },
-          action = button(session$ns("view_biomass"), "View biomass", size = "sm")
-        ))
-      }
       statuses <- store$statuses()
-      blocking <- store$blocking()
+      unready <- Filter(function(id) !is_ready_status(statuses[[id]]), component_ids)
+      view <- if (store$any_estimate()) button(session$ns("view_estimates"), "View estimates", size = "sm")
+      if (length(unready) == 0) {
+        return(notice("arrow-right", "All models in use are ready", "Their estimates are on the Estimates step.", action = view))
+      }
       notice(
-        "layout-list", "Before biomass can be estimated",
-        paste(sprintf("%s: %s", vapply(blocking, label_of, ""), vapply(statuses[blocking], block_reason, "")), collapse = "; "),
-        tone = "muted"
+        "layout-list", "Not ready yet",
+        paste0(
+          paste(sprintf("%s: %s", vapply(unready, label_of, ""), vapply(statuses[unready], block_reason, "")), collapse = "; "), ".",
+          if (!is.null(view)) " The estimates of the models that are ready are on the Estimates step."
+        ),
+        tone = "muted", action = view
       )
     })
 
     output$subnav <- renderUI({
       open <- store$open()
       statuses <- store$statuses()
-      item <- function(input_id, active, ...) {
-        actionLink(session$ns(input_id), div(class = "d-flex align-items-center gap-2", ...),
-          class = paste("nav-link py-2 px-2", if (active) "active fw-medium")
-        )
-      }
       tags$nav(
         class = "nav nav-pills flex-column gap-1",
         `aria-label` = "Models",
-        item("hub", open == "hub", lucide("layout-list", "text-body-secondary"), "All models"),
+        subnav_link(session$ns("hub"), open == "hub", lucide("layout-list", "text-body-secondary"), "All models"),
         tags$hr(class = "my-1"),
         lapply(component_ids, function(cid) {
           tagList(
             if (cid == "cover") tags$hr(class = "my-1"),
-            item(paste0("nav_", cid), open == cid, status_icon(statuses[[cid]]), span(class = "flex-grow-1", label_of(cid), status_hidden(statuses[[cid]])))
+            subnav_link(session$ns(paste0("nav_", cid)), open == cid, status_icon(statuses[[cid]]), label_of(cid), status_hidden(statuses[[cid]]))
           )
         })
       )

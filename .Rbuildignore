@@ -12,3 +12,4 @@
 ^\.vscode$
 ^app\.R$
 ^decisions$
+^data-raw$

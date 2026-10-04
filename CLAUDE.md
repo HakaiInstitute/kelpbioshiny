@@ -1,6 +1,6 @@
 # CLAUDE.md - kelpbioshiny
 
-R package holding the Shiny app for kelpbio (Bayesian kelp biomass estimation). The one export is `run_app()`. The app walks a run through four steps: Data, Models, Biomass, Export. Why a Shiny app, and its scope: `~/Code/HakaiInstitute/kelpbio/decisions/webapp-decision.md`.
+R package holding the Shiny app for kelpbio (Bayesian kelp biomass estimation). The one export is `run_app()`. The app walks a run through four steps: Data, Models, Estimates, Export. Why a Shiny app, and its scope: `~/Code/HakaiInstitute/kelpbio/decisions/webapp-decision.md`.
 
 Follow the kelpbio `CLAUDE.md` (`~/Code/HakaiInstitute/kelpbio/CLAUDE.md`) for writing, code style, documentation and testing conventions; this file lists only what differs or is specific to the app.
 
@@ -21,7 +21,7 @@ The build runs are also Positron/VS Code tasks ("kelpbioshiny: build", "kelpbios
 |------|----------|
 | `R/run-app.R` | `run_app()`: `shinyAppDir()` on `inst/app` |
 | `R/app-ui.R`, `R/app-server.R` | `app_ui()` (navbar, steps, footer) and `app_server()` (wires the modules to one store) |
-| `R/mod_<step>.R` | One module per step: `mod_<step>_ui(id)` / `mod_<step>_server(id, store)` (`data`, `models`, `biomass`, `export`); `mod_model.R` is the per-model detail page |
+| `R/mod_<step>.R` | One module per step: `mod_<step>_ui(id)` / `mod_<step>_server(id, store)` (`data`, `models`, `estimates`, `export`); `mod_model.R` is the per-model detail page (fit, settings, diagnostics), and `mod_estimates.R` holds each model's predictions and the biomass estimates |
 | `R/mod_help.R` | The Help tab: `help_ui()` holds two pills, `help_guide_ui()` (User guide, built from the app's definitions) and `help_about_ui()` (with the citations) |
 | `R/steps.R` | `app_purpose` and `app_steps`: the app's one-line purpose, and the step names and one-line descriptions |
 | `R/state.R` | `new_store()`: the per-session store of reactive state and actions, the fit queue and its runner, plus the pure fit-record transitions and status logic |
@@ -32,6 +32,7 @@ The build runs are also Positron/VS Code tasks ("kelpbioshiny: build", "kelpbios
 | `R/namespace.R` | `@import` / `@importFrom` directives |
 | `inst/app/` | `ui.R`, `server.R` (call the internals), `global.R` (starts the mirai daemons that run the fits) and `www/` (CSS, logo, favicon) |
 | `inst/extdata/` | Fake JSON: the example data and the mocks' results |
+| `data-raw/` | `test-workbooks.R` and the test workbooks it writes (`workbooks/`), one per kind of user; build-ignored |
 | `inst/CITATION` | The app's citation, shown on the About page |
 | `app.R` | Deployment entry point (`load_all()` + `run_app()`), build-ignored |
 

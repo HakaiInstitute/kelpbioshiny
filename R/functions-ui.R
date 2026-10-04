@@ -183,6 +183,36 @@ status_badge <- function(status, progress = 0) {
   )
 }
 
+# A link in a step's side navigation (Models, Estimates): an icon and a label,
+# with any hidden status text after it, highlighted when active.
+subnav_link <- function(input_id, active, icon, label, hidden = NULL) {
+  actionLink(
+    input_id, div(class = "d-flex align-items-center gap-2", icon, span(class = "flex-grow-1", label, hidden)),
+    class = paste("nav-link py-2 px-2", if (active) "active fw-medium")
+  )
+}
+
+# A model's fit control: Fit (Refit once fitted or failed) while it uses your
+# data, and Cancel while it is queued or fitting; none while it has no checked
+# data. Fit is disabled until the model can be fitted and while a setting is
+# invalid. `model`, when given, names the model for screen readers, where
+# several controls share a page.
+fit_control <- function(fit_id, cancel_id, status, invalid, fit_label = "Fit", variant = "primary", size = NULL, model = NULL) {
+  if (status$source != "user" || status$kind %in% c("no-data", "data-error")) {
+    return(NULL)
+  }
+  aria <- function(label) if (!is.null(model)) sprintf("%s the %s model", label, lower_label(model))
+  if (is_pending_status(status)) {
+    return(button(cancel_id, "Cancel", "x", "outline", size = size, `aria-label` = aria("Cancel fitting")))
+  }
+  refit <- status$kind %in% c("ready", "failed")
+  label <- if (refit) "Refit" else fit_label
+  button(
+    fit_id, label, "play", if (refit) "outline" else variant,
+    size = size, disabled = !can_fit(status) || invalid, `aria-label` = aria(if (refit) "Refit" else "Fit")
+  )
+}
+
 # "density, size and weight"
 and_list <- function(x) {
   if (length(x) < 2) {
@@ -201,14 +231,14 @@ progress_bar <- function(value) {
   )
 }
 
-# A figure and its estimates table as two pills, so the table is one click
-# away rather than below the figure.
-plot_estimates_nav <- function(id, plot, estimates, selected = NULL) {
+# A figure and its table as two pills, so the table is one click away rather
+# than below the figure.
+plot_table_nav <- function(id, plot, table, selected = NULL) {
   navset_pill(
     id = id,
     selected = selected,
     nav_panel("Plot", value = "plot", div(class = "pt-3", plot)),
-    nav_panel("Estimates", value = "estimates", div(class = "pt-3", estimates))
+    nav_panel("Table", value = "table", div(class = "pt-3", table))
   )
 }
 

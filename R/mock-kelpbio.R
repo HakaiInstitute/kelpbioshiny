@@ -567,7 +567,7 @@ kb_fit_progress <- function(progress_dir) {
 # when built, so they converged.
 
 .mock_prefit <- function(model, species, reference) {
-  .mock_new_fit(model, species, data.frame(), NULL, nthin = 5L, source = "prefit", reference = reference)
+  .mock_new_fit(model, species, data.frame(), NULL, nthin = 10L, source = "prefit", reference = reference)
 }
 
 # Planned.
@@ -861,6 +861,28 @@ kb_predict_weight_by <- function(fit, by = NULL, diameter_mm = NULL, ..., new_le
   )
 }
 
+# Exists (as the Nereocystis and Macrocystis methods of a generic). The expected
+# weight of each row of new_data, from its diameter_mm (Nereocystis) or fronds
+# (Macrocystis); site, year and stipes_m2 are passed through. A new site or year
+# draws its effects ("sample", the default) or holds them at zero ("average").
+# The mock scales the fake population-level weight at 50 mm by a power of 2.6.
+kb_predict_weight <- function(fit, new_data = NULL, ..., new_levels = c("sample", "average"), representative_site = NULL,
+                              conf_level = 0.95, estimate = stats::median, sig_fig = 3) {
+  new_levels <- rlang::arg_match(new_levels)
+  macro <- fit$meta$species == "macro"
+  predictor <- if (macro) "fronds" else "diameter_mm"
+  rows <- tibble::as_tibble(new_data %||% fit$data)
+  mu <- .mock_group_rows(fit, NULL)$rows$estimate * (rows[[predictor]] / if (macro) 12.5 else 50)^2.6
+  se <- .mock_se[["population"]] * if (new_levels == "sample") 1.6 else 1
+  rows$estimate <- signif(mu, 3)
+  rows$lower <- signif(mu * exp(-1.96 * se), 3)
+  rows$upper <- signif(mu * exp(1.96 * se), 3)
+  .mock_new_predictions(
+    rows, NULL, "weight", predictor,
+    x_label = if (macro) "Fronds" else "Sub-bulb diameter (mm)", y_label = "Wet weight (kg)"
+  )
+}
+
 # Planned.
 kb_predict_blade_by <- function(fit, by = NULL, ..., new_levels = c("average", "sample"), conf_level = 0.95,
                                 estimate = stats::median, sig_fig = 3) {
@@ -925,7 +947,7 @@ kb_plot_predictions <- function(predictions, ..., x = NULL, max_facets = 12L) {
   p <- ggplot(data, aes(.data[[x]], .data$estimate)) +
     geom_pointrange(aes(ymin = .data$lower, ymax = .data$upper), size = 0.3) +
     expand_limits(y = 0) +
-    labs(x = switch(x, group = NULL, site = "Site", "Year"), y = y_label) +
+    labs(x = if (identical(x, predictor)) attr(predictions, "mock_x_label") else switch(x, group = NULL, site = "Site", "Year"), y = y_label) +
     theme_bw()
   facet <- setdiff(by, x)
   if (length(facet) > 0) {
@@ -952,7 +974,12 @@ kb_plot_trace <- function(fit) {
     phi <- (1 - min(rate[[i]], 1)) / (1 + min(rate[[i]], 1))
     do.call(rbind, lapply(seq_len(chains), function(chain) {
       offset <- (chain - (chains + 1) / 2) * (r[[i]] - 1) * 20 * spread
-      value <- as.numeric(stats::arima.sim(list(ar = min(phi, 0.98)), iterations, sd = sqrt(1 - min(phi, 0.98)^2)))
+      # Draws worth at least their number (a rate of 1 or more) are independent.
+      value <- if (phi > 0) {
+        as.numeric(stats::arima.sim(list(ar = min(phi, 0.98)), iterations, sd = sqrt(1 - min(phi, 0.98)^2)))
+      } else {
+        stats::rnorm(iterations)
+      }
       value <- estimates$estimate[i] + offset + spread * value
       # Standard deviations are positive.
       if (startsWith(estimates$term[i], "s")) value <- abs(value)
@@ -1087,6 +1114,12 @@ kb_sensitivity <- function(fit, ..., prior_cjs = 0.1, lik_cjs = 0.05) {
     min(1, .mock_prior_scale(defaults[[name]]) / .mock_prior_scale(fit$meta$priors[[name]]))
   }, numeric(1))
   rows$prior_cjs <- round(rows$prior_cjs * ratio, 3)
+  # A pre-fit model was fitted to more data than a single run has, so its priors
+  # weigh less and its data more.
+  if (identical(fit$meta$source, "prefit")) {
+    rows$prior_cjs <- round(rows$prior_cjs / 2, 3)
+    rows$lik_cjs <- round(rows$lik_cjs * 2, 3)
+  }
   # Worked out before tibble(), where the column names would mask the thresholds.
   weak_prior <- rows$prior_cjs <= prior_cjs
   strong_data <- rows$lik_cjs >= lik_cjs

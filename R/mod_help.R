@@ -29,10 +29,10 @@ guide_columns <- function(id) {
 
 guide_sheets <- function() {
   guide_table(
-    c("Sheet", "Model", "Columns", "Sheet needed"),
+    c("Sheet", "Model", "Columns"),
     lapply(component_ids, function(id) {
       def <- components[[id]]
-      list(tags$code(def$sheet), def$label, guide_columns(id), if (sheet_required(id)) "Required" else "Optional")
+      list(tags$code(def$sheet), def$label, guide_columns(id))
     })
   )
 }
@@ -50,7 +50,7 @@ guide_sources <- function() {
 guide_extras <- list(
   data = function() {
     tagList(
-      div(class = "small text-body-secondary", "The columns of each sheet. Other columns are ignored."),
+      div(class = "small text-body-secondary", "The columns of each sheet. Every sheet is optional, and other columns are ignored."),
       div(class = "table-responsive", guide_sheets())
     )
   },

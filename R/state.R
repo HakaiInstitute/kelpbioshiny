@@ -59,6 +59,15 @@ cancel_records <- function(records) {
   records
 }
 
+# Cancels one model's queued or running fit, and a queued cover fit, which waits
+# on the biomass models.
+cancel_record <- function(records, id) {
+  ids <- c(id, if (id %in% biomass_ids) "cover")
+  pending <- ids[record_status(records[ids]) %in% c("queued", "fitting")]
+  records[pending] <- list(new_record())
+  records
+}
+
 start_record <- function(records, id) {
   records[[id]] <- new_record("fitting")
   records
@@ -126,15 +135,16 @@ has_warning <- function(status) isTRUE(status$convergence) || isTRUE(status$prio
 # kb_sensitivity() rows flag a prior warning when any prior is not weak.
 prior_flagged <- function(rows) !is.null(rows) && !all(rows$weak_prior)
 
-# The biomass models first; the cover model can be fitted once they are ready.
-# prior_warnings flags, by model, a fit whose priors influence its estimates.
+# The biomass models first; the cover model can be fitted once they are ready
+# and biomass per unit area can be estimated from them. prior_warnings flags, by
+# model, a fit whose priors influence its estimates.
 component_statuses <- function(sources, sheets, records, prefits = list(), prior_warnings = list()) {
   status <- function(id, ...) {
     component_status(sources[[id]], sheets[[id]], records[[id]], ..., prior_warning = isTRUE(prior_warnings[[id]]))
   }
   statuses <- lapply(biomass_ids, function(id) status(id, prefits[[id]]))
   ready <- all(vapply(statuses, is_ready_status, logical(1)))
-  c(statuses, list(cover = status("cover", cover_blocked = !ready)))
+  c(statuses, list(cover = status("cover", cover_blocked = !ready || !biomass_possible(sources))))
 }
 
 # A model fitted to your data can be fitted now: it has checked data and, for the
@@ -144,8 +154,9 @@ can_fit <- function(status) {
 }
 
 # The models Fit all queues: those not yet fitted or failed, less those with an
-# invalid setting (`skipped`). The cover model joins when every biomass model is
-# ready, already pending, or in the same batch.
+# invalid setting (`skipped`). The cover model joins when the density, size and
+# weight models are in use and every biomass model is ready, already pending,
+# or in the same batch.
 fit_all_plan <- function(statuses, invalid = character()) {
   candidates <- Filter(function(id) {
     status <- statuses[[id]]
@@ -155,9 +166,48 @@ fit_all_plan <- function(statuses, invalid = character()) {
   ids <- setdiff(candidates, invalid)
   if ("cover" %in% ids) {
     on_track <- function(id) is_ready_status(statuses[[id]]) || is_pending_status(statuses[[id]]) || id %in% ids
-    if (!all(vapply(biomass_ids, on_track, logical(1)))) ids <- setdiff(ids, "cover")
+    in_use <- all(vapply(biomass_core_ids, function(id) statuses[[id]]$source != "none", logical(1)))
+    if (!in_use || !all(vapply(biomass_ids, on_track, logical(1)))) ids <- setdiff(ids, "cover")
   }
   list(ids = unname(ids), skipped = unname(skipped))
+}
+
+# Whether an estimate on the Estimates step can be shown, with the reason when
+# not: a model's predictions need the model ready (fitted to your data or
+# pre-fit); biomass per unit area needs biomass_ready; total biomass also needs
+# a fitted cover model (totals, from total_availability()).
+estimate_availability <- function(id, statuses, sources, blocking, mismatches, biomass_ready, totals) {
+  unavailable <- function(reason) list(available = FALSE, reason = reason)
+  if (id %in% component_ids) {
+    status <- statuses[[id]]
+    model <- lower_label(id)
+    return(switch(status$kind,
+      "ready" = list(available = TRUE),
+      "not-used" = unavailable(sprintf("The %s model is not used in this run.", model)),
+      "no-data" = unavailable(sprintf("The %s model has no data. Add a %s sheet on the Data step.", model, components[[id]]$sheet)),
+      "data-error" = unavailable(sprintf("The %s sheet failed its data check.", components[[id]]$sheet)),
+      "queued" = ,
+      "fitting" = unavailable(sprintf("The %s model is fitting.", model)),
+      "failed" = unavailable(sprintf("The %s model failed to fit.", model)),
+      unavailable(sprintf("The %s model is not fitted yet.", model))
+    ))
+  }
+  if (!biomass_possible(sources)) {
+    return(unavailable("Biomass needs the density, size and weight models, each fitted to your data or pre-fit."))
+  }
+  if (length(mismatches) > 0) {
+    return(unavailable(sprintf("Site names differ across sheets: %s. %s", and_list(sprintf("\"%s\"", mismatches)), mismatch_advice)))
+  }
+  if (!biomass_ready) {
+    return(unavailable(sprintf(
+      "Every model in use needs to be ready first. %s.",
+      paste(sprintf("%s: %s", vapply(blocking, label_of, ""), vapply(statuses[blocking], block_reason, "")), collapse = "; ")
+    )))
+  }
+  if (id == "total" && !totals$available) {
+    return(unavailable(totals$reason))
+  }
+  list(available = TRUE)
 }
 
 # Total biomass needs a fitted cover model; the reason is shown when it is unavailable.
@@ -344,13 +394,21 @@ new_store <- function(session, run_fit = mirai_fit_runner) {
   })
   s$fit_plan <- reactive(fit_all_plan(s$statuses(), s$invalid()))
 
-  s$has_density <- reactive(!is.null(s$sheets()$density))
+  s$has_data <- reactive(length(s$sheets()) > 0)
   s$mismatches <- reactive(site_mismatches(s$sheets()))
   # The cover model is optional: biomass per unit area does not wait for it.
   s$blocking <- reactive(biomass_ids[!vapply(s$statuses()[biomass_ids], is_ready_status, logical(1))])
-  s$biomass_ready <- reactive(length(s$blocking()) == 0 && length(s$mismatches()) == 0)
+  s$biomass_ready <- reactive(biomass_possible(s$sources()) && length(s$blocking()) == 0 && length(s$mismatches()) == 0)
   s$outputs <- reactive(output_availability(s$sources()))
   s$totals <- reactive(total_availability(s$sources(), s$sheets(), s$statuses()$cover))
+  # Each estimate on the Estimates step: list(available, reason).
+  s$estimates <- reactive({
+    lapply(estimate_ids, estimate_availability,
+      statuses = s$statuses(), sources = s$sources(), blocking = s$blocking(), mismatches = s$mismatches(),
+      biomass_ready = s$biomass_ready(), totals = s$totals()
+    )
+  })
+  s$any_estimate <- reactive(any(vapply(s$estimates(), `[[`, logical(1), "available")))
 
   # Actions ----------------------------------------------------------------------
 
@@ -434,28 +492,40 @@ new_store <- function(session, run_fit = mirai_fit_runner) {
     s$sources(default_sources(sheets))
   }
 
-  # Prototype: every upload loads the example workbook, from kb_example_data().
-  example_sheets <- function(file) {
+  checked_sheets <- function(rows, file) {
     species <- isolate(s$species())
-    rows <- kb_example_data(species)
     lapply(stats::setNames(nm = names(rows)), function(id) new_sheet(id, rows[[id]], file, species))
   }
 
-  s$load_example <- function() {
-    file <- sprintf("example-%s.xlsx", isolate(s$species()))
-    apply_sheets(example_sheets(file), file)
+  # One of the example workbooks (example_workbooks).
+  s$load_example <- function(example = "density_size") {
+    species <- isolate(s$species())
+    file <- sprintf("example-%s-%s.xlsx", gsub("_", "-", example), species)
+    apply_sheets(checked_sheets(kb_example_data(species, example), file), file)
   }
 
-  s$load_workbook <- function(file) {
-    apply_sheets(example_sheets(file), file)
-    s$notify("Prototype: the example workbook was loaded in place of your file.")
+  # A workbook that cannot be read, or has no sheet named after a model, leaves
+  # the data as they were.
+  s$load_workbook <- function(file, path) {
+    rows <- tryCatch(read_workbook(path), error = function(e) e)
+    if (inherits(rows, "error")) {
+      s$notify(conditionMessage(rows), type = "error", title = sprintf("%s could not be read", file), duration = 10)
+      return()
+    }
+    if (length(rows) == 0) {
+      s$notify(
+        sprintf("Name each sheet after its model: %s.", and_list(vapply(components, `[[`, "", "sheet"))),
+        type = "error", title = sprintf("%s has no sheet named after a model", file), duration = 10
+      )
+      return()
+    }
+    apply_sheets(checked_sheets(rows, file), file)
   }
 
-  # Prototype: a CSV loads the example sheet for its model, where there is one.
-  s$load_csv <- function(id, file) {
-    rows <- kb_example_data(isolate(s$species()))[[id]]
-    if (is.null(rows)) {
-      s$notify(sprintf("Prototype: there are no example %s rows to load.", lower_label(id)))
+  s$load_csv <- function(id, file, path) {
+    rows <- tryCatch(read_csv_rows(path), error = function(e) e)
+    if (inherits(rows, "error")) {
+      s$notify(conditionMessage(rows), type = "error", title = sprintf("%s could not be read", file), duration = 10)
       return()
     }
     s$reset_fit(id)
@@ -465,7 +535,6 @@ new_store <- function(session, run_fit = mirai_fit_runner) {
     sources <- isolate(s$sources())
     sources[[id]] <- "user"
     s$sources(sources)
-    s$notify(sprintf("Prototype: example %s rows were loaded from %s.", lower_label(id), file))
   }
 
   s$clear_data <- function() apply_sheets(list(), NULL)
@@ -530,6 +599,8 @@ new_store <- function(session, run_fit = mirai_fit_runner) {
     s$notify("Fits cancelled.")
   }
 
+  s$cancel_fit <- function(id) update_records(cancel_record, id)
+
   # Navigation: the Models step shows the hub unless a model page was asked for.
   pending_model <- NULL
   s$go_to <- function(step, model = NULL) {
@@ -539,6 +610,14 @@ new_store <- function(session, run_fit = mirai_fit_runner) {
       return()
     }
     nav_select("step", step, session = session)
+  }
+
+  # The estimate the Estimates step shows (an estimate_ids value), or NULL for
+  # the first one available.
+  s$estimate <- reactiveVal(NULL)
+  s$open_estimate <- function(id) {
+    s$estimate(id)
+    s$go_to("estimates")
   }
 
   # Opens one page of the Help tab: "guide" or "about".
@@ -563,7 +642,7 @@ new_store <- function(session, run_fit = mirai_fit_runner) {
     }
   })
 
-  # Whether the current results have been reviewed (the Biomass step opened
+  # Whether the current results have been reviewed (the Estimates step opened
   # with estimates) and exported (a download, or the R script copied), for the
   # navbar markers. A change of fits or sources changes the results, so it
   # resets both first; the higher priority runs the reset before the check
@@ -575,7 +654,7 @@ new_store <- function(session, run_fit = mirai_fit_runner) {
     s$exported(FALSE)
   }, ignoreInit = TRUE, priority = 10)
   observe({
-    if (identical(session$input$step, "biomass") && s$biomass_ready()) s$reviewed(TRUE)
+    if (identical(session$input$step, "estimates") && s$any_estimate()) s$reviewed(TRUE)
   })
 
   # Fit queue ------------------------------------------------------------------

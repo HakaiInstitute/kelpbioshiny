@@ -4,8 +4,12 @@ export_script <- function(species, sources, sheets, workbook, priors, samplers) 
   sp <- species_info[[species]]$suffix
   used <- component_ids[sources != "none"]
   from_data <- Filter(function(id) sources[[id]] == "user" && !is.null(sheets[[id]]), used)
-  from_csv <- Filter(function(id) endsWith(sheets[[id]]$file, ".csv"), from_data)
-  from_book <- setdiff(from_data, from_csv)
+  # The weight of each plant in the size sheet, read even when the size model is
+  # not fitted to it.
+  plants <- "weight" %in% used && !is.null(sheets$size) && is.null(sheets$size$error)
+  read_ids <- union(from_data, if (plants) "size")
+  from_csv <- Filter(function(id) endsWith(sheets[[id]]$file, ".csv"), read_ids)
+  from_book <- setdiff(read_ids, from_csv)
 
   read <- c(
     if (length(from_book) > 0) sprintf("path <- \"%s\"", workbook %||% "kelp-survey.xlsx"),
@@ -44,6 +48,8 @@ export_script <- function(species, sources, sheets, workbook, priors, samplers) 
     c(prior_lines, sprintf("fit_%s <- kb_fit_%s_%s(%s)", id, fn_of(id), sp, paste(args, collapse = ", ")))
   }
   in_biomass <- setdiff(used, "cover")
+  biomass <- biomass_possible(sources)
+  plant_data <- if (sp == "nereo" && "density" %in% from_data) "kb_add_stipes_m2(size, density)" else "size"
 
   paste(
     c(
@@ -58,13 +64,20 @@ export_script <- function(species, sources, sheets, workbook, priors, samplers) 
       },
       "",
       unlist(lapply(in_biomass, fit_lines)),
-      "",
-      "biomass <- kb_predict_biomass(",
-      sprintf("  %s = fit_%s,", in_biomass, in_biomass),
-      "  by = c(\"site\", \"year\")",
-      ")",
-      "kb_plot_biomass(biomass)",
-      if ("cover" %in% used) {
+      if (plants) {
+        c("", "# The predicted weight of each plant in the size sheet", sprintf("plant_weights <- kb_predict_weight(fit_weight, new_data = %s)", plant_data))
+      },
+      if (biomass) {
+        c(
+          "",
+          "biomass <- kb_predict_biomass(",
+          sprintf("  %s = fit_%s,", in_biomass, in_biomass),
+          "  by = c(\"site\", \"year\")",
+          ")",
+          "kb_plot_biomass(biomass)"
+        )
+      },
+      if (biomass && "cover" %in% used) {
         c(
           "",
           "# Total biomass per site-year from the cover model",
@@ -81,7 +94,7 @@ export_script <- function(species, sources, sheets, workbook, priors, samplers) 
 # TODO: build each download (results workbook, figures, fit bundle and report);
 # the buttons only show a notice for now.
 download_items <- list(
-  results = list(label = "Results workbook", detail = "Excel: biomass per unit area, total biomass when the cover model is used, settings and sources", file = "kelpbio-results-%s.xlsx", icon = "file-spreadsheet"),
+  results = list(label = "Results workbook", detail = "Excel: every available estimate, with the settings and sources", file = "kelpbio-results-%s.xlsx", icon = "file-spreadsheet"),
   figures = list(label = "Figures", detail = "ZIP of PNG and PDF figures", file = "kelpbio-figures-%s.zip", icon = "file-image"),
   bundle = list(label = "Fit bundle", detail = "RDS: add it on the Data step to resume this run", file = "kelpbio-fits-%s.rds", icon = "database"),
   report = list(label = "Report", detail = "PDF with methods, diagnostics and results", file = "kelpbio-report-%s.pdf", icon = "file-text")
@@ -137,7 +150,7 @@ mod_export_server <- function(id, store) {
     suffix <- reactive(species_info[[store$species()]]$suffix)
 
     observe({
-      enabled <- c(results = store$biomass_ready(), figures = store$biomass_ready(), bundle = any_fitted(), report = store$biomass_ready())
+      enabled <- c(results = store$any_estimate(), figures = store$any_estimate(), bundle = any_fitted(), report = store$any_estimate())
       for (key in names(enabled)) updateActionButton(session, paste0("download_", key), disabled = !enabled[[key]])
     })
 
@@ -163,10 +176,10 @@ mod_export_server <- function(id, store) {
     })
 
     output$downloads_note <- renderText({
-      if (store$biomass_ready()) {
+      if (store$any_estimate()) {
         "Files from the current run."
       } else {
-        "Results, figures and the report become available once biomass can be estimated."
+        "Results, figures and the report become available once there is an estimate to save."
       }
     })
 
