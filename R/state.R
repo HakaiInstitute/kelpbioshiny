@@ -354,8 +354,10 @@ new_store <- function(session, run_fit = mirai_fit_runner) {
 
   # Actions ----------------------------------------------------------------------
 
+  # An error is announced at once (role alert); other notices wait for the
+  # screen reader to finish (role status).
   s$notify <- function(text, type = "message", title = NULL, duration = 4) {
-    ui <- if (is.null(title)) text else tagList(div(class = "fw-semibold", title), div(text))
+    ui <- div(role = if (type == "error") "alert" else "status", if (is.null(title)) text else tagList(div(class = "fw-semibold", title), div(text)))
     showNotification(ui, type = type, duration = duration, session = session)
   }
 
@@ -373,7 +375,7 @@ new_store <- function(session, run_fit = mirai_fit_runner) {
     pending_reset <<- list(action = action, cancel = cancel)
     showModal(
       modalDialog(
-        title = if (length(fitted) > 0) "Discard fitted models?" else "Reset priors?",
+        title = span(id = "reset_title", if (length(fitted) > 0) "Discard fitted models?" else "Reset priors?"),
         div(
           class = "d-flex flex-column gap-2",
           if (length(fitted) > 0) {
@@ -390,7 +392,8 @@ new_store <- function(session, run_fit = mirai_fit_runner) {
           button("reset_continue", if (length(fitted) > 0) "Discard fits" else "Reset priors")
         ),
         size = "s"
-      ),
+      ) |>
+        tagAppendAttributes(`aria-labelledby` = "reset_title"),
       session = session
     )
   }
@@ -558,6 +561,21 @@ new_store <- function(session, run_fit = mirai_fit_runner) {
       s$open(pending_model %||% "hub")
       pending_model <<- NULL
     }
+  })
+
+  # Whether the current results have been reviewed (the Biomass step opened
+  # with estimates) and exported (a download, or the R script copied), for the
+  # navbar markers. A change of fits or sources changes the results, so it
+  # resets both first; the higher priority runs the reset before the check
+  # below, which marks the results reviewed again if Biomass is open.
+  s$reviewed <- reactiveVal(FALSE)
+  s$exported <- reactiveVal(FALSE)
+  observeEvent(list(s$records(), s$sources()), {
+    s$reviewed(FALSE)
+    s$exported(FALSE)
+  }, ignoreInit = TRUE, priority = 10)
+  observe({
+    if (identical(session$input$step, "biomass") && s$biomass_ready()) s$reviewed(TRUE)
   })
 
   # Fit queue ------------------------------------------------------------------

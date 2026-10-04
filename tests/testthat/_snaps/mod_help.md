@@ -87,9 +87,9 @@
       Warnings and how to fix them
       The warnings a model or sheet can show.
       Convergence warning
-      Increase thinning (nthin) in Sampler settings and refit. For example, set nthin to 2.
+      Some parameters have not converged. Increase thinning (nthin) in Sampler settings, for example to 2, and refit.
       Prior sensitivity warning
-      If this is unintended, make each flagged prior less informative on the Settings tab and refit.
+      If the flagged prior was not chosen on purpose, make it less informative on the Settings tab and refit.
       The fit failed
       Refit the model to see its results.
       The data check failed
@@ -116,6 +116,12 @@
       Population-level and group predictions
       Population-level predictions are for a typical site in a typical year. They leave out the differences between sites and between years, so they suit sites and years that were not sampled. Predictions by site or by year add the estimated difference for each sampled site or year, so they describe those sites and years. Predictions by site and year include both.
       Learn more (https://hakaiinstitute.github.io/kelpbio/articles/results.html)
+      Chains
+      Independent runs of the sampler. Comparing the chains with each other shows whether the sampler has converged.
+      Learn more (https://hakaiinstitute.github.io/kelpbio/articles/diagnostics.html)
+      Iterations (niters)
+      The number of draws kept from each chain. More draws give more reliable estimates, but fitting takes longer.
+      Learn more (https://hakaiinstitute.github.io/kelpbio/articles/diagnostics.html)
       Thinning (nthin)
       Keeps every nth draw from each chain. The sampler runs n times as many iterations to keep the same number of draws, so the kept draws are less alike and ESS goes up. Fitting takes about n times as long.
       Learn more (https://hakaiinstitute.github.io/kelpbio/articles/diagnostics.html)

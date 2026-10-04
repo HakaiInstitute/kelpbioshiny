@@ -73,6 +73,15 @@ no_plot_cover <- function(rows) {
   names(has_cover)[!has_cover]
 }
 
+# Names for a fileInput's two fields: the file picker, which would otherwise be
+# named by its button (so every CSV picker would read "Choose CSV"), and the
+# read-only box that shows the chosen file.
+file_names <- function(input, picker, chosen) {
+  input |>
+    tagAppendAttributes(.cssSelector = ".shiny-input-file", `aria-label` = picker) |>
+    tagAppendAttributes(.cssSelector = "input.form-control", `aria-label` = chosen)
+}
+
 mod_data_ui <- function(id) {
   ns <- NS(id)
   species_choices <- lapply(species_info, function(x) {
@@ -83,8 +92,9 @@ mod_data_ui <- function(id) {
     sidebar_section(
       "Species",
       radioButtons(ns("species"), NULL, choiceNames = unname(species_choices), choiceValues = names(species_info)) |>
-        tagAppendAttributes(class = "mb-0"),
-      div(class = "small text-body-secondary", "Applies to every model in this run.")
+        tagAppendAttributes(class = "mb-0", `aria-labelledby` = ns("species_title")),
+      div(class = "small text-body-secondary", "Applies to every model in this run."),
+      id = ns("species_title")
     ),
     # TODO: generate the template workbook (one sheet per model with its columns) for download.
     sidebar_section("Template", button(ns("template"), "Download template workbook", "download", "outline")),
@@ -94,7 +104,8 @@ mod_data_ui <- function(id) {
       div(class = "small text-body-secondary", "Upload a fit bundle exported from an earlier run."),
       # TODO: read a fit bundle (the fits, sources and settings of a run) and restore the run from it.
       fileInput(ns("bundle"), NULL, accept = ".rds", buttonLabel = "Fit bundle (.rds)", placeholder = "No file", width = "100%") |>
-        tagAppendAttributes(class = "mb-0")
+        tagAppendAttributes(class = "mb-0") |>
+        file_names("Upload a fit bundle", "Chosen fit bundle")
     )
   ))
 
@@ -108,12 +119,15 @@ mod_data_ui <- function(id) {
       ),
       textOutput(ns(paste0("csv_file_", cid)), inline = TRUE) |> tagAppendAttributes(class = "small text-body-secondary"),
       fileInput(ns(paste0("csv_", cid)), NULL, accept = ".csv", buttonLabel = "Choose CSV", width = "15rem") |>
-        tagAppendAttributes(class = "mb-0")
+        tagAppendAttributes(class = "mb-0") |>
+        file_names(sprintf("Upload a CSV for the %s model", lower_label(cid)), sprintf("Chosen %s CSV", lower_label(cid)))
     )
   })
 
   main <- tagList(
-    uiOutput(ns("welcome")),
+    # In the page from the start, so it shows before the server's first
+    # response; hidden in the browser once data are loaded.
+    conditionalPanel("!output.has_data", welcome_card(ns), ns = ns),
     page_header(
       "Data",
       uiOutput(ns("description"), inline = TRUE),
@@ -130,7 +144,8 @@ mod_data_ui <- function(id) {
           div(
             class = "kb-file-input",
             fileInput(ns("workbook"), NULL, accept = c(".xlsx", ".xls"), buttonLabel = "Browse files", width = "100%") |>
-              tagAppendAttributes(class = "mb-0")
+              tagAppendAttributes(class = "mb-0") |>
+              file_names("Upload a workbook", "Chosen workbook")
           ),
           button(ns("example"), "Use example workbook", variant = "outline")
         ),
@@ -207,7 +222,8 @@ mod_data_server <- function(id, store) {
       tagList(step_description("data"), " Species: ", species_phrase(sp, "."))
     })
 
-    output$welcome <- renderUI(if (!loaded()) welcome_card(session$ns))
+    output$has_data <- reactive(loaded())
+    outputOptions(output, "has_data", suspendWhenHidden = FALSE)
 
     output$continue_ui <- renderUI({
       if (loaded()) button(session$ns("continue"), span("Continue to models ", lucide("arrow-right")))
@@ -275,7 +291,7 @@ welcome_card <- function(ns) {
     card_body(
       gap = "1.25rem",
       div(
-        div(class = "kb-card-title", "Welcome to kelpbio"),
+        h2(class = "kb-card-title mb-0", "Welcome to kelpbio"),
         div(class = "text-body-secondary mt-1", app_purpose)
       ),
       layout_column_wrap(
@@ -421,7 +437,11 @@ coverage_table <- function(rows, sheets, sources, show_all) {
     if (is.na(value)) {
       return(as.character(span(class = "small text-body-secondary", "n/a")))
     }
-    as.character(if (value) lucide("check", "text-success") else lucide("minus", "text-body-secondary opacity-50"))
+    as.character(if (value) {
+      tagList(lucide("check", "text-success"), span(class = "visually-hidden", "Yes"))
+    } else {
+      tagList(lucide("minus", "text-body-secondary"), span(class = "visually-hidden", "No"))
+    })
   }
   presence_col <- function(id, label = label_of(id), width = 100) {
     header <- if (is.null(sheets[[id]])) {

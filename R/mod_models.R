@@ -14,7 +14,8 @@ source_select <- function(input_id, id) {
   }
   initial <- default_source(id, FALSE)
   selectInput(input_id, NULL, choices = source_choices(id, FALSE), selected = initial, selectize = FALSE, width = "12rem") |>
-    tagAppendAttributes(class = "mb-0")
+    tagAppendAttributes(class = "mb-0") |>
+    tagAppendAttributes(.cssSelector = "select", `aria-label` = sprintf("Source of the %s model", lower_label(id)))
 }
 
 # Keeps a source select and the store in step, in both directions. A change that
@@ -217,7 +218,7 @@ mod_models_server <- function(id, store) {
         lapply(component_ids, function(cid) {
           tagList(
             if (cid == "cover") tags$hr(class = "my-1"),
-            item(paste0("nav_", cid), open == cid, status_icon(statuses[[cid]]), span(class = "flex-grow-1", label_of(cid)))
+            item(paste0("nav_", cid), open == cid, status_icon(statuses[[cid]]), span(class = "flex-grow-1", label_of(cid), status_hidden(statuses[[cid]])))
           )
         })
       )

@@ -27,8 +27,8 @@ biomass_scales <- list(
 mod_biomass_ui <- function(id) {
   ns <- NS(id)
   sidebar <- card(card_body(
-    sidebar_section("Scale", uiOutput(ns("scale_choice"))),
-    sidebar_section("Output", uiOutput(ns("output_choice"))),
+    sidebar_section("Scale", uiOutput(ns("scale_choice")), id = ns("scale_title")),
+    sidebar_section("Output", uiOutput(ns("output_choice")), id = ns("output_title")),
     div(
       class = "d-flex flex-column gap-2",
       div(class = "kb-eyebrow text-body-secondary", "Sources"),
@@ -47,8 +47,9 @@ mod_biomass_ui <- function(id) {
   step_layout(sidebar, main)
 }
 
-# Radio buttons where some choices are shown but cannot be picked.
-choice_group <- function(input_id, keys, open, selected, label) {
+# Radio buttons where some choices are shown but cannot be picked, labelled by
+# the element `labelled_by`.
+choice_group <- function(input_id, keys, open, selected, label, labelled_by) {
   tagList(
     radioButtons(
       input_id, NULL,
@@ -56,7 +57,7 @@ choice_group <- function(input_id, keys, open, selected, label) {
       choiceValues = open,
       selected = selected
     ) |>
-      tagAppendAttributes(class = "mb-0"),
+      tagAppendAttributes(class = "mb-0", `aria-labelledby` = labelled_by),
     lapply(setdiff(keys, open), function(key) {
       div(
         class = "form-check",
@@ -103,7 +104,7 @@ mod_biomass_server <- function(id, store) {
         disabled = if (locked()) NA,
         choice_group(ns("scale"), names(biomass_scales), open, isolate(scale_key()), function(key, available) {
           choice_label(biomass_scales[[key]]$label, if (available) biomass_scales[[key]]$detail else "Unavailable")
-        })
+        }, ns("scale_title"))
       )
     })
 
@@ -116,7 +117,7 @@ mod_biomass_server <- function(id, store) {
         disabled = if (locked()) NA,
         choice_group(ns("output"), keys, open, isolate(output_key()), function(key, available) {
           choice_label(output_info[[key]]$label, if (available) unit %||% output_info[[key]]$unit else "Unavailable")
-        })
+        }, ns("output_title"))
       )
     })
 

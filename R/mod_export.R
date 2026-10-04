@@ -143,6 +143,7 @@ mod_export_server <- function(id, store) {
 
     lapply(names(download_items), function(key) {
       observeEvent(input[[paste0("download_", key)]], {
+        store$exported(TRUE)
         store$notify(sprintf("Prototype: %s is not generated.", sprintf(download_items[[key]]$file, suffix())))
       })
     })

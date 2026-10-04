@@ -99,7 +99,7 @@ guide_docs_callout <- function() {
     div(class = "kb-tile-icon bg-primary-subtle text-primary-emphasis", lucide("book-open")),
     div(
       class = "flex-grow-1",
-      div(class = "kb-card-title", "Statistical details"),
+      h2(class = "kb-card-title mb-0", "Statistical details"),
       div(class = "small text-body-secondary mt-1", "The models, priors and diagnostics are explained in the kelpbio documentation.")
     ),
     tags$a(
@@ -109,8 +109,11 @@ guide_docs_callout <- function() {
   )))
 }
 
-# A Help page's opening line. The pill above names the page, so it has no title.
-help_lead <- function(text) div(class = "kb-lead text-body-secondary mb-4", text)
+# A Help page's opening line. The pill above names the page, so its title is
+# hidden, there for screen readers and heading navigation.
+help_lead <- function(title, text) {
+  tagList(h1(class = "visually-hidden", title), div(class = "kb-lead text-body-secondary mb-4", text))
+}
 
 help_ui <- function() {
   navset_pill(
@@ -122,7 +125,7 @@ help_ui <- function() {
 
 help_guide_ui <- function() {
   tagList(
-    help_lead("How to use the app, step by step."),
+    help_lead("User guide", "How to use the app, step by step."),
     div(
       class = "d-flex flex-column gap-3",
       panel(
@@ -184,7 +187,7 @@ citation_block <- function(id, label, citation) {
 
 help_about_ui <- function() {
   tagList(
-    help_lead(app_purpose),
+    help_lead("About", app_purpose),
     div(
       class = "d-flex flex-column gap-3",
       card(card_body(

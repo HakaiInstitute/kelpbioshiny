@@ -21,7 +21,7 @@ mod_model_ui <- function(id, cid) {
     div(
       class = "d-flex flex-wrap align-items-start justify-content-between gap-3 mb-3",
       div(
-        h2(class = "kb-page-title", def$label),
+        h1(class = "kb-page-title", def$label),
         div(class = "kb-lead text-body-secondary", def$detail),
         if (cid == "weight") uiOutput(ns("density_note"))
       ),
@@ -521,12 +521,12 @@ ppc_panel <- function(ns) {
   panel(
     with_help("Posterior predictive check", "ppc"),
     description = "Datasets simulated from the fitted model, compared with your data.",
-    div(class = "fw-medium", "Density overlay"),
+    h3(class = "fs-6 fw-medium mb-0", "Density overlay"),
     figure_plot(
       ns("ppc_dens"),
       HTML("Densities of your data (<em>y</em>) and of 50 datasets simulated from the fitted model (<em>y</em><sub>rep</sub>). The dark line for your data should sit within the light lines.")
     ),
-    div(class = "fw-medium", "Deviance residuals overlay"),
+    h3(class = "fs-6 fw-medium mb-0", "Deviance residuals overlay"),
     figure_plot(
       ns("ppc_resid"),
       HTML("Densities of the deviance residuals of your data (<em>y</em>) and of the 50 simulated datasets (<em>y</em><sub>rep</sub>). The shapes should match.")
@@ -565,13 +565,13 @@ predictions_panel <- function(ns, cid, prefit, species) {
   tagList(
     div(
       class = "d-flex flex-wrap align-items-center column-gap-3 row-gap-1 mb-3",
-      span(class = "small fw-medium", with_help(if (length(choices) > 1) "Group by" else "Population level", "prediction_groups")),
+      span(class = "small fw-medium", with_help(span(id = ns("grouping_title"), if (length(choices) > 1) "Group by" else "Population level"), "prediction_groups")),
       if (length(choices) > 1) {
         radioButtons(
           ns("grouping"), NULL,
           choices = stats::setNames(names(choices), choices), selected = default_grouping(choices), inline = TRUE
         ) |>
-          tagAppendAttributes(class = "mb-0")
+          tagAppendAttributes(class = "mb-0", `aria-labelledby` = ns("grouping_title"))
       },
       if (!is.null(note)) div(class = "small text-body-secondary w-100", note)
     ),

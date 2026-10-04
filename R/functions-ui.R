@@ -4,7 +4,7 @@
 page_header <- function(title, description, action = NULL) {
   div(
     class = "d-flex flex-wrap align-items-end justify-content-between gap-3 mb-4",
-    div(h2(class = "kb-page-title", title), div(class = "kb-lead text-body-secondary", description)),
+    div(h1(class = "kb-page-title", title), div(class = "kb-lead text-body-secondary", description)),
     action
   )
 }
@@ -19,7 +19,7 @@ panel <- function(title, ..., description = NULL, action = NULL, class = NULL, i
       div(
         class = "d-flex align-items-start justify-content-between gap-3",
         div(
-          div(class = "kb-card-title", title),
+          h2(class = "kb-card-title mb-0", title),
           if (!is.null(description)) div(class = "small text-body-secondary mt-1", description)
         ),
         if (!is.null(action)) div(class = "flex-shrink-0", action)
@@ -30,16 +30,18 @@ panel <- function(title, ..., description = NULL, action = NULL, class = NULL, i
 }
 
 # A step's numbered circle, as in the navbar: its number until the step is done,
-# then a check mark (or a warning or busy icon).
+# then a check mark (or a warning or busy icon). Screen readers get the state as
+# hidden text; the number is hidden from them, as the step order is the tab order.
 step_marker <- function(number, state = c("todo", "done", "warning", "busy"), class = NULL) {
   state <- match.arg(state)
   add <- function(x) paste(c("kb-step-marker", x, class), collapse = " ")
+  hidden <- function(text) span(class = "visually-hidden", text)
   switch(state,
     # A white disc with a slate tick stands out on the slate navbar.
-    done = span(class = add("bg-white text-secondary-emphasis"), `aria-label` = "complete", lucide("check")),
-    warning = span(class = add("bg-warning text-white"), `aria-label` = "complete with warnings", lucide("alert-triangle")),
-    busy = span(class = add("bg-primary-subtle text-primary-emphasis"), lucide("loader-2", "kb-spin")),
-    todo = span(class = add("kb-step-todo"), number)
+    done = span(class = add("bg-white text-secondary-emphasis"), lucide("check"), hidden("complete")),
+    warning = span(class = add("bg-warning text-white"), lucide("alert-triangle"), hidden("complete with warnings")),
+    busy = span(class = add("bg-primary-subtle text-primary-emphasis"), lucide("loader-2", "kb-spin"), hidden("fitting")),
+    todo = span(class = add("kb-step-todo"), `aria-hidden` = "true", number)
   )
 }
 
@@ -70,8 +72,9 @@ step_layout <- function(aside, main) {
   )
 }
 
-sidebar_section <- function(title, ...) {
-  div(class = "d-flex flex-column gap-2 mb-4", div(class = "kb-eyebrow text-body-secondary", title), ...)
+# `id` names the title, so a radio group below can be labelled by it.
+sidebar_section <- function(title, ..., id = NULL) {
+  div(class = "d-flex flex-column gap-2 mb-4", div(id = id, class = "kb-eyebrow text-body-secondary", title), ...)
 }
 
 notice <- function(icon, title, ..., tone = c("info", "warning", "muted"), action = NULL) {
@@ -126,12 +129,33 @@ button <- function(id, label, icon = NULL, variant = c("primary", "outline", "gh
   actionButton(id, span(class = "d-inline-flex align-items-center gap-2", icon, label), class = paste(class, collapse = " "), ...)
 }
 
+# A status in words: the badges, the hidden text beside status icons and the
+# reasons biomass is locked all use it.
+status_label <- function(status) {
+  if (status$kind == "ready" && has_warning(status)) {
+    return("Ready with warnings")
+  }
+  switch(status$kind,
+    "not-used" = "Not used",
+    "no-data" = "Needs data",
+    "data-error" = "Data error",
+    "not-fitted" = "Not fitted",
+    "queued" = "Queued",
+    "fitting" = "Fitting",
+    "ready" = "Ready",
+    "failed" = "Failed"
+  )
+}
+
+# The status after a model's name, for screen readers, where only an icon shows it.
+status_hidden <- function(status) span(class = "visually-hidden", paste0(", ", tolower(status_label(status))), .noWS = "before")
+
 status_icon <- function(status) {
   if (has_warning(status)) {
     return(lucide("alert-triangle", "text-warning"))
   }
   switch(status$kind,
-    "not-used" = lucide("minus-circle", "text-body-secondary opacity-50"),
+    "not-used" = lucide("minus-circle", "text-body-secondary"),
     "no-data" = lucide("x-circle", "text-danger"),
     "data-error" = lucide("x-circle", "text-danger"),
     "not-fitted" = lucide("circle", "text-body-secondary opacity-75"),
@@ -143,18 +167,19 @@ status_icon <- function(status) {
 }
 
 status_badge <- function(status, progress = 0) {
+  label <- status_label(status)
   switch(status$kind,
-    "not-used" = span(class = "small text-body-secondary", "Not used"),
-    "no-data" = badge("Needs data", "text-bg-danger", "x-circle"),
-    "data-error" = badge("Data error", "text-bg-danger", "x-circle"),
-    "not-fitted" = badge("Not fitted", "bg-secondary-subtle text-secondary-emphasis", "circle-dashed"),
-    "queued" = badge("Queued", "border text-body", "clock"),
+    "not-used" = span(class = "small text-body-secondary", label),
+    "no-data" = badge(label, "text-bg-danger", "x-circle"),
+    "data-error" = badge(label, "text-bg-danger", "x-circle"),
+    "not-fitted" = badge(label, "bg-secondary-subtle text-secondary-emphasis", "circle-dashed"),
+    "queued" = badge(label, "border text-body", "clock"),
     "fitting" = span(
       class = "badge d-inline-flex align-items-center gap-1 border border-primary-subtle text-primary kb-tabular",
       lucide("loader-2", "kb-spin"), sprintf("Fitting %d%%", floor(progress))
     ),
-    "ready" = if (has_warning(status)) warning_badge("Ready with warnings") else success_badge("Ready"),
-    "failed" = badge("Failed", "text-bg-danger", "x-circle")
+    "ready" = if (has_warning(status)) warning_badge(label) else success_badge(label),
+    "failed" = badge(label, "text-bg-danger", "x-circle")
   )
 }
 
@@ -166,20 +191,11 @@ and_list <- function(x) {
   paste(paste(x[-length(x)], collapse = ", "), "and", x[length(x)])
 }
 
-block_reason <- function(status) {
-  switch(status$kind,
-    "no-data" = "needs data",
-    "data-error" = "data error",
-    "queued" = "queued",
-    "fitting" = "fitting",
-    "failed" = "failed",
-    "not fitted"
-  )
-}
+block_reason <- function(status) tolower(status_label(status))
 
 progress_bar <- function(value) {
   div(
-    class = "progress", style = "height: 0.5rem", role = "progressbar",
+    class = "progress", style = "height: 0.5rem", role = "progressbar", `aria-label` = "Fitting progress",
     `aria-valuenow` = floor(value), `aria-valuemin` = 0, `aria-valuemax` = 100,
     div(class = "progress-bar", style = sprintf("width: %.1f%%", value))
   )
@@ -237,7 +253,7 @@ status_list <- function(statuses, notes) {
       tags$li(
         class = "d-flex align-items-center gap-2",
         status_icon(statuses[[id]]),
-        span(class = "flex-grow-1", label_of(id)),
+        span(class = "flex-grow-1", label_of(id), status_hidden(statuses[[id]])),
         span(class = "text-body-secondary", notes[[id]])
       )
     })

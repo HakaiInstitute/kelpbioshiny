@@ -27,7 +27,7 @@ The build runs are also Positron/VS Code tasks ("kelpbioshiny: build", "kelpbios
 | `R/state.R` | `new_store()`: the per-session store of reactive state and actions, the fit queue and its runner, plus the pure fit-record transitions and status logic |
 | `R/data.R` | Model definitions, labels, sheets, prior and sampler settings |
 | `R/theme.R` | The Hakai `bs_theme()` and the reactable theme |
-| `R/functions-ui.R`, `R/help.R`, `R/icons.R` | UI building blocks, help popovers, Lucide icons |
+| `R/functions-ui.R`, `R/help.R`, `R/icons.R`, `R/kelp-art.R` | UI building blocks, help popovers, Lucide icons, the navbar's kelp drawings |
 | `R/mock-kelpbio.R`, `R/mock-example.R` | Mocks of the kelpbio functions the app calls, and the example data (see below) |
 | `R/namespace.R` | `@import` / `@importFrom` directives |
 | `inst/app/` | `ui.R`, `server.R` (call the internals), `global.R` (starts the mirai daemons that run the fits) and `www/` (CSS, logo, favicon) |

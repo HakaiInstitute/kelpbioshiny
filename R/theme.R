@@ -8,7 +8,8 @@ app_palette <- list(
   accent = "#fbeced", accent_fg = "#7c161a", accent_border = "#efc3c5",
   secondary_fg = "#2c3e50",
   info = "#3b6a8c", info_bg = "#eaf0f5", info_border = "#cddae5", info_fg = "#24455e",
-  border = "#e1e5ea", input = "#d3d9df", ring = "#c9484d", ring_rgb = "201, 72, 77",
+  # input: the border of inputs, selects and radios, at 3:1 contrast on white (WCAG 1.4.11).
+  border = "#e1e5ea", input = "#8a949e", ring = "#c9484d", ring_rgb = "201, 72, 77",
   navbar_bg = "#2c3e50", navbar_fg = "rgba(255, 255, 255, 0.72)", navbar_hover = "#ffffff",
   navbar_active = "#ffffff", navbar_brand = "#ffffff"
 )
@@ -80,6 +81,7 @@ app_theme <- function() {
     "input-btn-font-size" = "0.875rem",
     "input-bg" = col$card,
     "input-border-color" = col$input,
+    "form-check-input-border" = sprintf("1px solid %s", col$input),
     "input-focus-border-color" = col$ring,
     "input-focus-box-shadow" = sprintf("0 0 0 3px rgba(%s, 0.25)", col$ring_rgb),
     "form-label-font-weight" = 500,
