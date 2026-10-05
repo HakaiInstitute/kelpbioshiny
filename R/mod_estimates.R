@@ -359,7 +359,7 @@ mod_biomass_estimate_server <- function(id, store) {
           year = reactable::colDef(name = "Year"),
           canopy_m2 = if (total) {
             reactable::colDef(
-              name = "Canopy area (m²)", align = "right", class = "kb-tabular",
+              name = "Canopy area (m\u00b2)", align = "right", class = "kb-tabular",
               format = reactable::colFormat(separators = TRUE, digits = 0)
             )
           },
