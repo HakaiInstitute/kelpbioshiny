@@ -119,18 +119,18 @@ mod_model_server <- function(id, store) {
 
     output$fit_action <- renderUI(fit_control(ns("fit"), ns("cancel"), status(), cid %in% store$invalid(), fit_label = "Fit model"))
 
+    # The banner of the Models list, while this model is queued or fitting.
     # Rendered when the fit starts; only the bar and the percentage then update,
     # so the rest does not re-render as the fit moves.
     output$fit_progress <- renderUI({
-      req(kind() == "fitting")
-      div(
-        class = "kb-progress d-flex flex-column gap-2 mb-3",
-        uiOutput(ns("fit_bar")),
-        div(
-          class = "d-flex justify-content-between small text-body-secondary kb-tabular",
-          span("Sampling"),
-          textOutput(ns("fit_percent"), inline = TRUE)
-        )
+      req(kind() %in% c("queued", "fitting"))
+      if (kind() == "queued") {
+        return(fit_progress("Queued", "Fits once the fits ahead of it finish", icon = lucide("clock", "text-primary")))
+      }
+      fit_progress(
+        sprintf("Fitting the %s model", lower_label(cid)),
+        textOutput(ns("fit_percent"), inline = TRUE),
+        uiOutput(ns("fit_bar"))
       )
     })
     output$fit_bar <- renderUI(progress_bar(store$progress()))

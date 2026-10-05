@@ -240,6 +240,21 @@ percent_text <- function(value) {
   paste0(gsub(" ", "\u2007", formatC(floor(value), width = 3), fixed = TRUE), "%")
 }
 
+# The banner of a fit in progress, on the Models list and a model's page: an
+# icon and title, a detail on the right (the percentage, the fits queued) and
+# the bar. A queued fit shows a clock and no bar.
+fit_progress <- function(title, detail = NULL, bar = NULL, icon = lucide("loader-2", "kb-spin text-primary")) {
+  div(
+    class = "kb-progress d-flex flex-column gap-2 border rounded-3 p-3 mb-3 bg-primary-subtle border-primary-subtle",
+    div(
+      class = "d-flex flex-wrap align-items-center justify-content-between gap-2",
+      span(class = "d-inline-flex align-items-center gap-2 fw-medium", icon, title),
+      if (!is.null(detail)) span(class = "small text-body-secondary kb-tabular", detail)
+    ),
+    bar
+  )
+}
+
 progress_bar <- function(value) {
   div(
     class = "progress", style = "height: 0.5rem", role = "progressbar", `aria-label` = "Fitting progress",

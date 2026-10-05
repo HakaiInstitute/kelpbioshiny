@@ -47,7 +47,7 @@ mod_models_ui <- function(id) {
     tags$tr(
       tags$td(
         class = "ps-4",
-        actionLink(ns(paste0("open_", cid)), label_of(cid), class = "fw-medium"),
+        actionLink(ns(paste0("open_", cid)), label_of(cid), class = "fw-medium link-body-emphasis link-underline-opacity-0 link-underline-opacity-100-hover"),
         div(class = "small text-body-secondary", components[[cid]]$detail)
       ),
       # Phones show only the model and its status; the model page has the
@@ -79,16 +79,9 @@ mod_models_ui <- function(id) {
     # The banner is part of the page; only its text and bar update.
     conditionalPanel(
       "output.fitting_active",
-      div(
-        class = "kb-progress d-flex flex-column gap-2 border rounded-3 p-3 mb-3 bg-primary-subtle border-primary-subtle",
-        div(
-          class = "d-flex flex-wrap align-items-center justify-content-between gap-2",
-          span(
-            class = "d-inline-flex align-items-center gap-2 fw-medium",
-            lucide("loader-2", "kb-spin text-primary"), textOutput(ns("progress_title"), inline = TRUE)
-          ),
-          textOutput(ns("progress_detail"), inline = TRUE) |> tagAppendAttributes(class = "small text-body-secondary kb-tabular")
-        ),
+      fit_progress(
+        textOutput(ns("progress_title"), inline = TRUE),
+        textOutput(ns("progress_detail"), inline = TRUE),
         uiOutput(ns("progress_bar"))
       )
     ),
@@ -159,10 +152,10 @@ mod_models_server <- function(id, store) {
       observeEvent(input[[paste0("fit_model_", cid)]], store$queue_fits(cid))
       observeEvent(input[[paste0("cancel_", cid)]], store$cancel_fit(cid))
       sync_source_select(input, session, paste0("source_", cid), cid, store)
-      # The badge, then a link to the model's next step (status_next()). An
-      # error is in full on the Data step and the model's page, so a long
+      # The badge, then a link only when the model needs action (status_next()).
+      # An error is in full on the Data step and the model's page, so a long
       # message does not crowd the column. A badge with warnings opens the
-      # diagnostics too.
+      # diagnostics.
       output[[paste0("status_", cid)]] <- renderUI({
         status <- store$statuses()[[cid]]
         badge <- status_badge(status)
@@ -259,15 +252,14 @@ mod_models_server <- function(id, store) {
   })
 }
 
-# A model's next step in the Models list, by its status: the data to correct,
-# the settings to check before fitting, or the diagnostics to check after; none
-# while it is queued, fitting or not used.
+# The action a model in the Models list needs, by its status: data to correct
+# or a failed fit to look at. Other statuses need none: the defaults suit most
+# runs, and the model's page (its name, the chevron) holds its settings and
+# diagnostics for those who want them.
 status_next <- function(status) {
   switch(status$kind,
     "data-error" = ,
     "no-data" = list(label = "Go to data", target = "data"),
-    "not-fitted" = if (status$source == "user") list(label = "Settings", target = "settings"),
-    "ready" = list(label = "Diagnostics", target = "diagnostics"),
     "failed" = list(label = "Details", target = "diagnostics"),
     NULL
   )
