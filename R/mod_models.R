@@ -47,14 +47,22 @@ mod_models_ui <- function(id) {
     tags$tr(
       tags$td(
         class = "ps-4",
-        actionLink(ns(paste0("open_", cid)), label_of(cid), class = "fw-medium text-body"),
+        actionLink(ns(paste0("open_", cid)), label_of(cid), class = "fw-medium"),
         div(class = "small text-body-secondary", components[[cid]]$detail)
       ),
       # Phones show only the model and its status; the model page has the
       # source and the fit control.
       tags$td(class = "d-none d-sm-table-cell", source_select(ns(paste0("source_", cid)), cid)),
       tags$td(uiOutput(ns(paste0("status_", cid)))),
-      tags$td(class = "pe-4 text-end d-none d-sm-table-cell", uiOutput(ns(paste0("fit_", cid)), inline = TRUE))
+      # The fit control, then a chevron that opens the model's page.
+      tags$td(
+        class = "pe-4 text-end text-nowrap d-none d-sm-table-cell",
+        uiOutput(ns(paste0("fit_", cid)), inline = TRUE),
+        actionLink(
+          ns(paste0("chevron_", cid)), lucide("chevron-right"),
+          class = "text-body-secondary ms-2 align-middle", `aria-label` = sprintf("Open the %s model", lower_label(cid))
+        )
+      )
     )
   })
   # The cover model is optional and builds on the others, so it sits in its own group.
@@ -110,7 +118,7 @@ mod_models_ui <- function(id) {
                 head_cell(class = "ps-4", "Model"),
                 head_cell(class = "d-none d-sm-table-cell", style = "width: 14rem", with_help("Source", "prefit")),
                 head_cell(style = "width: 13rem", "Status"),
-                head_cell(class = "pe-4 d-none d-sm-table-cell", style = "width: 7rem", span(class = "visually-hidden", "Fit"))
+                head_cell(class = "pe-4 d-none d-sm-table-cell", style = "width: 9rem", span(class = "visually-hidden", "Fit"))
               )),
               tags$tbody(rows)
             )
@@ -146,20 +154,32 @@ mod_models_server <- function(id, store) {
 
     lapply(component_ids, function(cid) {
       observeEvent(input[[paste0("open_", cid)]], store$open(cid))
+      observeEvent(input[[paste0("chevron_", cid)]], store$open(cid))
       observeEvent(input[[paste0("nav_", cid)]], store$open(cid))
       observeEvent(input[[paste0("fit_model_", cid)]], store$queue_fits(cid))
       observeEvent(input[[paste0("cancel_", cid)]], store$cancel_fit(cid))
       sync_source_select(input, session, paste0("source_", cid), cid, store)
-      # The badge only: the error is in full on the Data step and the model's
-      # page, so a long message does not crowd the column.
+      # The badge, then a link to the model's next step (status_next()). An
+      # error is in full on the Data step and the model's page, so a long
+      # message does not crowd the column. A badge with warnings opens the
+      # diagnostics too.
       output[[paste0("status_", cid)]] <- renderUI({
         status <- store$statuses()[[cid]]
-        tagList(
-          status_badge(status),
-          if (status$kind == "data-error") div(class = "small mt-1", actionLink(session$ns(paste0("to_data_", cid)), "Go to data"))
-        )
+        badge <- status_badge(status)
+        if (has_warning(status)) {
+          badge <- actionLink(
+            session$ns(paste0("badge_", cid)), badge,
+            class = "text-decoration-none", `aria-label` = sprintf("%s: open the diagnostics", status_label(status))
+          )
+        }
+        step <- status_next(status)
+        tagList(badge, if (!is.null(step)) div(class = "small mt-1", actionLink(session$ns(paste0("next_", cid)), step$label)))
       })
-      observeEvent(input[[paste0("to_data_", cid)]], store$go_to("data"))
+      observeEvent(input[[paste0("badge_", cid)]], store$open_tab(cid, "diagnostics"))
+      observeEvent(input[[paste0("next_", cid)]], {
+        step <- status_next(store$statuses()[[cid]])
+        if (identical(step$target, "data")) store$go_to("data") else store$open_tab(cid, step$target)
+      })
       output[[paste0("fit_", cid)]] <- renderUI({
         fit_control(
           session$ns(paste0("fit_model_", cid)), session$ns(paste0("cancel_", cid)), store$statuses()[[cid]],
@@ -237,6 +257,20 @@ mod_models_server <- function(id, store) {
       )
     })
   })
+}
+
+# A model's next step in the Models list, by its status: the data to correct,
+# the settings to check before fitting, or the diagnostics to check after; none
+# while it is queued, fitting or not used.
+status_next <- function(status) {
+  switch(status$kind,
+    "data-error" = ,
+    "no-data" = list(label = "Go to data", target = "data"),
+    "not-fitted" = if (status$source == "user") list(label = "Settings", target = "settings"),
+    "ready" = list(label = "Diagnostics", target = "diagnostics"),
+    "failed" = list(label = "Details", target = "diagnostics"),
+    NULL
+  )
 }
 
 # Why Fit all has nothing to fit.
