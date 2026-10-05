@@ -1,0 +1,21 @@
+{
+  "version": "2.0.0",
+  "tasks": [
+    {
+      "label": "kelpbioshiny: build",
+      "detail": "install, document, test",
+      "type": "shell",
+      "command": "Rscript scripts/build.R",
+      "group": { "kind": "build", "isDefault": true },
+      "problemMatcher": []
+    },
+    {
+      "label": "kelpbioshiny: build + check",
+      "detail": "also R CMD check",
+      "type": "shell",
+      "command": "Rscript scripts/build.R --check",
+      "group": "build",
+      "problemMatcher": []
+    }
+  ]
+}

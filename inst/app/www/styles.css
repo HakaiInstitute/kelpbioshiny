@@ -1,0 +1,217 @@
+/* App classes only. Colours, radii, spacing and component looks come from the
+   bs_theme() Sass variables in R/theme.R; nothing here targets Bootstrap, bslib,
+   Shiny or reactable internals. */
+
+.kb-icon {
+  width: 1rem;
+  height: 1rem;
+  flex-shrink: 0;
+  vertical-align: -0.1875em;
+}
+
+.kb-spin {
+  animation: kb-spin 1s linear infinite;
+}
+
+@keyframes kb-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+.kb-tabular {
+  font-variant-numeric: tabular-nums;
+}
+
+.kb-step-marker {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 1.25rem;
+  height: 1.25rem;
+  border-radius: 50%;
+  font-size: 0.6875rem;
+  font-weight: 600;
+}
+
+.kb-step-marker .kb-icon {
+  width: 0.75rem;
+  height: 0.75rem;
+}
+
+.kb-page-title {
+  font-size: 1.5rem;
+  letter-spacing: -0.01em;
+  margin-bottom: 0.25rem;
+}
+
+/* The text of a page header: it shrinks and wraps beside the action, down to
+   a width where the action drops below it instead. */
+.kb-page-header-text {
+  flex: 1 1 20rem;
+  min-width: 0;
+}
+
+.kb-lead {
+  font-size: 1rem;
+}
+
+.kb-card-title {
+  font-size: 1rem;
+  font-weight: 600;
+  line-height: 1.25;
+}
+
+.kb-eyebrow {
+  font-size: 0.75rem;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
+.kb-empty-icon,
+.kb-tile-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+
+.kb-empty-icon {
+  width: 3rem;
+  height: 3rem;
+  border-radius: 50%;
+}
+
+.kb-empty-icon .kb-icon {
+  width: 1.25rem;
+  height: 1.25rem;
+}
+
+.kb-tile-icon {
+  width: 2.25rem;
+  height: 2.25rem;
+  border-radius: var(--bs-border-radius-lg);
+}
+
+/* Navbar: the brand and the not-yet-done step markers take the navbar's own
+   text colour. */
+.kb-brand-logo {
+  height: 2.25rem;
+  width: auto;
+}
+
+/* Block, so the drawing adds no line-box space below it. */
+.kb-kelp-art {
+  display: block;
+  width: 1.75rem;
+  height: 2.25rem;
+  flex-shrink: 0;
+}
+
+.kb-brand-divider {
+  align-self: stretch;
+  border-left: 1px solid currentColor;
+  opacity: 0.35;
+}
+
+.kb-brand-subtitle {
+  opacity: 0.75;
+}
+
+.kb-step-todo {
+  border: 1px solid currentColor;
+  opacity: 0.8;
+}
+
+/* A small figure, such as a single population-level estimate. */
+.kb-figure-narrow {
+  max-width: 36rem;
+}
+
+/* A section the user guide's contents jump to, which stops short of the
+   window's top edge. */
+.kb-anchor {
+  scroll-margin-top: 1.5rem;
+}
+
+/* Help: a muted icon that opens a popover. */
+.kb-help {
+  line-height: 1;
+  opacity: 0.7;
+}
+
+.kb-help:hover,
+.kb-help:focus-visible {
+  opacity: 1;
+}
+
+.kb-help .kb-icon {
+  width: 0.875rem;
+  height: 0.875rem;
+}
+
+@media (min-width: 992px) {
+  .kb-aside {
+    position: sticky;
+    top: 1.5rem;
+  }
+}
+
+/* The workbook file input fills narrow screens but stays compact on wide ones. */
+.kb-file-input {
+  width: 100%;
+  max-width: 20rem;
+}
+
+/* Coverage grid: one square per site-year, filled where a model has data,
+   outlined where its estimate is borrowed, hatched where there is no biomass. */
+.kb-cov {
+  display: inline-block;
+  width: 1.125rem;
+  height: 1.125rem;
+  border-radius: 0.1875rem;
+  vertical-align: middle;
+}
+
+.kb-cov-data {
+  background-color: var(--bs-info);
+}
+
+.kb-cov-gap {
+  background-color: var(--bs-info-bg-subtle);
+  border: 1.5px solid var(--bs-info);
+}
+
+.kb-cov-none {
+  border: 1px solid var(--bs-border-color);
+  background-image: repeating-linear-gradient(
+    45deg,
+    var(--bs-border-color) 0 1.5px,
+    transparent 1.5px 4px
+  );
+}
+
+/* The soft button: a step still to do, filled with the primary's subtle tint.
+   It sets Bootstrap's own .btn variables, so states follow the theme. */
+.kb-btn-soft {
+  --bs-btn-color: var(--bs-primary-text-emphasis);
+  --bs-btn-bg: var(--bs-primary-bg-subtle);
+  --bs-btn-border-color: transparent;
+  --bs-btn-hover-color: var(--bs-primary-text-emphasis);
+  --bs-btn-hover-bg: var(--bs-primary-border-subtle);
+  --bs-btn-hover-border-color: transparent;
+  --bs-btn-active-color: var(--bs-primary-text-emphasis);
+  --bs-btn-active-bg: var(--bs-primary-border-subtle);
+  --bs-btn-active-border-color: transparent;
+  --bs-btn-disabled-color: var(--bs-primary-text-emphasis);
+  --bs-btn-disabled-bg: var(--bs-primary-bg-subtle);
+  --bs-btn-disabled-border-color: transparent;
+}
+
+/* Fit progress, which updates on every tick of a fit. Shiny's busy spinner
+   reserves room in an output while it recalculates, which made the banner
+   jump on each tick; a zero spinner size reserves none here. */
+.kb-progress {
+  --shiny-spinner-size: 0px;
+}

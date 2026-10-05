@@ -1,0 +1,15 @@
+^.*\.Rproj$
+^\.Rproj\.user$
+^\.github$
+^README\.html$
+^scripts$
+^LICENSE\.md$
+^README\.Rmd$
+^\.claude$
+^CLAUDE\.md$
+^jarl\.toml$
+^[.]?air[.]toml$
+^\.vscode$
+^app\.R$
+^decisions$
+^data-raw$
