@@ -660,6 +660,23 @@ new_store <- function(session, run_fit = mirai_fit_runner) {
   # and fits continue whichever step is shown. The next queued fit starts once
   # the runner is free; a fit whose call cannot be built (e.g. the cover model
   # without biomass) fails at once.
+  #
+  # TODO: once the real kelpbio predictions replace the mocks, run the slow
+  # ones in this queue too, so all waiting stays on the Models step:
+  # - Order: fit the models in plot biomass -> predict plot biomass (cover is
+  #   fitted with it added, kb_add_biomass()) -> fit cover -> predict total
+  #   site biomass, automatically. Wet, dry and carbon in one job, as they
+  #   share draws.
+  # - Each model's own predictions stay on demand on the Estimates step, cached
+  #   with bindCache(), unless timing with kelpbio shows them slow; then run
+  #   them in the same daemon call as the fit.
+  # - Statuses gain "predicting"; the navbar badge and Models banner show it,
+  #   and Continue to estimates waits for the predictions.
+  # - A refit, source change or new data marks the dependent predictions stale
+  #   and queues them again.
+  # - Needs from kelpbio: a progress signal for kb_predict_biomass() (as
+  #   kb_fit_progress() for fits), and pre-fit models shipped with their
+  #   predictions.
 
   start_next <- function(id) {
     progress_dir <- tempfile("kb-fit-")
