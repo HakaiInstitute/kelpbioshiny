@@ -154,21 +154,12 @@ mod_models_server <- function(id, store) {
       sync_source_select(input, session, paste0("source_", cid), cid, store)
       # The badge, then a link only when the model needs action (status_next()).
       # An error is in full on the Data step and the model's page, so a long
-      # message does not crowd the column. A badge with warnings opens the
-      # diagnostics.
+      # message does not crowd the column.
       output[[paste0("status_", cid)]] <- renderUI({
         status <- store$statuses()[[cid]]
-        badge <- status_badge(status)
-        if (has_warning(status)) {
-          badge <- actionLink(
-            session$ns(paste0("badge_", cid)), badge,
-            class = "text-decoration-none", `aria-label` = sprintf("%s: open the diagnostics", status_label(status))
-          )
-        }
         step <- status_next(status)
-        tagList(badge, if (!is.null(step)) div(class = "small mt-1", actionLink(session$ns(paste0("next_", cid)), step$label)))
+        tagList(status_badge(status), if (!is.null(step)) div(class = "small mt-1", actionLink(session$ns(paste0("next_", cid)), step$label)))
       })
-      observeEvent(input[[paste0("badge_", cid)]], store$open_tab(cid, "diagnostics"))
       observeEvent(input[[paste0("next_", cid)]], {
         step <- status_next(store$statuses()[[cid]])
         if (identical(step$target, "data")) store$go_to("data") else store$open_tab(cid, step$target)
@@ -252,11 +243,14 @@ mod_models_server <- function(id, store) {
   })
 }
 
-# The action a model in the Models list needs, by its status: data to correct
-# or a failed fit to look at. Other statuses need none: the defaults suit most
-# runs, and the model's page (its name, the chevron) holds its settings and
-# diagnostics for those who want them.
+# The action a model in the Models list needs, by its status: data to correct,
+# warnings to review or a failed fit to look at. Other statuses need none: the
+# defaults suit most runs, and the model's page (its name, the chevron) holds
+# its settings and diagnostics for those who want them.
 status_next <- function(status) {
+  if (has_warning(status)) {
+    return(list(label = "View warnings", target = "diagnostics"))
+  }
   switch(status$kind,
     "data-error" = ,
     "no-data" = list(label = "Go to data", target = "data"),
