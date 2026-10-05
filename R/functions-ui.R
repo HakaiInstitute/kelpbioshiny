@@ -1,11 +1,14 @@
 # Small UI building blocks. They compose Bootstrap utility classes; the few
 # app classes they use (kb-*) are styled in inst/app/www/styles.css.
 
+# A step's title and description, with its action on the right. The text
+# wraps within its own block, so the action stays on the right on any width
+# but a narrow screen, where it drops below.
 page_header <- function(title, description, action = NULL) {
   div(
     class = "d-flex flex-wrap align-items-end justify-content-between gap-3 mb-4",
-    div(h1(class = "kb-page-title", title), div(class = "kb-lead text-body-secondary", description)),
-    action
+    div(class = "kb-page-header-text", h1(class = "kb-page-title", title), div(class = "kb-lead text-body-secondary", description)),
+    if (!is.null(action)) div(class = "flex-shrink-0", action)
   )
 }
 

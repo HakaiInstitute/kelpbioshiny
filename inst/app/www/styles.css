@@ -45,6 +45,13 @@
   margin-bottom: 0.25rem;
 }
 
+/* The text of a page header: it shrinks and wraps beside the action, down to
+   a width where the action drops below it instead. */
+.kb-page-header-text {
+  flex: 1 1 20rem;
+  min-width: 0;
+}
+
 .kb-lead {
   font-size: 1rem;
 }
@@ -120,6 +127,12 @@
 /* A small figure, such as a single population-level estimate. */
 .kb-figure-narrow {
   max-width: 36rem;
+}
+
+/* A section the user guide's contents jump to, which stops short of the
+   window's top edge. */
+.kb-anchor {
+  scroll-margin-top: 1.5rem;
 }
 
 /* Help: a muted icon that opens a popover. */

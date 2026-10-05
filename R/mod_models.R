@@ -142,7 +142,7 @@ mod_models_server <- function(id, store) {
     observeEvent(input$to_data, store$go_to("data"))
     observeEvent(input$fit_all, store$fit_all())
     observeEvent(input$cancel, store$cancel_fits())
-    observeEvent(input$view_estimates, store$go_to("estimates"))
+    observeEvent(input$continue, store$go_to("estimates"))
 
     lapply(component_ids, function(cid) {
       observeEvent(input[[paste0("open_", cid)]], store$open(cid))
@@ -175,6 +175,12 @@ mod_models_server <- function(id, store) {
       plan <- store$fit_plan()
       if (length(plan$ids) > 0) {
         return(button(session$ns("fit_all"), "Fit all", "play"))
+      }
+      # Nothing left to fit: the next step is the estimates, as on the Data step;
+      # the notice under the table says what is ready. With no estimate yet,
+      # say why Fit all has nothing to fit.
+      if (store$any_estimate()) {
+        return(button(session$ns("continue"), span("Continue to estimates ", lucide("arrow-right"))))
       }
       span(class = "small text-body-secondary", fit_all_reason(store$statuses(), plan))
     })
@@ -210,21 +216,17 @@ mod_models_server <- function(id, store) {
       }
       statuses <- store$statuses()
       unready <- Filter(function(id) !is_ready_status(statuses[[id]]), component_ids)
-      # The next step once every model in use is ready (primary); until then
-      # Fit all is, so the link to the estimates ready so far is outline.
-      view <- if (store$any_estimate()) {
-        button(session$ns("view_estimates"), "View estimates", variant = if (length(unready) == 0) "primary" else "outline", size = "sm")
-      }
+      # The way on to the estimates is in the header (Continue to estimates).
       if (length(unready) == 0) {
-        return(notice("arrow-right", "All models in use are ready", "Their estimates are on the Estimates step.", action = view))
+        return(notice("check-circle-2", "All models in use are ready", "Their estimates are on the Estimates step.", tone = "muted"))
       }
       notice(
         "layout-list", "Not ready yet",
         paste0(
           paste(sprintf("%s: %s", vapply(unready, label_of, ""), vapply(statuses[unready], block_reason, "")), collapse = "; "), ".",
-          if (!is.null(view)) " The estimates of the models that are ready are on the Estimates step."
+          if (store$any_estimate()) " The estimates of the models that are ready are on the Estimates step."
         ),
-        tone = "muted", action = view
+        tone = "muted"
       )
     })
 

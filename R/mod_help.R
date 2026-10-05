@@ -92,14 +92,38 @@ guide_warnings <- function() {
   )
 }
 
+# The guide's sections, by anchor id, as titled on the page and in its contents.
+guide_sections <- c(guide_steps = "Steps", guide_warnings = "Warnings", guide_methods = "Methods", guide_glossary = "Glossary")
+
+# The guide's contents, beside it on large screens; each entry jumps to its
+# section, and the page stays scrollable.
+guide_contents <- function() {
+  card(
+    class = "d-none d-lg-flex",
+    card_body(
+      gap = "0.5rem",
+      div(class = "kb-eyebrow text-body-secondary", "Contents"),
+      tags$nav(
+        `aria-label` = "User guide contents",
+        tags$ul(
+          class = "list-unstyled d-flex flex-column gap-2 mb-0",
+          lapply(names(guide_sections), function(id) {
+            tags$li(tags$a(href = paste0("#", id), class = "link-body-emphasis text-decoration-none", guide_sections[[id]]))
+          })
+        )
+      )
+    )
+  )
+}
+
 # The pointer to kelpbio, which explains the statistics the app runs.
 guide_docs_callout <- function() {
-  card(card_body(div(
+  card(id = "guide_methods", class = "kb-anchor", card_body(div(
     class = "d-flex flex-wrap align-items-center gap-3",
     div(class = "kb-tile-icon bg-primary-subtle text-primary-emphasis", lucide("book-open")),
     div(
       class = "flex-grow-1",
-      h2(class = "kb-card-title mb-0", "Statistical details"),
+      h2(class = "kb-card-title mb-0", guide_sections[["guide_methods"]]),
       div(class = "small text-body-secondary mt-1", "The models, priors and diagnostics are explained in the kelpbio documentation.")
     ),
     tags$a(
@@ -124,12 +148,13 @@ help_ui <- function() {
 }
 
 help_guide_ui <- function() {
-  tagList(
+  step_layout(guide_contents(), tagList(
     help_lead("User guide", "How to use the app, step by step."),
     div(
       class = "d-flex flex-column gap-3",
       panel(
-        "Steps",
+        guide_sections[["guide_steps"]],
+        id = "guide_steps", class = "kb-anchor",
         description = "A run moves through four steps in the navbar. A step's marker shows a check mark once it is complete.",
         div(
           class = "d-flex flex-column gap-4",
@@ -138,11 +163,21 @@ help_guide_ui <- function() {
           })
         )
       ),
-      panel("Warnings and how to fix them", description = "The warnings a model or sheet can show.", guide_warnings()),
+      panel(
+        guide_sections[["guide_warnings"]],
+        id = "guide_warnings", class = "kb-anchor",
+        description = "The warnings a model or sheet can show, and how to fix them.",
+        guide_warnings()
+      ),
       guide_docs_callout(),
-      panel("Glossary", description = "The terms behind the help icons in the app.", guide_glossary())
+      panel(
+        guide_sections[["guide_glossary"]],
+        id = "guide_glossary", class = "kb-anchor",
+        description = "The terms behind the help icons in the app.",
+        guide_glossary()
+      )
     )
-  )
+  ))
 }
 
 # A package's installed version, or "Not installed". The app currently uses

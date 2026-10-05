@@ -409,7 +409,9 @@ new_store <- function(session, run_fit = mirai_fit_runner) {
       biomass_ready = s$biomass_ready(), totals = s$totals()
     )
   })
-  s$any_estimate <- reactive(any(vapply(s$estimates(), `[[`, logical(1), "available")))
+  # Pre-fit models are ready before any data are loaded, so a run has an
+  # estimate to save only once it has data.
+  s$any_estimate <- reactive(s$has_data() && any(vapply(s$estimates(), `[[`, logical(1), "available")))
 
   # Actions ----------------------------------------------------------------------
 

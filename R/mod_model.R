@@ -31,7 +31,7 @@ mod_model_ui <- function(id, cid) {
         uiOutput(ns("status"), inline = TRUE),
         source_select(ns("source"), cid),
         uiOutput(ns("fit_action"), inline = TRUE),
-        button(ns("view_estimates"), "View estimates", "arrow-right", "outline")
+        uiOutput(ns("view_estimates_ui"), inline = TRUE)
       )
     ),
     uiOutput(ns("fit_progress")),
@@ -101,6 +101,12 @@ mod_model_server <- function(id, store) {
     })
 
     output$status <- renderUI(status_badge(status()))
+
+    # The next step once the model is ready (primary); until then Fit model is.
+    estimates_available <- dedupe(reactive(isTRUE(store$estimates()[[cid]]$available)))
+    output$view_estimates_ui <- renderUI({
+      button(ns("view_estimates"), "View estimates", "arrow-right", if (estimates_available()) "primary" else "outline")
+    })
 
     output$fit_action <- renderUI(fit_control(ns("fit"), ns("cancel"), status(), cid %in% store$invalid(), fit_label = "Fit model"))
 

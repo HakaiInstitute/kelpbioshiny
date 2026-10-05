@@ -13,11 +13,7 @@ mod_estimates_ui <- function(id) {
     )
   )
   main <- tagList(
-    page_header(
-      "Estimates", step_description("estimates"),
-      # TODO: remove once the estimates come from kelpbio rather than the mocks.
-      span(class = "badge border text-body-secondary fw-normal", "Prototype data")
-    ),
+    page_header("Estimates", step_description("estimates"), uiOutput(ns("continue_ui"), inline = TRUE)),
     do.call(navset_hidden, c(list(id = ns("view")), unname(pages)))
   )
   step_layout(card(card_body(padding = "0.5rem", uiOutput(ns("subnav")))), main)
@@ -42,6 +38,13 @@ mod_estimates_server <- function(id, store) {
       if (length(first) > 0) first[[1]] else "biomass"
     })
     observe(nav_select("view", shown(), session = session))
+
+    # The next step once there is an estimate to save, as Continue to models is
+    # on the Data step.
+    output$continue_ui <- renderUI({
+      if (store$any_estimate()) button(session$ns("continue"), span("Continue to export ", lucide("arrow-right")))
+    })
+    observeEvent(input$continue, store$go_to("export"))
     lapply(estimate_ids, function(eid) observeEvent(input[[paste0("nav_", eid)]], store$estimate(eid)))
 
     output$subnav <- renderUI({
