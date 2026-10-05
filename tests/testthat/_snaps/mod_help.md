@@ -52,7 +52,7 @@
       site, year, canopy_m2, polygon_m2, tide_height_m
       2
       Models
-      Fit each model to your data or use a pre-fit model; open a specific model to adjust settings and view diagnostics.
+      Fit each model to your data or use a pre-fit model; open a model to adjust settings and view diagnostics.
       Each model uses one source: your data, a pre-fit model, or none.
       Model
       Sources
