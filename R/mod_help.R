@@ -93,6 +93,17 @@ guide_warnings <- function() {
   )
 }
 
+# Predicting the weight of each plant without biomass, after the steps.
+guide_plant_weights <- function() {
+  div(
+    class = "small text-body-secondary",
+    sprintf(
+      "The app can also predict the wet weight of each plant, without biomass. Load a %s sheet, use the %s model (fitted to your data or pre-fit), and open %s on the Estimates step with Group by set to %s. The %s example workbook shows this.",
+      components$size$sheet, lower_label("weight"), label_of("weight"), prediction_groupings[["plant"]], example_workbooks$size_only$label
+    )
+  )
+}
+
 # The guide's sections, by anchor id, as titled on the page and in its contents.
 guide_sections <- c(guide_steps = "Steps", guide_warnings = "Warnings", guide_methods = "Methods", guide_glossary = "Glossary")
 
@@ -171,7 +182,8 @@ help_guide_ui <- function() {
           lapply(names(steps), function(value) {
             step_item(value, if (!is.null(guide_extras[[value]])) guide_extras[[value]](), small = FALSE)
           })
-        )
+        ),
+        guide_plant_weights()
       ),
       panel(
         guide_sections[["guide_warnings"]],

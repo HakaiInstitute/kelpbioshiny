@@ -76,6 +76,7 @@
       4
       Export
       Save the estimates, or rerun the whole analysis in R.
+      The app can also predict the wet weight of each plant, without biomass. Load a size sheet, use the weight model (fitted to your data or pre-fit), and open Weight on the Estimates step with Group by set to Individual plant. The Size only example workbook shows this.
       Warnings
       The warnings a model or sheet can show, and how to fix them.
       Convergence warning
