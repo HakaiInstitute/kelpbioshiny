@@ -70,7 +70,7 @@ coverage_cell <- function(cov, id, site, year) {
     return(list(state = "data", text = text))
   }
   if (isTRUE(density) && id == "cover") {
-    return(list(state = "blank", text = "No drone survey, so no total biomass"))
+    return(list(state = "blank", text = "No drone survey, so no total site biomass"))
   }
   if (isTRUE(density)) {
     return(list(state = "gap", text = coverage_borrowed(model, label, site, year)))
@@ -250,6 +250,8 @@ mod_data_server <- function(id, store) {
       })
       output[[paste0("csv_file_", cid)]] <- renderText(store$sheets()[[cid]]$file)
       output[[paste0("csv_columns_", cid)]] <- renderText(paste(sheet_columns(cid, store$species()), collapse = ", "))
+      observeEvent(input[[paste0("view_", cid)]], store$open_tab(cid, "data"))
+      observeEvent(input[[paste0("view_", cid, "_more")]], store$open_tab(cid, "data"))
     })
 
     output$has_data <- reactive(loaded())
@@ -282,7 +284,9 @@ mod_data_server <- function(id, store) {
           "Recognised sheets",
           id = session$ns("sheets_card"),
           description = "Each sheet is matched to a model and checked before fitting.",
-          tags$ul(class = "list-unstyled d-flex flex-column gap-2 mb-0", lapply(present, function(id) sheet_row(sheets[[id]], sources[[id]]))),
+          tags$ul(class = "list-unstyled d-flex flex-column gap-2 mb-0", lapply(present, function(id) {
+            sheet_row(sheets[[id]], sources[[id]], session$ns(paste0("view_", id)))
+          })),
           if (length(absent) > 0) {
             notice(
               "file-spreadsheet", "No sheet for some models",
@@ -361,12 +365,14 @@ welcome_card <- function(ns) {
 # under the CSV uploads.
 sheets_description <- paste(
   "An Excel workbook with one sheet per model, named after the model; leave out the sheets you do not have.",
-  "Biomass needs density, size and weight, from your data or pre-fit models, and a cover sheet adds total biomass per site-year."
+  "Plot biomass needs density, size and weight, from your data or pre-fit models, and a cover sheet adds total site biomass."
 )
 
 # A sheet whose model uses a pre-fit model or none shows its check muted, as it
-# blocks nothing until its source is Your data.
-sheet_row <- function(sheet, source) {
+# blocks nothing until its source is Your data. A sheet in use links to its
+# model's Data tab (view_id), with a figure and table of its rows and every
+# warning of its check; the row shows the first warning.
+sheet_row <- function(sheet, source, view_id) {
   used <- source == "user"
   model <- lower_label(sheet$component)
   unused_note <- sprintf(
@@ -375,51 +381,56 @@ sheet_row <- function(sheet, source) {
   )
   badge_ui <- if (!used) {
     badge("Not used", "bg-secondary-subtle text-secondary-emphasis", "minus-circle")
-  } else if (is.null(sheet$error)) {
-    success_badge("Checks passed")
-  } else {
+  } else if (!is.null(sheet$error)) {
     badge("Data error", "text-bg-danger", "x-circle")
+  } else if (!is.null(sheet$warnings)) {
+    warning_badge("Passed with warnings")
+  } else {
+    success_badge("Checks passed")
   }
+  # The text wraps rather than the row, so the badge stays on the right.
   tags$li(
-    class = "d-flex flex-wrap align-items-center gap-3 border rounded-3 p-3",
+    class = "d-flex align-items-center gap-3 border rounded-3 p-3",
     div(
       class = "flex-grow-1 d-flex flex-column gap-2",
       div(
         class = "d-flex flex-wrap align-items-center gap-2",
         lucide("file-spreadsheet", "text-body-secondary"),
         tags$code(sheet$name),
-        lucide("arrow-right", "text-body-secondary"),
-        span(class = "fw-medium", label_of(sheet$component)),
-        if (endsWith(sheet$file, ".csv")) span(class = "small text-body-secondary", "from ", sheet$file)
+        if (endsWith(sheet$file, ".csv")) span(class = "small text-body-secondary", "from ", sheet$file),
+        if (used) actionLink(view_id, "View data", class = "small ms-1")
       ),
       if (!used) div(class = "small text-body-secondary", unused_note),
-      div(
-        class = "d-flex flex-wrap gap-1",
-        lapply(names(sheet$rows), function(column) {
-          tags$code(class = "small bg-body-tertiary text-body-secondary rounded px-2 py-1", column)
-        })
-      ),
       if (!is.null(sheet$error)) div(class = paste("small", if (used) "text-danger-emphasis" else "text-body-secondary"), sheet$error),
+      if (!is.null(sheet$warnings)) {
+        more <- length(sheet$warnings) - 1
+        div(
+          class = paste("small d-flex align-items-center gap-2", if (used) "text-warning-emphasis" else "text-body-secondary"),
+          lucide("alert-triangle", if (used) "text-warning"),
+          span(sheet$warnings[[1]], if (more > 0 && used) actionLink(paste0(view_id, "_more"), sprintf("and %d more", more)))
+        )
+      },
       if (!is.null(sheet$note)) {
         div(class = "small d-flex align-items-center gap-2 text-info-emphasis", lucide("info", "text-info"), sheet$note)
       }
     ),
-    badge_ui
+    tagAppendAttributes(badge_ui, class = "flex-shrink-0")
   )
 }
 
 # One line above the sheets: counts of what the checks and the coverage table
 # flag, each linking to its section. Only sheets used by their model count as
-# errors. Site-years that borrow estimates from other sites or years are listed
-# but are not a warning.
+# errors or warnings. Site-years that borrow estimates from other sites or years
+# are listed but are not a warning.
 issues_summary <- function(ns, sheets, cov, sources) {
   present <- sheets[component_ids[component_ids %in% names(sheets)]]
-  errors <- sum(vapply(names(present), function(id) !is.null(present[[id]]$error) && sources[[id]] == "user", logical(1)))
+  used <- function(field) sum(vapply(names(present), function(id) !is.null(present[[id]][[field]]) && sources[[id]] == "user", logical(1)))
   count <- function(n, one, many = paste0(one, "s")) sprintf("%d %s", n, if (n == 1) one else many)
   site_years <- function(n, what) paste(count(n, "site-year"), what)
   link <- function(text, target) tags$a(href = paste0("#", ns(target)), class = "link-body-emphasis", text)
   warnings <- c(
-    "sheet errors" = errors,
+    "sheet errors" = used("error"),
+    "sheet warnings" = used("warnings"),
     "with site names that differ across sheets" = length(cov$mismatched_keys),
     "without density data" = length(cov$no_density)
   )
@@ -427,7 +438,11 @@ issues_summary <- function(ns, sheets, cov, sources) {
   gaps <- length(cov$gaps)
   issues <- c(
     lapply(names(warnings), function(what) {
-      if (what == "sheet errors") link(count(warnings[[what]], "sheet error"), "sheets_card") else link(site_years(warnings[[what]], what), "coverage_card")
+      switch(what,
+        "sheet errors" = link(count(warnings[[what]], "sheet error"), "sheets_card"),
+        "sheet warnings" = link(count(warnings[[what]], "sheet warning"), "sheets_card"),
+        link(site_years(warnings[[what]], what), "coverage_card")
+      )
     }),
     if (gaps > 0) list(link(site_years(gaps, "with data gaps"), "coverage_card"))
   )

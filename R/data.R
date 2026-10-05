@@ -75,18 +75,38 @@ check_name <- function(id) components[[id]]$check %||% id
 # The kelpbio function for a model and species: kelpbio_fn("fit", "cover", "nereo")
 # is kb_fit_cover_nereo(). In the package these resolve to the functions
 # imported from kelpbio.
-kelpbio_verbs <- c(check = "check_data", priors = "priors", fit = "fit", prefit = "prefit")
+kelpbio_verbs <- c(check = "check_data", plot_data = "plot_data", priors = "priors", fit = "fit", prefit = "prefit")
 kelpbio_fn <- function(verb, id, species) {
   name <- if (verb == "check") check_name(id) else id
   get(sprintf("kb_%s_%s_%s", kelpbio_verbs[[verb]], name, species), mode = "function")
 }
 
+# The caption of each model's data figure (kb_plot_data_<model>_<species>()),
+# by species where they differ, and the figure's height as a share of its width.
+data_plot_info <- list(
+  density = list(
+    caption = c(nereo = "Stipe density of each transect by year, faceted by site.", macro = "Plant density of each transect by year, faceted by site."),
+    aspect = 6 / 8
+  ),
+  size = list(caption = c(nereo = "Distribution of sub-bulb diameter by year.", macro = "Distribution of frond counts by year."), aspect = 5 / 8),
+  weight = list(caption = c(nereo = "Wet weight of each plant by sub-bulb diameter.", macro = "Wet weight of each plant by frond count."), aspect = 4 / 8),
+  blade = list(caption = "Blade fraction of each plant by site.", aspect = 4 / 8),
+  wetdry = list(caption = "Distribution of the ratio of dry to wet mass of the tissue samples.", aspect = 4 / 8),
+  carbon = list(caption = "Distribution of the carbon fraction of dry mass of the tissue samples.", aspect = 4 / 8),
+  cover = list(caption = "Canopy cover of each drone survey by tide height.", aspect = 4 / 8)
+)
+
+data_plot_caption <- function(id, species) {
+  caption <- data_plot_info[[id]]$caption
+  if (length(caption) > 1) caption[[species]] else caption
+}
+
 # The example workbooks the Data step offers, by kb_example_data()'s `example`,
 # in the order shown.
 example_workbooks <- list(
-  full = list(label = "All sheets", detail = "Density, size, weight, wet:dry, carbon and cover, each fitted to the data, through to total biomass"),
-  density_size = list(label = "Density and size", detail = "As a typical monitoring program collects; weight, wet:dry and carbon are pre-fit"),
-  bad_weight = list(label = "A sheet with a data error", detail = "Density and size, and a weight sheet with missing years"),
+  full = list(label = "All sheets", detail = "Density, size, weight, wet:dry, carbon and cover, each fitted to the data, through to total site biomass"),
+  density_size = list(label = "Density, size and cover", detail = "As a typical monitoring program collects, with drone surveys; weight, wet:dry and carbon are pre-fit"),
+  bad_weight = list(label = "Sheets with an error and a warning", detail = "Density and size, a weight sheet with missing years and a carbon sheet with implausible values"),
   size_only = list(label = "Size only", detail = "Plant diameters, to predict the weight of each plant")
 )
 
@@ -130,7 +150,7 @@ output_info <- list(
 # The estimates on the Estimates step: each model's predictions, then biomass
 # per unit area and total biomass from the combined models.
 estimate_ids <- c(component_ids, biomass = "biomass", total = "total")
-estimate_label <- function(id) switch(id, biomass = "Biomass per unit area", total = "Total biomass", label_of(id))
+estimate_label <- function(id) switch(id, biomass = "Plot biomass", total = "Total site biomass", label_of(id))
 
 output_components <- list(
   wet = c("density", "size", "weight", "blade"),
@@ -157,15 +177,17 @@ default_sources <- function(sheets) {
 # Sheets --------------------------------------------------------------------------------
 
 # A sheet: its rows and the result of the model's kelpbio data check, which
-# either passes or aborts with a message naming the column. Messages and
-# warnings the check reports become the sheet's note.
+# either passes or aborts with a message naming the column. Warnings the check
+# gives (implausible values) become the sheet's warnings, one per element, and
+# its messages its note.
 new_sheet <- function(id, rows, file, species) {
+  warnings <- character()
   notes <- character()
   result <- tryCatch(
     withCallingHandlers(
       kelpbio_fn("check", id, species)(rows, x_name = sprintf("`%s`", components[[id]]$sheet)),
       warning = function(w) {
-        notes <<- c(notes, conditionMessage(w))
+        warnings <<- c(warnings, conditionMessage(w))
         invokeRestart("muffleWarning")
       },
       message = function(m) {
@@ -178,6 +200,7 @@ new_sheet <- function(id, rows, file, species) {
   list(
     component = id, name = components[[id]]$sheet, file = file, rows = rows,
     error = if (inherits(result, "error")) conditionMessage(result),
+    warnings = if (length(warnings) > 0) warnings,
     note = if (length(notes) > 0) paste(notes, collapse = " ")
   )
 }

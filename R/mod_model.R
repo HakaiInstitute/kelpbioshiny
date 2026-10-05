@@ -19,17 +19,21 @@ mod_model_ui <- function(id, cid) {
       ns("back"), span(class = "d-inline-flex align-items-center gap-1", lucide("arrow-left"), "All models"),
       class = "small text-body-secondary d-inline-block mb-3"
     ),
-    div(
-      class = "d-flex flex-wrap align-items-start justify-content-between gap-3 mb-3",
-      div(
-        h1(class = "kb-page-title", def$label),
-        div(class = "kb-lead text-body-secondary", def$detail),
-        if (cid == "weight") uiOutput(ns("density_note"))
+    # As a step's header, with the model's status and source on a line under
+    # its description.
+    page_header(
+      def$label,
+      tagList(
+        def$detail,
+        if (cid == "weight") uiOutput(ns("density_note")),
+        div(
+          class = "d-flex flex-wrap align-items-center gap-2 mt-2",
+          uiOutput(ns("status"), inline = TRUE),
+          source_select(ns("source"), cid)
+        )
       ),
       div(
         class = "d-flex flex-wrap align-items-center gap-2",
-        uiOutput(ns("status"), inline = TRUE),
-        source_select(ns("source"), cid),
         uiOutput(ns("fit_action"), inline = TRUE),
         uiOutput(ns("view_estimates_ui"), inline = TRUE)
       )
@@ -56,7 +60,7 @@ mod_model_server <- function(id, store) {
       sheet <- sheet()
       mode <- if (is_prefit(source)) "prefit" else if (source == "none") "none" else if (is.null(sheet)) "no-sheet" else "user"
       reference <- if (is_prefit(source)) prefit_reference(source)
-      list(mode = mode, reference = reference, name = sheet$name, file = sheet$file)
+      list(mode = mode, reference = reference, name = sheet$name, file = sheet$file, error = !is.null(sheet$error), warnings = sheet$warnings)
     }))
     # The kelpbio fit behind every number and figure: the pre-fit model, or the
     # fit to your data once fitted.
@@ -79,6 +83,11 @@ mod_model_server <- function(id, store) {
       }
       nav_select("tab", if (prefit) "diagnostics" else "data", session = session)
     })
+    # Once a fit to your data is ready, its page shows the diagnostics.
+    ready <- dedupe(reactive(kind() == "ready"))
+    observeEvent(ready(), {
+      if (ready() && page()$mode == "user") nav_select("tab", "diagnostics", session = session)
+    }, ignoreInit = TRUE)
 
     sync_source_select(input, session, "source", cid, store)
 
@@ -87,8 +96,8 @@ mod_model_server <- function(id, store) {
     observeEvent(input$fit, store$queue_fits(cid))
     observeEvent(input$cancel, store$cancel_fit(cid))
     observeEvent(input$view_estimates, store$open_estimate(cid))
-    observeEvent(input$open_settings, store$open_settings(cid))
-    observeEvent(input$open_priors, store$open_settings(cid))
+    observeEvent(input$settings_convergence, nav_select("tab", "settings", session = session))
+    observeEvent(input$settings_prior, nav_select("tab", "settings", session = session))
     observeEvent(store$tab_request(), {
       request <- store$tab_request()
       if (identical(request$id, cid)) nav_select("tab", request$tab, session = session)
@@ -102,10 +111,10 @@ mod_model_server <- function(id, store) {
 
     output$status <- renderUI(status_badge(status()))
 
-    # The next step once the model is ready (primary); until then Fit model is.
+    # The next step once the model is ready; until then Fit model is.
     estimates_available <- dedupe(reactive(isTRUE(store$estimates()[[cid]]$available)))
     output$view_estimates_ui <- renderUI({
-      button(ns("view_estimates"), "View estimates", "arrow-right", if (estimates_available()) "primary" else "outline")
+      if (estimates_available()) button(ns("view_estimates"), span("View estimates ", lucide("arrow-right")))
     })
 
     output$fit_action <- renderUI(fit_control(ns("fit"), ns("cancel"), status(), cid %in% store$invalid(), fit_label = "Fit model"))
@@ -140,7 +149,7 @@ mod_model_server <- function(id, store) {
         notice(
           "minus-circle", sprintf("%s is not used in this run", def$label),
           if (cid == "cover") {
-            "Add a cover sheet with canopy area to estimate total biomass per site-year."
+            "Add a cover sheet of drone surveys to estimate total site biomass."
           } else {
             sprintf("Estimates that need %s are unavailable.", tolower(def$label))
           },
@@ -155,14 +164,14 @@ mod_model_server <- function(id, store) {
         notice("x-circle", warning_help$failed$title, status$message, tone = "warning")
       } else if (status$kind == "not-fitted" && status$blocked) {
         if (biomass_possible(store$sources())) {
-          notice("clock", "Fitted once biomass per unit area is ready", "Every other model in use must be ready first.", tone = "muted")
+          notice("clock", "Fitted once plot biomass is ready", "Every other model in use must be ready first.", tone = "muted")
         } else {
-          notice("minus-circle", "Needs biomass per unit area", "Biomass needs the density, size and weight models, each fitted to your data or pre-fit.", tone = "muted")
+          notice("minus-circle", "Needs plot biomass", "Plot biomass needs the density, size and weight models, each fitted to your data or pre-fit.", tone = "muted")
         }
       } else if (mode == "user" && status$kind == "ready") {
         tagList(
-          if (isTRUE(status$convergence)) convergence_notice(warning_help$convergence$title, ns("open_settings")),
-          prior_notice(store$sensitivity[[cid]](), fit()$meta$priors, ns("open_priors"))
+          if (isTRUE(status$convergence)) convergence_notice(ns("settings_convergence")),
+          prior_notice(store$sensitivity[[cid]](), fit()$meta$priors, ns("settings_prior"))
         )
       }
       if (length(notice_ui) > 0) div(class = "d-flex flex-column gap-2 mb-3", notice_ui)
@@ -182,9 +191,9 @@ mod_model_server <- function(id, store) {
       page <- page()
       switch(page$mode,
         user = panel(
-          "Data",
+          tagList("Sheet ", tags$code(page$name)),
           description = tagList(
-            "Sheet ", tags$code(page$name), paste0(" from ", page$file, "."),
+            paste0("From ", page$file, "."),
             if (cid == "cover") {
               span(
                 class = "d-inline-flex flex-wrap align-items-center gap-1 ms-1",
@@ -194,7 +203,24 @@ mod_model_server <- function(id, store) {
               )
             }
           ),
-          reactable::reactableOutput(ns("data"))
+          if (!is.null(page$warnings)) {
+            notice(
+              "alert-triangle", if (length(page$warnings) == 1) "The data check gave a warning" else sprintf("The data check gave %d warnings", length(page$warnings)),
+              lapply(page$warnings, div),
+              tone = "warning"
+            )
+          },
+          # A sheet that fails its check shows only its table, where the
+          # problem values are marked.
+          if (page$error) {
+            reactable::reactableOutput(ns("data"))
+          } else {
+            plot_table_nav(
+              ns("data_view"),
+              figure_plot(ns("data_plot"), data_plot_caption(cid, store$species())),
+              reactable::reactableOutput(ns("data"))
+            )
+          }
         ),
         "no-sheet" = no_sheet(sprintf("Add a %s sheet to the workbook, or upload a CSV, to fit this model.", def$sheet)),
         none = not_used(),
@@ -229,15 +255,7 @@ mod_model_server <- function(id, store) {
         return(diagnostics_panel(ns, "your data"))
       }
       if (mode == "prefit" && !is.null(fit())) {
-        return(tagList(
-          notice(
-            "info", "Diagnostics of the model as fitted in advance",
-            sprintf("Fitted to %s. It cannot be refitted here.", prefit_info[[page()$reference]]$data),
-            tone = "muted"
-          ) |>
-            tagAppendAttributes(class = "mb-3"),
-          diagnostics_panel(ns, "the reference data")
-        ))
+        return(diagnostics_panel(ns, "the reference data"))
       }
       switch(mode,
         user = fit_pending_state(kind(), "Fit the model to check its convergence, posterior predictive check and prior sensitivity."),
@@ -259,6 +277,12 @@ mod_model_server <- function(id, store) {
         NULL
       )
     })
+
+    output$data_plot <- render_figure(
+      function() kelpbio_fn("plot_data", cid, store$species())(req(sheet())$rows), "data_plot",
+      aspect = data_plot_info[[cid]]$aspect,
+      alt = function() data_plot_caption(cid, store$species())
+    )
 
     output$data <- reactable::renderReactable({
       req(sheet())
@@ -399,10 +423,6 @@ mod_model_server <- function(id, store) {
       )
     })
 
-    output$convergence_summary <- renderUI({
-      if (converged(fitted_fit())) notice("check-circle-2", "All parameters converged", tone = "muted")
-    })
-
     output$trace <- render_figure(
       function() kb_plot_trace(fitted_fit()), "trace",
       height = function() figure_px(70 + 150 * ceiling(nrow(tidy(fitted_fit())) / 2)),
@@ -498,7 +518,6 @@ convergence_panel <- function(ns) {
       with_help("effective sample size (ESS)", "ess"),
       sprintf(" below %s%% of the draws are flagged.", 100 * default_arg(kb_convergence, "esr"))
     ),
-    uiOutput(ns("convergence_summary")),
     reactable::reactableOutput(ns("convergence")),
     figure_plot(ns("trace"), "Draws for each chain by iteration. Well-mixed chains overlap.")
   )
@@ -509,8 +528,7 @@ convergence_panel <- function(ns) {
 description_panel <- function(fit) {
   lines <- withr::with_output_sink(nullfile(), kb_model_describe(fit, priors = FALSE))
   panel(
-    "Model description",
-    description = "Likelihood and random effects",
+    "Likelihood and random effects",
     tags$pre(class = "bg-body-tertiary rounded-3 p-3 small mb-0", paste(lines, collapse = "\n"))
   )
 }

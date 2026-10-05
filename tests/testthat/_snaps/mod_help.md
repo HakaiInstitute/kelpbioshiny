@@ -6,7 +6,7 @@
       User guide
       How to use the app, step by step.
       Steps
-      A run moves through four steps in the navbar. A step's marker shows a check mark once it is complete.
+      A run moves through four steps in the navbar. A step's marker shows a check mark once the step is complete: data loaded, models ready, or estimates saved.
       1
       Data
       Load the survey data, from a workbook or a CSV file per model.
@@ -46,10 +46,10 @@
       wet_mass_g, dry_mass_g
       carbon
       Carbon
-      site, year, dry_mass_g, carbon_mass_g
+      sample_mass_mg, carbon_mass_ug
       cover
       Cover
-      site, year, canopy_area_m2, plot, plot_percent_cover
+      site, year, canopy_m2, polygon_m2, tide_height_m
       2
       Models
       Fit each model to the data or choose a pre-fit model, then check the diagnostics.
@@ -72,14 +72,14 @@
       Your data, Not used
       3
       Estimates
-      Review the estimates from each model, and biomass by site and year from the combined models.
+      Review the estimates from each model, and plot and total site biomass from the combined models.
       4
       Export
       Save the estimates, or rerun the whole analysis in R.
-      Warnings and how to fix them
-      The warnings a model or sheet can show.
+      Warnings
+      The warnings a model or sheet can show, and how to fix them.
       Convergence warning
-      Some parameters have not converged. Increase thinning (nthin) in Sampler settings, for example to 2, and refit.
+      Some parameters have not converged. Increase thinning (nthin) on the Settings tab, for example to 2, and refit.
       Prior sensitivity warning
       If the flagged prior was not chosen on purpose, make it less informative on the Settings tab and refit.
       The fit failed
@@ -88,7 +88,7 @@
       Correct the sheet and upload it again.
       Site names differ across sheets
       Rename the sites in the workbook so the names match exactly, then upload again.
-      Statistical details
+      Methods
       The models, priors and diagnostics are explained in the kelpbio documentation.
       Open the kelpbio documentation
       Glossary
@@ -105,8 +105,8 @@
       Prior sensitivity
       Prior sensitivity measures how far each estimate moves when the priors, and then the data, are given slightly more or less weight. A weak prior means the priors are not driving the estimate, and strong data means the data are informative about it. A parameter without both depends on the priors as much as on the data.
       Learn more (https://hakaiinstitute.github.io/kelpbio/articles/diagnostics.html)
-      Population-level and group predictions
-      Population-level predictions are for a typical site in a typical year. They leave out the differences between sites and between years, so they suit sites and years that were not sampled. Predictions by site or by year add the estimated difference for each sampled site or year, so they describe those sites and years. Predictions by site and year include both.
+      Overall and group predictions
+      Overall predictions are for a typical site in a typical year. They leave out the differences between sites and between years, so they suit sites and years that were not sampled. Predictions by site or by year add the estimated difference for each sampled site or year, so they describe those sites and years. Predictions by site and year include both.
       Learn more (https://hakaiinstitute.github.io/kelpbio/articles/results.html)
       Chains
       Independent runs of the sampler. Comparing the chains with each other shows whether the sampler has converged.
@@ -123,20 +123,23 @@
       Pre-fit models
       Pre-fit coastwide models were fitted in advance to data compiled from surveys along the coast, and Pre-fit Hakai Institute models to Hakai Institute survey data. They need no data or fitting here. Sites in the reference data get their own estimates; other sites use population-level estimates.
       Learn more (https://hakaiinstitute.github.io/kelpbio/articles/pre-fit-models.html)
+      Site-years without data
+      When a model has no data for a site-year, its estimate there uses the site's estimate from other years and the year's estimate from other sites. What is specific to that site-year is drawn from the variation the model estimated between site-years, so its compatibility interval is wider. With neither the site nor the year in the data, the estimate is for a typical site and year.
+      Learn more (https://hakaiinstitute.github.io/kelpbio/articles/results.html)
       Population-level estimate
-      When a site-year has no data for a model, the typical value across all sites and years is used instead of a value for that site-year. Biomass is still estimated, but it does not reflect conditions specific to that site-year.
+      A population-level estimate is for a typical site in a typical year. A model uses it for a site-year when neither the site nor the year is in that model's data.
       Learn more (https://hakaiinstitute.github.io/kelpbio/articles/results.html)
       Density in the weight model
       Bull kelp plants of the same diameter weigh more or less depending on how crowded they are, so the weight model uses stipe density as a predictor: the stipes counted over the area surveyed in each site-year of the density data. Site-years without density data take the mean density.
       Learn more (https://hakaiinstitute.github.io/kelpbio/articles/models.html)
       Canopy area
-      The total area of kelp canopy at a site in a year, in square metres, measured from drone imagery. It is the same on every row of that site-year in the cover sheet.
+      The area of kelp canopy the drone imagery delineated within a plot polygon, in square metres. A survey with no canopy has a canopy area of 0.
       Learn more (https://hakaiinstitute.github.io/kelpbio/articles/total-biomass.html)
-      Percent cover
-      The percentage of a plot covered by kelp canopy in the drone imagery. It links the biomass measured in plots to what the drone sees.
+      Tide-corrected cover
+      Less of the canopy shows at the surface at higher tides, so the cover model corrects the canopy area for the tide height at the survey. Cover is the corrected canopy area as a proportion of the polygon area, from 0 to 1.
       Learn more (https://hakaiinstitute.github.io/kelpbio/articles/total-biomass.html)
-      Total biomass
-      Biomass per unit area is predicted from percent cover with the cover model, then scaled up by the canopy area. The uncertainty in every model is carried through to the limits. Site-years with canopy area but no plot cover use the population-level cover relationship.
+      Total site biomass
+      The cover model relates the wet biomass of surveyed plots to their tide-corrected canopy cover, and total site biomass scales it up to the site's mapped canopy in each site-year with a drone survey. The uncertainty in every model is carried through to the limits.
       Learn more (https://hakaiinstitute.github.io/kelpbio/articles/total-biomass.html)
       Priors
       A prior states which parameter values are plausible before the data are seen. The defaults rule out implausible values but leave the data to decide the estimates, so most analyses keep them.

@@ -89,9 +89,11 @@ notice <- function(icon, title, ..., tone = c("info", "warning", "muted"), actio
   )
   icon_class <- switch(tone, info = "text-info", warning = "text-warning", muted = "text-body-secondary")
   body <- Filter(Negate(is.null), list(...))
+  # With a body, the icon sits beside the title; without, it is centred on the line.
+  one_line <- length(body) == 0
   div(
-    class = paste("d-flex align-items-start gap-3 rounded-3 border p-3 small", box),
-    span(class = "mt-1", lucide(icon, icon_class)),
+    class = paste("d-flex gap-3 rounded-3 border p-3 small", if (one_line) "align-items-center" else "align-items-start", box),
+    span(class = if (one_line) "d-inline-flex" else "mt-1", lucide(icon, icon_class)),
     div(
       class = "flex-grow-1 d-flex flex-column gap-1",
       div(class = "fw-medium", title),
@@ -178,7 +180,7 @@ status_icon <- function(status) {
 status_badge <- function(status) {
   label <- status_label(status)
   switch(status$kind,
-    "not-used" = span(class = "small text-body-secondary", label),
+    "not-used" = badge(label, "bg-secondary-subtle text-secondary-emphasis", "minus-circle"),
     "no-data" = badge(label, "text-bg-danger", "x-circle"),
     "data-error" = badge(label, "text-bg-danger", "x-circle"),
     "not-fitted" = badge(label, "bg-secondary-subtle text-secondary-emphasis", "circle-dashed"),
@@ -310,7 +312,7 @@ status_list <- function(statuses, notes) {
 warning_help <- list(
   convergence = list(
     title = "Convergence warning",
-    advice = "Some parameters have not converged. Increase thinning (nthin) in Sampler settings, for example to 2, and refit."
+    advice = "Some parameters have not converged. Increase thinning (nthin) on the Settings tab, for example to 2, and refit."
   ),
   prior = list(
     title = "Prior sensitivity warning",
@@ -321,45 +323,56 @@ warning_help <- list(
   mismatch = list(title = "Site names differ across sheets", advice = mismatch_advice)
 )
 
-# The action of a model's warning notice: opens its Settings tab. Outline, so
-# the page's Fit or Refit button stays the main action.
-settings_button <- function(id) button(id, "Open settings", "sliders-horizontal", variant = "outline", size = "sm")
-
-# A convergence warning whose action opens the model's settings.
-convergence_notice <- function(title, settings_id) {
-  notice(
-    "alert-triangle", title, warning_help$convergence$advice,
-    tone = "warning",
-    action = settings_button(settings_id)
-  )
-}
-
-# One notice per warning of the models `ids`, for the steps after Models: a
-# failed fit, a convergence warning or a prior sensitivity warning. sensitivity
-# holds the kb_sensitivity() rows of each model fitted to your data. The buttons
-# are ns("open_<id>"), ns("settings_<id>") and ns("priors_<id>").
-warning_notices <- function(ns, statuses, sensitivity, ids = component_ids) {
-  title <- function(id, key) sprintf("%s model: %s", label_of(id), tolower(warning_help[[key]]$title))
-  notices <- lapply(ids, function(id) {
+# The warnings of each model in `ids`, in words: "convergence" and "prior
+# sensitivity" for a ready model, "fit failed" for a failed one.
+model_warnings <- function(statuses, ids = component_ids) {
+  warnings <- lapply(ids, function(id) {
     status <- statuses[[id]]
-    list(
-      if (status$kind == "failed") {
-        notice(
-          "x-circle", title(id, "failed"), status$message,
-          tone = "warning", action = button(ns(paste0("open_", id)), "Open model", variant = "outline", size = "sm")
-        )
-      },
-      if (isTRUE(status$convergence)) convergence_notice(title(id, "convergence"), ns(paste0("settings_", id))),
-      if (isTRUE(status$prior)) {
-        rows <- sensitivity[[id]]
-        notice(
-          "alert-triangle", title(id, "prior"), paste(prior_influence(rows[!rows$weak_prior, ]), warning_help$prior$advice),
-          tone = "warning", action = settings_button(ns(paste0("priors_", id)))
-        )
-      }
+    c(
+      if (status$kind == "failed") "fit failed",
+      if (isTRUE(status$convergence)) "convergence",
+      if (isTRUE(status$prior)) "prior sensitivity"
     )
   })
-  Filter(Negate(is.null), unlist(notices, recursive = FALSE))
+  Filter(length, stats::setNames(warnings, ids))
+}
+
+# A model's warnings as a phrase, for its own estimate page: "convergence and
+# prior sensitivity warnings", or "fit failed".
+warnings_phrase <- function(warnings) {
+  if ("fit failed" %in% warnings) {
+    return("fit failed")
+  }
+  paste(and_list(warnings), if (length(warnings) > 1) "warnings" else "warning")
+}
+
+# One line naming the models in `ids` with warnings, for the steps after Models;
+# the full warnings are on each model's page. On a model's own estimate page
+# (`own`), it names only the warnings. Each link is ns("open_<id>"), observed by
+# observe_warning_links().
+warnings_summary <- function(ns, statuses, ids = component_ids, own = FALSE) {
+  warnings <- model_warnings(statuses, ids)
+  if (length(warnings) == 0) {
+    return(NULL)
+  }
+  link <- function(id, label) actionLink(ns(paste0("open_", id)), label, class = "fw-normal")
+  title <- if (own) {
+    id <- names(warnings)[[1]]
+    tagList(sentence_case(warnings_phrase(warnings[[id]])), span(class = "text-body-secondary", "\u00b7"), link(id, "View diagnostics"))
+  } else {
+    last <- names(warnings)[[length(warnings)]]
+    tagList("Warnings:", lapply(names(warnings), function(id) {
+      span(class = "fw-normal", link(id, paste(label_of(id), "model")), sprintf("(%s)%s", paste(warnings[[id]], collapse = ", "), if (id == last) "" else ";"))
+    }))
+  }
+  notice("alert-triangle", title, tone = "warning")
+}
+
+# Opens a model's diagnostics from a link of warnings_summary().
+observe_warning_links <- function(input, store) {
+  lapply(component_ids, function(cid) {
+    observeEvent(input[[paste0("open_", cid)]], store$open_tab(cid, "diagnostics"))
+  })
 }
 
 # How to make one prior less informative, from its family in the fit's priors
@@ -389,9 +402,29 @@ prior_influence <- function(flagged) {
   )
 }
 
-# Prior sensitivity: a warning, with a link to the priors, for parameters whose
-# prior is not weak. priors is the fit's priors list, whose entries the rows'
-# prior column names.
+# Advice text with "the Settings tab" as a link that opens it (settings_id).
+# Built as one HTML string, so no space appears around the link.
+settings_link <- function(text, settings_id) {
+  parts <- strsplit(text, "the Settings tab", fixed = TRUE)[[1]]
+  if (length(parts) != 2) {
+    return(text)
+  }
+  link <- actionLink(settings_id, "the Settings tab")
+  HTML(paste0(htmltools::htmlEscape(parts[[1]]), as.character(link), htmltools::htmlEscape(parts[[2]])))
+}
+
+# A convergence warning, its advice linking to the Settings tab.
+convergence_notice <- function(settings_id) {
+  notice(
+    "alert-triangle", warning_help$convergence$title,
+    settings_link(warning_help$convergence$advice, settings_id),
+    tone = "warning"
+  )
+}
+
+# Prior sensitivity: a warning for parameters whose prior is not weak, its
+# advice linking to the Settings tab. priors is the fit's priors list, whose
+# entries the rows' prior column names.
 prior_notice <- function(rows, priors, settings_id) {
   if (!prior_flagged(rows)) {
     return(NULL)
@@ -411,9 +444,8 @@ prior_notice <- function(rows, priors, settings_id) {
   }
   notice(
     "alert-triangle", warning_help$prior$title,
-    paste(prior_influence(flagged), action),
-    tone = "warning",
-    action = settings_button(settings_id)
+    settings_link(paste(prior_influence(flagged), action), settings_id),
+    tone = "warning"
   )
 }
 

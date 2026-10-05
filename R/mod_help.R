@@ -1,5 +1,6 @@
-# The Help tab: a user guide and an about page, as two pills. Help is not a
-# step, so it carries no step marker and takes no part in step completion. The guide is built
+# The Help tab: a user guide and an about page, picked in the sidebar as on the
+# Models and Estimates steps. Help is not a step, so it carries no step marker
+# and takes no part in step completion. The guide is built
 # from the definitions the app already uses (app_steps, components, prefit_info,
 # warning_help, help_topics), so it changes when they do; only the connecting
 # sentences are written here.
@@ -95,27 +96,6 @@ guide_warnings <- function() {
 # The guide's sections, by anchor id, as titled on the page and in its contents.
 guide_sections <- c(guide_steps = "Steps", guide_warnings = "Warnings", guide_methods = "Methods", guide_glossary = "Glossary")
 
-# The guide's contents, beside it on large screens; each entry jumps to its
-# section, and the page stays scrollable.
-guide_contents <- function() {
-  card(
-    class = "d-none d-lg-flex",
-    card_body(
-      gap = "0.5rem",
-      div(class = "kb-eyebrow text-body-secondary", "Contents"),
-      tags$nav(
-        `aria-label` = "User guide contents",
-        tags$ul(
-          class = "list-unstyled d-flex flex-column gap-2 mb-0",
-          lapply(names(guide_sections), function(id) {
-            tags$li(tags$a(href = paste0("#", id), class = "link-body-emphasis text-decoration-none", guide_sections[[id]]))
-          })
-        )
-      )
-    )
-  )
-}
-
 # The pointer to kelpbio, which explains the statistics the app runs.
 guide_docs_callout <- function() {
   card(id = "guide_methods", class = "kb-anchor", card_body(div(
@@ -133,29 +113,59 @@ guide_docs_callout <- function() {
   )))
 }
 
-# A Help page's opening line. The pill above names the page, so its title is
-# hidden, there for screen readers and heading navigation.
-help_lead <- function(title, text) {
-  tagList(h1(class = "visually-hidden", title), div(class = "kb-lead text-body-secondary mb-4", text))
-}
+help_pages <- c(guide = "User guide", about = "About")
 
 help_ui <- function() {
-  navset_pill(
-    id = "help_page",
-    nav_panel("User guide", value = "guide", div(class = "pt-4", help_guide_ui())),
-    nav_panel("About", value = "about", div(class = "pt-4", help_about_ui()))
+  step_layout(
+    card(card_body(padding = "0.5rem", uiOutput("help_subnav"))),
+    navset_hidden(
+      id = "help_page",
+      nav_panel_hidden("guide", help_guide_ui()),
+      nav_panel_hidden("about", help_about_ui())
+    )
   )
 }
 
+# The sidebar: a link per page, with the guide's sections under it while it is
+# open; each section link jumps to its section, and the page stays scrollable.
+help_server <- function(input, output, session) {
+  observeEvent(input$help_nav_guide, nav_select("help_page", "guide"))
+  observeEvent(input$help_nav_about, nav_select("help_page", "about"))
+  output$help_subnav <- renderUI({
+    page <- input$help_page %||% "guide"
+    icons <- c(guide = "book-open", about = "info")
+    tags$nav(
+      class = "nav nav-pills flex-column gap-1",
+      `aria-label` = "Help",
+      lapply(names(help_pages), function(value) {
+        tagList(
+          subnav_link(paste0("help_nav_", value), page == value, lucide(icons[[value]], "text-body-secondary"), help_pages[[value]]),
+          if (value == "guide" && page == "guide") {
+            div(
+              class = "d-flex flex-column gap-1 small ps-4 ms-2 pb-1",
+              lapply(names(guide_sections), function(id) {
+                tags$a(href = paste0("#", id), class = "link-body-emphasis text-decoration-none py-1", guide_sections[[id]])
+              })
+            )
+          }
+        )
+      })
+    )
+  })
+  # Rendered while Help is hidden: opening Help from a link switches the step
+  # and the page at once, and Shiny can then miss that the sidebar is shown.
+  outputOptions(output, "help_subnav", suspendWhenHidden = FALSE)
+}
+
 help_guide_ui <- function() {
-  step_layout(guide_contents(), tagList(
-    help_lead("User guide", "How to use the app, step by step."),
+  tagList(
+    page_header(help_pages[["guide"]], "How to use the app, step by step."),
     div(
       class = "d-flex flex-column gap-3",
       panel(
         guide_sections[["guide_steps"]],
         id = "guide_steps", class = "kb-anchor",
-        description = "A run moves through four steps in the navbar. A step's marker shows a check mark once it is complete.",
+        description = "A run moves through four steps in the navbar. A step's marker shows a check mark once the step is complete: data loaded, models ready, or estimates saved.",
         div(
           class = "d-flex flex-column gap-4",
           lapply(names(steps), function(value) {
@@ -177,7 +187,7 @@ help_guide_ui <- function() {
         guide_glossary()
       )
     )
-  ))
+  )
 }
 
 # A package's installed version, or "Not installed". The app currently uses
@@ -222,7 +232,7 @@ citation_block <- function(id, label, citation) {
 
 help_about_ui <- function() {
   tagList(
-    help_lead("About", app_purpose),
+    page_header(help_pages[["about"]], app_purpose),
     div(
       class = "d-flex flex-column gap-3",
       card(card_body(

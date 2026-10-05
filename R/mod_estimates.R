@@ -26,7 +26,7 @@ mod_estimates_server <- function(id, store) {
     mod_biomass_estimate_server("total", store)
 
     # The estimate shown: the one asked for, or else the first available, with
-    # biomass per unit area first as most runs are for it.
+    # plot biomass first as most runs are for it.
     shown <- reactive({
       chosen <- store$estimate()
       if (!is.null(chosen)) {
@@ -90,24 +90,11 @@ estimate_unavailable <- function(ns, reason) {
   )
 }
 
-# The warnings of the models an estimate uses, then any `extra` notices, above
-# its figure and table. The buttons are the ns("open_<id>"), ns("settings_<id>")
-# and ns("priors_<id>") of warning_notices(), observed by observe_warning_buttons().
-estimate_notices <- function(ns, store, ids, extra = list()) {
-  notices <- c(warning_notices(ns, store$statuses(), lapply(store$sensitivity, function(r) r()), ids = ids), extra)
-  notices <- Filter(Negate(is.null), notices)
+# The warnings of the models an estimate uses, in one line (`own` on a model's
+# own estimate page), then any `extra` notices, above its figure and table.
+estimate_notices <- function(ns, store, ids, extra = list(), own = FALSE) {
+  notices <- Filter(Negate(is.null), c(list(warnings_summary(ns, store$statuses(), ids, own)), extra))
   if (length(notices) > 0) div(class = "d-flex flex-column gap-2 mb-3", notices)
-}
-
-observe_warning_buttons <- function(input, store) {
-  for (cid in component_ids) {
-    local({
-      cid <- cid
-      observeEvent(input[[paste0("settings_", cid)]], store$open_settings(cid))
-      observeEvent(input[[paste0("priors_", cid)]], store$open_settings(cid))
-      observeEvent(input[[paste0("open_", cid)]], store$go_to("models", cid))
-    })
-  }
 }
 
 # One model's estimates ---------------------------------------------------------
@@ -143,13 +130,13 @@ mod_estimate_server <- function(id, store) {
 
     observeEvent(input$open_model, store$go_to("models", cid))
     observeEvent(input$to_models, store$go_to("models", cid))
-    observe_warning_buttons(input, store)
+    observe_warning_links(input, store)
 
     output$source <- renderText(sprintf("Source: %s", source_label(store$sources()[[cid]])))
 
     output$notices <- renderUI({
       req(page()$available$available)
-      estimate_notices(ns, store, cid)
+      estimate_notices(ns, store, cid, own = TRUE)
     })
 
     output$body <- renderUI({
@@ -201,10 +188,9 @@ mod_estimate_server <- function(id, store) {
       alt = function() sprintf("Predicted %s for the %s model", prediction_info[[cid]]$response, lower_label(cid))
     )
 
-    output$table_description <- renderUI({
+    output$table_title <- renderText({
       info <- prediction_info[[cid]]
-      what <- if (grouping() == "plant") info$plant_table else info$table
-      with_help(sprintf("%s with 95%% compatibility intervals, to 3 significant figures.", what), "interval")
+      if (grouping() == "plant") info$plant_table else info$table
     })
 
     output$table <- reactable::renderReactable({
@@ -262,7 +248,11 @@ predictions_panel <- function(ns, cid, prefit, species, plants) {
     plot_table_nav(
       ns("view"),
       uiOutput(ns("figure")),
-      panel("Estimates", description = uiOutput(ns("table_description"), inline = TRUE), reactable::reactableOutput(ns("table")))
+      panel(
+        textOutput(ns("table_title"), inline = TRUE),
+        description = with_help("With 95% compatibility intervals, to 3 significant figures.", "interval"),
+        reactable::reactableOutput(ns("table"))
+      )
     )
   )
 }
@@ -277,7 +267,7 @@ mod_biomass_estimate_ui <- function(id, eid) {
   tagList(
     estimate_header(
       title,
-      if (eid == "total") "Site-years with a drone survey, from the cover model" else "By site-year, from the combined models",
+      if (eid == "total") "Biomass over the site's mapped canopy, for site-years with a drone survey." else "Biomass per m\u00b2 at the plot scale, by site-year.",
       button(ns("change_sources"), "Change sources", variant = "outline", size = "sm")
     ),
     uiOutput(ns("notices")),
@@ -297,7 +287,7 @@ mod_biomass_estimate_server <- function(id, store) {
     observeEvent(input$output, chosen(input$output))
     observeEvent(input$change_sources, store$go_to("models"))
     observeEvent(input$to_models, store$go_to("models"))
-    observe_warning_buttons(input, store)
+    observe_warning_links(input, store)
 
     output$notices <- renderUI({
       req(available()$available)
@@ -430,9 +420,9 @@ biomass_panels <- function(ns, key, total) {
       figure_plot(ns("figure"))
     ),
     table = panel(
-      "Estimates",
+      sprintf("%s (%s)", label, unit),
       description = tagList(
-        with_help(sprintf("%s (%s) with 95%% compatibility intervals, to 3 significant figures.", label, unit), "interval"),
+        with_help("With 95% compatibility intervals, to 3 significant figures.", "interval"),
         flags_note()
       ),
       reactable::reactableOutput(ns("table"))

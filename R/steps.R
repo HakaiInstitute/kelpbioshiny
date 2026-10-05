@@ -7,7 +7,7 @@ app_purpose <- "Get annual estimates of kelp biomass by site, or the weight of e
 app_steps <- list(
   data = list(label = "Data", description = "Load the survey data, from a workbook or a CSV file per model."),
   models = list(label = "Models", description = "Fit each model to the data or choose a pre-fit model, then check the diagnostics."),
-  estimates = list(label = "Estimates", description = "Review the estimates from each model, and biomass by site and year from the combined models."),
+  estimates = list(label = "Estimates", description = "Review the estimates from each model, and plot and total site biomass from the combined models."),
   export = list(label = "Export", description = "Save the estimates, or rerun the whole analysis in R.")
 )
 

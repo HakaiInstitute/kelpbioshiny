@@ -79,8 +79,8 @@ export_script <- function(species, sources, sheets, workbook, priors, samplers) 
       if (biomass && "cover" %in% used) {
         c(
           "",
-          "# Total biomass per site-year from the cover model, fitted to the drone",
-          "# surveys with the biomass of their site-years added",
+          "# Total site biomass from the cover model, fitted to the drone surveys",
+          "# with the plot biomass of their site-years added",
           "cover <- kb_add_biomass(cover, biomass)",
           fit_lines("cover"),
           "totals <- kb_predict_biomass_total(fit_cover, biomass)",
@@ -162,18 +162,11 @@ mod_export_server <- function(id, store) {
       })
     })
 
-    for (cid in component_ids) {
-      local({
-        cid <- cid
-        observeEvent(input[[paste0("settings_", cid)]], store$open_settings(cid))
-        observeEvent(input[[paste0("priors_", cid)]], store$open_settings(cid))
-        observeEvent(input[[paste0("open_", cid)]], store$go_to("models", cid))
-      })
-    }
+    observe_warning_links(input, store)
 
     output$warnings <- renderUI({
-      notices <- warning_notices(session$ns, store$statuses(), lapply(store$sensitivity, function(r) r()))
-      if (length(notices) > 0) div(class = "d-flex flex-column gap-2 mb-3", notices)
+      summary <- warnings_summary(session$ns, store$statuses())
+      if (!is.null(summary)) div(class = "mb-3", summary)
     })
 
     output$downloads_note <- renderText({

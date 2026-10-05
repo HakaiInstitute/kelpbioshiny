@@ -950,6 +950,69 @@ kb_predict_cover_by <- function(fit, by = NULL, cover = NULL, ..., new_levels = 
   site[order(as.numeric(gsub("\\D", "", site)), site)]
 }
 
+# TODO: not yet implemented in kelpbio. Planned; the names are a proposal,
+# following kb_check_data_<model>_<species>(). A figure of a model's data, to
+# look at before fitting: density per transect by year and site, the size
+# distribution by year, weight by size, blade fraction by site, the dry:wet
+# ratio and carbon fraction of the samples, and the canopy cover of each drone
+# survey by tide height.
+.mock_plot_data <- function(data, model, species) {
+  data <- as.data.frame(data)
+  macro <- species == "macro"
+  if ("site" %in% names(data)) data$site <- factor(data$site, levels = .mock_site_levels(data$site))
+  if ("year" %in% names(data)) data$year <- factor(data$year)
+  size_x <- if (macro) "fronds" else "diameter_mm"
+  size_label <- if (macro) "Fronds" else "Sub-bulb diameter (mm)"
+  points <- function(...) ggplot2::geom_point(..., alpha = 0.5, size = 1)
+  histogram <- function() ggplot2::geom_histogram(bins = 30, fill = "grey70", colour = "grey40", linewidth = 0.2)
+  p <- switch(model,
+    density = {
+      data$density <- data[[if (macro) "plants" else "stipes"]] / data$area_m2
+      ggplot(data, aes(.data$year, .data$density)) +
+        points() +
+        facet_wrap(~site) +
+        labs(x = "Year", y = if (macro) expression("Plant density (plants/m"^2 * ")") else expression("Stipe density (stipes/m"^2 * ")"))
+    },
+    size = ggplot(data, aes(.data[[size_x]])) + histogram() + facet_wrap(~year) + labs(x = size_label, y = "Plants"),
+    weight = ggplot(data, aes(.data[[size_x]], .data$weight_kg)) + points() + labs(x = size_label, y = "Wet weight (kg)"),
+    blade = {
+      data$fraction <- data$blade_weight_kg / data$total_weight_kg
+      ggplot(data, aes(.data$site, .data$fraction)) + points() + labs(x = "Site", y = "Blade fraction")
+    },
+    wetdry = {
+      data$ratio <- data$dry_mass_g / data$wet_mass_g
+      ggplot(data, aes(.data$ratio)) + histogram() + labs(x = "Ratio of dry to wet mass", y = "Samples")
+    },
+    carbon = {
+      data$fraction <- data$carbon_mass_ug / 1000 / data$sample_mass_mg
+      ggplot(data, aes(.data$fraction)) + histogram() + labs(x = "Carbon fraction of dry mass", y = "Samples")
+    },
+    cover = {
+      data$cover <- data$canopy_m2 / data$polygon_m2
+      ggplot(data, aes(.data$tide_height_m, .data$cover)) + points() + labs(x = "Tide height (m)", y = "Canopy cover")
+    }
+  )
+  p <- p + expand_limits(y = 0) + theme_bw()
+  if (model %in% c("density", "blade")) p <- p + theme(axis.text.x = element_text(angle = 45, hjust = 1))
+  p
+}
+
+# TODO: not yet implemented in kelpbio (see .mock_plot_data()).
+kb_plot_data_density_nereo <- function(data) .mock_plot_data(data, "density", "nereo")
+kb_plot_data_density_macro <- function(data) .mock_plot_data(data, "density", "macro")
+kb_plot_data_size_nereo <- function(data) .mock_plot_data(data, "size", "nereo")
+kb_plot_data_size_macro <- function(data) .mock_plot_data(data, "size", "macro")
+kb_plot_data_weight_nereo <- function(data) .mock_plot_data(data, "weight", "nereo")
+kb_plot_data_weight_macro <- function(data) .mock_plot_data(data, "weight", "macro")
+kb_plot_data_blade_nereo <- function(data) .mock_plot_data(data, "blade", "nereo")
+kb_plot_data_blade_macro <- function(data) .mock_plot_data(data, "blade", "macro")
+kb_plot_data_wetdry_nereo <- function(data) .mock_plot_data(data, "wetdry", "nereo")
+kb_plot_data_wetdry_macro <- function(data) .mock_plot_data(data, "wetdry", "macro")
+kb_plot_data_carbon_nereo <- function(data) .mock_plot_data(data, "carbon", "nereo")
+kb_plot_data_carbon_macro <- function(data) .mock_plot_data(data, "carbon", "macro")
+kb_plot_data_cover_nereo <- function(data) .mock_plot_data(data, "cover", "nereo")
+kb_plot_data_cover_macro <- function(data) .mock_plot_data(data, "cover", "macro")
+
 # Exists.
 kb_plot_predictions <- function(predictions, ..., x = NULL, max_facets = 12L) {
   data <- as.data.frame(predictions)

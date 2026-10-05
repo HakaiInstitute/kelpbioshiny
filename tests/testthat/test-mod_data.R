@@ -7,7 +7,7 @@ test_that("Use example workbook loads the example sheets", {
 
     session$setInputs(`data-example_density_size` = 1)
 
-    expect_named(store$sheets(), c("density", "size"))
+    expect_named(store$sheets(), c("density", "size", "cover"))
     expect_identical(store$workbook(), "example-density-size-nereo.xlsx")
   })
 })

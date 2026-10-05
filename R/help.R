@@ -146,9 +146,9 @@ help_topics <- list(
     link = kelpbio_articles[["total_biomass"]]
   ),
   total_biomass = list(
-    title = "Total biomass",
+    title = "Total site biomass",
     body = paste(
-      "The cover model relates the wet biomass of surveyed plots to their tide-corrected canopy cover, and total biomass scales it up to each surveyed site-year.",
+      "The cover model relates the wet biomass of surveyed plots to their tide-corrected canopy cover, and total site biomass scales it up to the site's mapped canopy in each site-year with a drone survey.",
       "The uncertainty in every model is carried through to the limits."
     ),
     link = kelpbio_articles[["total_biomass"]]

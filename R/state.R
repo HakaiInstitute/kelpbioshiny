@@ -193,7 +193,7 @@ estimate_availability <- function(id, statuses, sources, blocking, mismatches, b
     ))
   }
   if (!biomass_possible(sources)) {
-    return(unavailable("Biomass needs the density, size and weight models, each fitted to your data or pre-fit."))
+    return(unavailable("Plot biomass needs the density, size and weight models, each fitted to your data or pre-fit."))
   }
   if (length(mismatches) > 0) {
     return(unavailable(sprintf("Site names differ across sheets: %s. %s", and_list(sprintf("\"%s\"", mismatches)), mismatch_advice)))
@@ -216,11 +216,11 @@ total_availability <- function(sources, sheets, status) {
     return(list(available = TRUE))
   }
   reason <- if (is.null(sheets$cover)) {
-    "Total biomass unavailable: add a cover sheet of drone surveys to estimate total biomass per site-year."
+    "Total site biomass unavailable: add a cover sheet of drone surveys to estimate it."
   } else if (sources[["cover"]] == "none") {
-    "Total biomass unavailable: the cover model is not used. Choose Your data for it on the Models step."
+    "Total site biomass unavailable: the cover model is not used. Choose Your data for it on the Models step."
   } else {
-    "Total biomass unavailable until the cover model is fitted."
+    "Total site biomass unavailable until the cover model is fitted."
   }
   list(available = FALSE, reason = reason)
 }
@@ -488,8 +488,11 @@ new_store <- function(session, run_fit = mirai_fit_runner) {
 
   s$reset_fit <- function(id) update_records(reset_records, id)
 
+  # New data start a new run: fits are discarded and the Estimates step opens
+  # on its default estimate again.
   apply_sheets <- function(sheets, file) {
     update_records(function(records) idle_records())
+    s$estimate(NULL)
     s$sheets(sheets)
     s$workbook(file)
     s$sources(default_sources(sheets))
@@ -550,6 +553,7 @@ new_store <- function(session, run_fit = mirai_fit_runner) {
     s$species(value)
     s$priors(lapply(component_ids, default_priors, species = value))
     update_records(function(records) idle_records())
+    s$estimate(NULL)
     s$sheets(lapply(isolate(s$sheets()), function(sheet) new_sheet(sheet$component, sheet$rows, sheet$file, value)))
   }
 
@@ -616,7 +620,8 @@ new_store <- function(session, run_fit = mirai_fit_runner) {
   }
 
   # The estimate the Estimates step shows (an estimate_ids value), or NULL for
-  # the first one available.
+  # the first one available; reset when the data are replaced or the species
+  # changes.
   s$estimate <- reactiveVal(NULL)
   s$open_estimate <- function(id) {
     s$estimate(id)
@@ -629,14 +634,13 @@ new_store <- function(session, run_fit = mirai_fit_runner) {
     nav_select("help_page", page, session = session)
   }
 
-  # Opens one tab of a model's detail page, e.g. its settings after a convergence warning.
+  # Opens one tab of a model's detail page, e.g. its diagnostics from a warning.
   tab_requests <- 0
   s$open_tab <- function(id, tab) {
     tab_requests <<- tab_requests + 1
     s$go_to("models", id)
     s$tab_request(list(id = id, tab = tab, n = tab_requests))
   }
-  s$open_settings <- function(id) s$open_tab(id, "settings")
 
   observeEvent(session$input$step, {
     if (session$input$step == "models") {
@@ -645,20 +649,11 @@ new_store <- function(session, run_fit = mirai_fit_runner) {
     }
   })
 
-  # Whether the current results have been reviewed (the Estimates step opened
-  # with estimates) and exported (a download, or the R script copied), for the
-  # navbar markers. A change of fits or sources changes the results, so it
-  # resets both first; the higher priority runs the reset before the check
-  # below, which marks the results reviewed again if Biomass is open.
-  s$reviewed <- reactiveVal(FALSE)
+  # Whether the current results have been exported (a download, or the R script
+  # copied), for the navbar marker. A change of fits or sources changes the
+  # results, so it resets.
   s$exported <- reactiveVal(FALSE)
-  observeEvent(list(s$records(), s$sources()), {
-    s$reviewed(FALSE)
-    s$exported(FALSE)
-  }, ignoreInit = TRUE, priority = 10)
-  observe({
-    if (identical(session$input$step, "estimates") && s$any_estimate()) s$reviewed(TRUE)
-  })
+  observeEvent(list(s$records(), s$sources()), s$exported(FALSE), ignoreInit = TRUE)
 
   # Fit queue ------------------------------------------------------------------
   # Fits run one at a time in the background, so the session stays responsive
@@ -672,7 +667,7 @@ new_store <- function(session, run_fit = mirai_fit_runner) {
     call <- tryCatch(
       {
         if (id == "cover" && !s$biomass_ready()) {
-          stop("Biomass per unit area is not available: every other model in use must be ready first.", call. = FALSE)
+          stop("Plot biomass is not available: every other model in use must be ready first.", call. = FALSE)
         }
         fit_call(
           id, s$species(), s$sheets(), s$priors()[[id]], s$samplers()[[id]], progress_dir,

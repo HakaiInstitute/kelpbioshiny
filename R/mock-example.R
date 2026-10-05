@@ -78,9 +78,11 @@
 # - "full": density, size, weight, wetdry, carbon and cover, so those models
 #   can be fitted to the data, through to total biomass;
 # - "density_size": the density and size data a typical monitoring program
-#   collects, so the other models are pre-fit;
-# - "bad_weight": density and size, and a weight sheet with two rows missing
-#   their year, so its data check fails;
+#   collects, with drone surveys for total site biomass; weight, wetdry and
+#   carbon are pre-fit;
+# - "bad_weight": density and size, a weight sheet with two rows missing their
+#   year, so its data check fails, and a carbon sheet with three samples outside
+#   the plausible carbon fractions, so its check passes with a warning;
 # - "size_only": plant diameters only, to predict the weight of each plant.
 # data-raw/test-workbooks.R writes each example as an Excel workbook.
 kb_example_data <- function(species = c("nereo", "macro"), example = c("density_size", "full", "bad_weight", "size_only")) {
@@ -89,11 +91,13 @@ kb_example_data <- function(species = c("nereo", "macro"), example = c("density_
   sheets <- .mock_example_sheets(species)
   switch(example,
     full = sheets[c("density", "size", "weight", "wetdry", "carbon", "cover")],
-    density_size = sheets[c("density", "size")],
+    density_size = sheets[c("density", "size", "cover")],
     bad_weight = {
       weight <- sheets$weight
       weight$year[c(42, 218)] <- NA
-      c(sheets[c("density", "size")], list(weight = weight))
+      carbon <- sheets$carbon
+      carbon$carbon_mass_ug[c(5, 23, 47)] <- round(carbon$sample_mass_mg[c(5, 23, 47)] * c(600, 80, 650))
+      c(sheets[c("density", "size")], list(weight = weight, carbon = carbon))
     },
     size_only = sheets["size"]
   )
