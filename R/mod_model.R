@@ -261,7 +261,7 @@ mod_model_server <- function(id, store) {
         return(diagnostics_panel(ns, "the reference data"))
       }
       switch(mode,
-        user = fit_pending_state(kind(), "Fit the model to check its convergence, posterior predictive check and prior sensitivity."),
+        user = fit_pending_state(kind(), "Fit the model to check its convergence, prior sensitivity and posterior predictive check."),
         "no-sheet" = no_sheet("Diagnostics appear once the model is fitted to your data."),
         none = not_used(),
         NULL
@@ -479,10 +479,10 @@ fit_pending_state <- function(kind, description) {
 }
 
 # The diagnostics of a fit, in one scrolling tab: convergence and trace plots,
-# posterior predictive checks and prior sensitivity. `data` names the data the
+# prior sensitivity and posterior predictive checks. `data` names the data the
 # model was fitted to: "your data", or "the reference data" of a pre-fit model.
 diagnostics_panel <- function(ns, data) {
-  div(class = "d-flex flex-column gap-3", convergence_panel(ns), ppc_panel(ns, data), sensitivity_panel(ns))
+  div(class = "d-flex flex-column gap-3", convergence_panel(ns), sensitivity_panel(ns), ppc_panel(ns, data))
 }
 
 sensitivity_panel <- function(ns) {
