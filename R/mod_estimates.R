@@ -174,13 +174,15 @@ mod_estimate_server <- function(id, store) {
     })
 
     # An overall prediction of a model without a predictor has no column for the
-    # x-axis, so it gets one naming what it is for.
+    # x-axis, so it gets one naming what it is for. Each plant's weight is shown
+    # in one panel: faceted by site and year it would split into a panel per
+    # site-year, so every site-year is kept (max_facets) and the facets dropped.
     output$plot <- render_figure(
       function() {
         grouping <- grouping()
         predictions <- predictions()
         if (grouping == "plant") {
-          kb_plot_predictions(predictions, x = attr(predictions, "kb_predictor"))
+          kb_plot_predictions(predictions, x = attr(predictions, "kb_predictor"), max_facets = Inf) + ggplot2::facet_null()
         } else if (grouping == "population" && is.null(prediction_info[[cid]]$along)) {
           predictions$group <- population_label(cid, page()$species)
           kb_plot_predictions(predictions, x = "group") + ggplot2::labs(x = NULL)
