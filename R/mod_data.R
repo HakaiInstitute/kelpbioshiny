@@ -21,13 +21,14 @@ coverage_omitted <- function(sources, species, shown) {
 # each model, the sites, years and site-years its data hold and its site, year
 # and site-year effects. `gaps` are the site-years with density data that some
 # model other than cover has no data for, so they borrow its estimate from other
-# sites and years; a site-year without a drone survey gets no total biomass
-# instead. `no_density` are the other site-years without density data, which
+# sites and years. For cover, the site-years are those with a drone survey of
+# the whole site; one without gets no total site biomass instead. `no_density` are the other site-years without density data, which
 # get no biomass.
 coverage <- function(sheets, sources, species) {
   ids <- c(if (!is.null(sheets$density)) "density", coverage_ids(sheets, sources, species))
   models <- lapply(stats::setNames(nm = ids), function(id) {
     rows <- sheets[[id]]$rows
+    if (id == "cover" && is.null(sheets$cover$error)) rows <- site_surveys(rows)
     list(
       effects = c("site", "year", "site_year")[has_effect(id, c("site", "year", "site_year"), species)],
       sites = unique(rows$site), years = unique(as.character(rows$year)), keys = site_years(rows)
@@ -65,12 +66,12 @@ coverage_cell <- function(cov, id, site, year) {
   label <- lower_label(id)
   density <- if (is.null(cov$density)) NA else key %in% cov$density
   if (key %in% model$keys) {
-    text <- if (id == "cover") "Drone survey" else paste(label_of(id), "data")
+    text <- if (id == "cover") "Drone survey of the site" else paste(label_of(id), "data")
     if (isFALSE(density) && id != "density") text <- paste0(text, "; no density data, so biomass is not estimated")
     return(list(state = "data", text = text))
   }
   if (isTRUE(density) && id == "cover") {
-    return(list(state = "blank", text = "No drone survey, so no total site biomass"))
+    return(list(state = "blank", text = "No drone survey of the whole site, so no total site biomass"))
   }
   if (isTRUE(density)) {
     return(list(state = "gap", text = coverage_borrowed(model, label, site, year)))
@@ -365,7 +366,7 @@ welcome_card <- function(ns) {
 # under the CSV uploads.
 sheets_description <- paste(
   "An Excel workbook with one sheet per model, named after the model; leave out the sheets you do not have.",
-  "Plot biomass needs density, size and weight, from your data or pre-fit models, and a cover sheet adds total site biomass."
+  "Plot biomass needs density, size and weight, from your data or pre-fit models, and a cover sheet of drone surveys adds total site biomass."
 )
 
 # A sheet whose model uses a pre-fit model or none shows its check muted, as it
@@ -530,7 +531,7 @@ coverage_legend <- function(cov, id) {
   })))
   states <- intersect(names(coverage_states), states)
   labels <- coverage_states
-  if (id == "cover") labels$data <- "Drone survey"
+  if (id == "cover") labels$data <- "Drone survey of the site"
   div(
     class = "d-flex flex-wrap column-gap-3 row-gap-1 small",
     lapply(states, function(state) {

@@ -30,7 +30,6 @@ Imports:
     shiny,
     stats,
     tibble,
-    universals,
     utils,
     withr,
     writexl

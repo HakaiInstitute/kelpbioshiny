@@ -164,21 +164,26 @@ mod_estimate_server <- function(id, store) {
 
     # The predictions for the figure, and for the table: the same call unless the
     # model predicts along a predictor, where the table is at its reference value.
-    predictions <- reactive(model_predictions(cid, req(fit()), grouping(), plants = plants()))
+    predictions <- reactive(model_predictions(cid, req(fit()), grouping(), page()$species, plants = plants()))
     predictions_at <- reactive({
       if (is.null(prediction_info[[cid]]$along) || grouping() == "plant") {
         predictions()
       } else {
-        model_predictions(cid, req(fit()), grouping(), at = TRUE)
+        model_predictions(cid, req(fit()), grouping(), page()$species, at = TRUE)
       }
     })
 
+    # An overall prediction of a model without a predictor has no column for the
+    # x-axis, so it gets one naming what it is for.
     output$plot <- render_figure(
       function() {
         grouping <- grouping()
         predictions <- predictions()
         if (grouping == "plant") {
           kb_plot_predictions(predictions, x = attr(predictions, "kb_predictor"))
+        } else if (grouping == "population" && is.null(prediction_info[[cid]]$along)) {
+          predictions$group <- population_label(cid, page()$species)
+          kb_plot_predictions(predictions, x = "group") + ggplot2::labs(x = NULL)
         } else {
           kb_plot_predictions(predictions)
         }
@@ -209,6 +214,15 @@ mod_estimate_server <- function(id, store) {
       )))
     })
   })
+}
+
+# What an overall prediction is for: "All sites and years", "All sites" or,
+# for a model without site effects, "All samples".
+population_label <- function(cid, species) {
+  if (has_effect(cid, "year", species)) {
+    return("All sites and years")
+  }
+  if (has_effect(cid, "site", species)) "All sites" else "All samples"
 }
 
 # By site where the model has site effects, as that is what most users want to
@@ -258,8 +272,8 @@ predictions_panel <- function(ns, cid, prefit, species, plants) {
 }
 
 # Biomass -----------------------------------------------------------------------
-# Biomass per unit area by site-year, or total biomass for the site-years with a
-# canopy area, for the chosen output (wet, dry or carbon).
+# Plot biomass by site-year, or total biomass of each drone survey of a whole
+# site, for the chosen measure (wet, dry or carbon).
 
 mod_biomass_estimate_ui <- function(id, eid) {
   ns <- NS(id)
@@ -267,7 +281,7 @@ mod_biomass_estimate_ui <- function(id, eid) {
   tagList(
     estimate_header(
       title,
-      if (eid == "total") "Biomass over the site's mapped canopy, for site-years with a drone survey." else "Biomass per m\u00b2 at the plot scale, by site-year.",
+      if (eid == "total") "Biomass over the canopy mapped in each drone survey of a whole site." else "Biomass per m\u00b2 at the plot scale, by site-year.",
       button(ns("change_sources"), "Change sources", variant = "outline", size = "sm")
     ),
     uiOutput(ns("notices")),
@@ -325,8 +339,8 @@ mod_biomass_estimate_server <- function(id, store) {
     output$plot_panel <- renderUI(biomass_panels(ns, output_key(), total)$plot)
     output$table_panel <- renderUI(biomass_panels(ns, output_key(), total)$table)
 
-    # Biomass per unit area, or total biomass, for the chosen output, or the
-    # error kelpbio gave.
+    # Plot biomass, or total site biomass, for the chosen measure, or the error
+    # kelpbio gave.
     estimates <- reactive({
       req(available()$available)
       tryCatch(
@@ -337,9 +351,9 @@ mod_biomass_estimate_server <- function(id, store) {
     estimated <- reactive(if (!inherits(estimates(), "error")) estimates() else req(FALSE))
 
     # One facet per site, so the figure grows with the rows of facets
-    # (kb_plot_biomass() uses facet_wrap()'s default layout).
+    # (kb_plot_predictions() uses facet_wrap()'s default layout).
     output$figure <- render_figure(
-      function() kb_plot_biomass(estimated()), "figure",
+      function() kb_plot_predictions(estimated()), "figure",
       height = function() figure_px(60 + 170 * ggplot2::wrap_dims(length(unique(estimated()$site)))[1]),
       alt = function() {
         label <- output_info[[output_key()]]$label
@@ -349,17 +363,17 @@ mod_biomass_estimate_server <- function(id, store) {
 
     output$table <- reactable::renderReactable({
       rows <- biomass_table(estimated())
-      population <- rows$flags != ""
+      flagged <- rows$flags != ""
       number <- function(name) reactable::colDef(name = name, cell = number_text, align = "right", class = "kb-tabular")
       app_table(
         rows,
-        row_style = function(index) if (population[index]) app_row_colour$info,
+        row_style = function(index) if (flagged[index]) app_row_colour$info,
         columns = Filter(Negate(is.null), list(
           site = reactable::colDef(name = "Site"),
           year = reactable::colDef(name = "Year"),
-          canopy_m2 = if (total) {
+          canopy_area_m2 = if (total) {
             reactable::colDef(
-              name = "Canopy area (m\u00b2)", align = "right", class = "kb-tabular",
+              name = "Site canopy area (m\u00b2)", align = "right", class = "kb-tabular",
               format = reactable::colFormat(separators = TRUE, digits = 0)
             )
           },
@@ -383,25 +397,48 @@ mod_biomass_estimate_server <- function(id, store) {
   })
 }
 
-# The estimates table: kb_predict_biomass() or kb_predict_biomass_total() rows
-# with a flags column naming the population-level estimates each site-year
-# uses. The sources, pre-fit or not, are the same for every row and are listed
-# on the Models step.
+# The estimates table: kb_predict_plot_biomass() or kb_predict_site_biomass()
+# rows with a flags column naming the models without data for each site-year,
+# from the *_support columns, which give what each model's data hold for it.
+# The sources, pre-fit or not, are the same for every row and are listed on the
+# Models step.
 biomass_table <- function(rows) {
+  supports <- intersect(names(support_info), names(rows))
   flags <- vapply(seq_len(nrow(rows)), function(i) {
-    paste(c(
-      if (rows$population_size[i]) "Population-level size",
-      if (rows$population_weight[i]) "Population-level weight"
-    ), collapse = "|")
+    paste(unlist(lapply(supports, function(column) support_flag(column, rows[[column]][i]))), collapse = "|")
   }, character(1))
-  columns <- intersect(c("site", "year", "canopy_m2", "estimate", "lower", "upper"), names(rows))
+  columns <- intersect(c("site", "year", "canopy_area_m2", "estimate", "lower", "upper"), names(rows))
   data.frame(as.data.frame(rows)[columns], flags = flags)
+}
+
+# Each *_support column: the model it is for, and its value when the model has
+# data for the site-year itself (the cover biomass model has no site-year effect).
+support_info <- list(
+  size_support = list(id = "size", full = "site-year"),
+  weight_support = list(id = "weight", full = "site-year"),
+  cover_support = list(id = "cover", full = "site, year")
+)
+
+# "No size data: uses its site and year", or NULL where the model has data for
+# the site-year.
+support_flag <- function(column, support) {
+  info <- support_info[[column]]
+  if (support == info$full) {
+    return(NULL)
+  }
+  model <- lower_label(info$id)
+  switch(support,
+    "site, year" = sprintf("No %s data: uses its site and year", model),
+    site = sprintf("No %s data: uses its site", model),
+    year = sprintf("No %s data: uses its year", model),
+    sprintf("No %s data for its site or year", model)
+  )
 }
 
 flags_note <- function() {
   span(
     class = "d-inline-flex flex-wrap align-items-center gap-1",
-    "Flags show where a", with_help("population-level estimate", "population"), "was used."
+    "Flags show where a model has no data for the", with_help("site-year.", "coverage")
   )
 }
 
@@ -409,13 +446,13 @@ flags_note <- function() {
 biomass_panels <- function(ns, key, total) {
   info <- output_info[[key]]
   label <- if (total) paste("Total", tolower(info$label)) else info$label
-  unit <- if (total) "t" else info$unit
+  unit <- info$unit[[if (total) "site" else "plot"]]
   list(
     plot = panel(
       label,
       description = sprintf(
-        "Estimated %s (%s) by year, faceted by site, with 95%% compatibility intervals%s.",
-        tolower(label), unit, if (total) ", for site-years with a drone survey" else ""
+        "Estimated %s (%s) %sby year, faceted by site, with 95%% compatibility intervals.",
+        tolower(label), unit, if (total) "of each drone survey of a whole site " else ""
       ),
       figure_plot(ns("figure"))
     ),

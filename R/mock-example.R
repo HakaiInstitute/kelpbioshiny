@@ -15,6 +15,8 @@
   c("site9", "site3", "site8", "site6", "site6", "site2", "site10", "site10"),
   c(2019, 2021, 2021, 2023, 2024, 2025, 2024, 2025)
 )
+# Site-years with drone surveys of plots but no map of the whole site.
+.mock_unmapped <- .mock_example_key(c("site2", "site3"), c(2020, 2021))
 .mock_weight_samples <- c(
   .mock_example_key(rep(c("site1", "site3", "site5", "site7"), each = 3), rep(c(2019, 2021, 2023), times = 4)),
   .mock_example_key("site2", 2024)
@@ -57,15 +59,22 @@
     carbon <- data.frame(sample_mass_mg = sample, carbon_mass_ug = round(sample * 1000 * stats::plogis(stats::rnorm(60, stats::qlogis(0.26), 0.15))))
   })
 
-  # Drone surveys of plots in a subset of site-years: the canopy area delineated
-  # in each plot polygon, the polygon area and the tide height at the survey.
-  plots <- .mock_json("fake-cover")
-  plots <- plots[!is.na(plots$plot_percent_cover), ]
+  # Drone surveys in a subset of site-years, one flight each at one tide
+  # height: the canopy area delineated in each of three plots and the plot's
+  # boundary area, and the canopy area mapped over the whole site, repeated on
+  # each plot's row. Some site-years were mapped without plots, and a few have
+  # plots but no map of the whole site.
+  surveys <- .mock_json("fake-cover")
+  key <- .mock_example_key(surveys$site, surveys$year)
+  plotted <- !is.na(surveys$plot_percent_cover)
   cover <- .mock_with_seed(13, {
-    polygon <- round(stats::runif(nrow(plots), 180, 280), 1)
+    tide <- round(stats::runif(length(unique(key)), 0, 1.5), 2)[match(key, unique(key))]
+    boundary <- round(stats::runif(nrow(surveys), 180, 280), 1)
     data.frame(
-      site = plots$site, year = plots$year, canopy_m2 = round(polygon * plots$plot_percent_cover / 100, 2),
-      polygon_m2 = polygon, tide_height_m = round(stats::runif(nrow(plots), 0, 1.5), 2)
+      site = surveys$site, year = surveys$year, tide_height_m = tide,
+      plot_canopy_area_m2 = ifelse(plotted, round(boundary * surveys$plot_percent_cover / 100, 2), NA),
+      plot_boundary_area_m2 = ifelse(plotted, boundary, NA),
+      site_canopy_area_m2 = ifelse(key %in% .mock_unmapped, NA, surveys$canopy_area)
     )
   })
 
@@ -76,7 +85,7 @@
 # species: a named list of data frames, one per sheet, in kelpbio's column names.
 # The examples are the workbooks of different kinds of user:
 # - "full": density, size, weight, wetdry, carbon and cover, so those models
-#   can be fitted to the data, through to total biomass;
+#   can be fitted to the data, through to total site biomass;
 # - "density_size": the density and size data a typical monitoring program
 #   collects, with drone surveys for total site biomass; weight, wetdry and
 #   carbon are pre-fit;

@@ -20,7 +20,7 @@ help_topics <- list(
     body = function() {
       paste(
         "R-hat compares the chains with each other. Values close to 1 mean the chains agree on the same answer.",
-        sprintf("A value above %s means the model needs more sampling before its estimates can be relied on.", default_arg(kb_convergence, "rhat"))
+        sprintf("A value above %s means the model needs more sampling before its estimates can be relied on.", default_arg(kb_converged, "rhat"))
       )
     },
     link = kelpbio_articles[["diagnostics"]]
@@ -31,8 +31,8 @@ help_topics <- list(
       paste(
         "Draws that follow each other in a chain are similar, so together they hold less information than independent draws.",
         sprintf(
-          "ESS is the number of independent draws they are worth. Below %s%% of the draws, estimates and their limits are less reliable.",
-          100 * default_arg(kb_convergence, "esr")
+          "ESS is the number of independent draws they are worth, for the middle (bulk) and the tails of the distribution. Below %s per chain, estimates and their limits are less reliable.",
+          default_arg(kb_converged, "ess")
         )
       )
     },
@@ -98,7 +98,7 @@ help_topics <- list(
         prefit_info$coastwide$label, prefit_info$coastwide$data, prefit_info$hakai$label, prefit_info$hakai$data
       ),
       "They need no data or fitting here.",
-      "Sites in the reference data get their own estimates; other sites use population-level estimates."
+      "Sites in the reference data get their own estimates."
     ),
     link = kelpbio_articles[["prefit"]]
   ),
@@ -111,14 +111,6 @@ help_topics <- list(
     ),
     link = kelpbio_articles[["results"]]
   ),
-  population = list(
-    title = "Population-level estimate",
-    body = paste(
-      "A population-level estimate is for a typical site in a typical year.",
-      "A model uses it for a site-year when neither the site nor the year is in that model's data."
-    ),
-    link = kelpbio_articles[["results"]]
-  ),
   weight_density = list(
     title = "Density in the weight model",
     body = paste(
@@ -128,11 +120,10 @@ help_topics <- list(
     ),
     link = kelpbio_articles[["models"]]
   ),
-  # Total biomass: a placeholder until total biomass is designed in kelpbio.
   canopy_area = list(
     title = "Canopy area",
     body = paste(
-      "The area of kelp canopy the drone imagery delineated within a plot polygon, in square metres.",
+      "The area of kelp canopy the drone imagery delineated within a plot boundary, or mapped over a whole site, in square metres.",
       "A survey with no canopy has a canopy area of 0."
     ),
     link = kelpbio_articles[["total_biomass"]]
@@ -140,15 +131,16 @@ help_topics <- list(
   tide_cover = list(
     title = "Tide-corrected cover",
     body = paste(
-      "Less of the canopy shows at the surface at higher tides, so the cover model corrects the canopy area for the tide height at the survey.",
-      "Cover is the corrected canopy area as a proportion of the polygon area, from 0 to 1."
+      "Less of the canopy shows at the surface at higher tides, so the cover biomass model corrects the canopy area for the tide height at the survey.",
+      "Cover is the corrected canopy area as a proportion of the plot boundary area, from 0 to 1."
     ),
     link = kelpbio_articles[["total_biomass"]]
   ),
   total_biomass = list(
     title = "Total site biomass",
     body = paste(
-      "The cover model relates the wet biomass of surveyed plots to their tide-corrected canopy cover, and total site biomass scales it up to the site's mapped canopy in each site-year with a drone survey.",
+      "The cover biomass model relates the wet biomass of surveyed plots to their tide-corrected canopy cover.",
+      "Total site biomass applies it to the canopy mapped over each site in a drone survey.",
       "The uncertainty in every model is carried through to the limits."
     ),
     link = kelpbio_articles[["total_biomass"]]

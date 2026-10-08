@@ -5,6 +5,9 @@
 # so it shows only the diagnostics and description of the model as fitted in
 # advance.
 
+# The labels of each prior family's hyperparameter inputs (a, then b).
+prior_inputs <- list(normal = c("Mean", "SD"), lognormal = c("Mean (log)", "SD (log)"), exponential = "Rate")
+
 model_tabs <- c(data = "Data", settings = "Settings", diagnostics = "Diagnostics", description = "Description")
 own_fit_tabs <- c("data", "settings")
 
@@ -197,9 +200,9 @@ mod_model_server <- function(id, store) {
             if (cid == "cover") {
               span(
                 class = "d-inline-flex flex-wrap align-items-center gap-1 ms-1",
-                "One row per drone survey of a plot, with its", with_help("canopy area,", "canopy_area"),
-                "polygon area and", with_help("tide height.", "tide_cover"),
-                "The wet biomass of each survey's site-year is added before fitting."
+                "One row per drone survey of a plot, a whole site or both, with each", with_help("canopy area", "canopy_area"),
+                "and the", with_help("tide height.", "tide_cover"),
+                "The model is fitted to the plot surveys with the wet plot biomass of their site-years; the figure shows the plot surveys."
               )
             }
           ),
@@ -279,7 +282,11 @@ mod_model_server <- function(id, store) {
     })
 
     output$data_plot <- render_figure(
-      function() kelpbio_fn("plot_data", cid, store$species())(req(sheet())$rows), "data_plot",
+      function() {
+        rows <- req(sheet())$rows
+        kelpbio_fn("plot_data", cid, store$species())(if (cid == "cover") plot_surveys(rows) else rows)
+      },
+      "data_plot",
       aspect = data_plot_info[[cid]]$aspect,
       alt = function() data_plot_caption(cid, store$species())
     )
@@ -319,7 +326,7 @@ mod_model_server <- function(id, store) {
       current <- isolate(store$priors()[[cid]])
       # After a fit, mark the priors the sensitivity check found influential.
       rows <- if (kind() == "ready") isolate(store$sensitivity[[cid]]())
-      influential <- if (!is.null(rows)) rows$prior[!rows$weak_prior]
+      influential <- if (!is.null(rows)) rows$term[!rows$weak_prior]
       tags$fieldset(
         disabled = if (pending()) NA,
         div(
@@ -333,7 +340,7 @@ mod_model_server <- function(id, store) {
                   "border rounded-3 p-3 h-100 d-flex flex-column gap-1",
                   if (p$name %in% influential) "border-warning"
                 ),
-                # The term, as the diagnostics and warnings name it, with its prior.
+                # The parameter, as the diagnostics and warnings name it, with its prior.
                 div(
                   class = "d-flex flex-wrap align-items-center justify-content-between gap-2",
                   tags$code(textOutput(ns(paste0("label_", p$name)), inline = TRUE)),
@@ -342,8 +349,8 @@ mod_model_server <- function(id, store) {
                 div(class = "small text-body-secondary mb-1", p$label),
                 div(
                   class = "d-flex gap-2",
-                  number_input(paste0(p$name, "_a"), if (p$family == "normal") "Mean" else "Rate", p$a),
-                  if (p$family == "normal") number_input(paste0(p$name, "_b"), "SD", p$b)
+                  number_input(paste0(p$name, "_a"), prior_inputs[[p$family]][1], p$a),
+                  if (p$family != "exponential") number_input(paste0(p$name, "_b"), prior_inputs[[p$family]][2], p$b)
                 ),
                 field_error(paste0("error_", p$name))
               )
@@ -358,7 +365,7 @@ mod_model_server <- function(id, store) {
         current <- store$priors()[[cid]]
         req(name %in% current$name)
         row <- current[current$name == name, ]
-        paste(row$term, "~", format_prior(row))
+        paste(row$name, "~", format_prior(row))
       })
       output[[paste0("error_", name)]] <- renderText(error_text(errors()$priors, name))
       observeEvent(input[[paste0(name, "_a")]], store$update_prior(cid, name, "a", input[[paste0(name, "_a")]]))
@@ -370,7 +377,7 @@ mod_model_server <- function(id, store) {
       priors <- store$priors()[[cid]]
       for (i in seq_len(nrow(priors))) {
         updateNumericInput(session, paste0(priors$name[i], "_a"), value = priors$a[i])
-        if (priors$family[i] == "normal") updateNumericInput(session, paste0(priors$name[i], "_b"), value = priors$b[i])
+        if (priors$family[i] != "exponential") updateNumericInput(session, paste0(priors$name[i], "_b"), value = priors$b[i])
       }
     })
 
@@ -406,7 +413,7 @@ mod_model_server <- function(id, store) {
     # Diagnostics -----------------------------------------------------------------
 
     output$convergence <- reactable::renderReactable({
-      rows <- kb_convergence(fitted_fit())[c("term", "rhat", "ess_bulk", "converged")]
+      rows <- kb_convergence(fitted_fit())[c("term", "rhat", "ess_bulk", "ess_tail", "converged")]
       app_table(
         rows,
         pagination = FALSE,
@@ -414,7 +421,8 @@ mod_model_server <- function(id, store) {
         columns = list(
           term = reactable::colDef(name = "Parameter", style = list(fontFamily = "var(--bs-font-monospace)")),
           rhat = reactable::colDef(name = "R-hat", class = "kb-tabular"),
-          ess_bulk = reactable::colDef(name = "ESS", class = "kb-tabular"),
+          ess_bulk = reactable::colDef(name = "Bulk ESS", class = "kb-tabular"),
+          ess_tail = reactable::colDef(name = "Tail ESS", class = "kb-tabular"),
           converged = reactable::colDef(
             name = "Status",
             cell = function(value) if (value) "Converged" else warning_badge("Not converged", NULL)
@@ -442,13 +450,13 @@ mod_model_server <- function(id, store) {
     output$sensitivity_note <- renderUI(data_strength_notice(sensitivity()))
 
     output$sensitivity <- reactable::renderReactable({
-      rows <- sensitivity()[c("parameter", "weak_prior", "strong_data")]
+      rows <- sensitivity()[c("term", "weak_prior", "strong_data")]
       flag <- function(value) if (value) "Yes" else warning_badge("No", NULL)
       app_table(
         rows,
         pagination = FALSE,
         columns = list(
-          parameter = reactable::colDef(name = "Parameter", style = list(fontFamily = "var(--bs-font-monospace)")),
+          term = reactable::colDef(name = "Parameter", style = list(fontFamily = "var(--bs-font-monospace)")),
           weak_prior = reactable::colDef(name = "Weak prior", cell = flag),
           strong_data = reactable::colDef(name = "Strong data", cell = flag)
         )
@@ -514,9 +522,9 @@ convergence_panel <- function(ns) {
   panel(
     "Convergence",
     description = tagList(
-      "Parameters with ", with_help("R-hat", "rhat"), sprintf(" above %s or ", default_arg(kb_convergence, "rhat")),
+      "Parameters with ", with_help("R-hat", "rhat"), sprintf(" above %s or a bulk or tail ", default_arg(kb_converged, "rhat")),
       with_help("effective sample size (ESS)", "ess"),
-      sprintf(" below %s%% of the draws are flagged.", 100 * default_arg(kb_convergence, "esr"))
+      sprintf(" below %s per chain are flagged.", default_arg(kb_converged, "ess"))
     ),
     reactable::reactableOutput(ns("convergence")),
     figure_plot(ns("trace"), "Draws for each chain by iteration. Well-mixed chains overlap.")
@@ -524,11 +532,10 @@ convergence_panel <- function(ns) {
 }
 
 # kb_model_describe() prints the description and returns its lines invisibly.
-# The priors are left out: the Settings tab shows them.
 description_panel <- function(fit) {
-  lines <- withr::with_output_sink(nullfile(), kb_model_describe(fit, priors = FALSE))
+  lines <- withr::with_output_sink(nullfile(), kb_model_describe(fit))
   panel(
-    "Likelihood and random effects",
+    "Likelihood, random effects and priors",
     tags$pre(class = "bg-body-tertiary rounded-3 p-3 small mb-0", paste(lines, collapse = "\n"))
   )
 }

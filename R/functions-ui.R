@@ -407,18 +407,20 @@ prior_advice <- function(prior, parameter = NULL) {
     sprintf("reduce %s rate (for example from %s to %s)", its, as.character(prior$rate), as.character(prior$rate / 2))
   } else if (inherits(prior, "kb_prior_normal")) {
     sprintf("increase %s SD (for example from %s to %s)", its, as.character(prior$sd), as.character(prior$sd * 2))
+  } else if (inherits(prior, "kb_prior_lognormal")) {
+    sprintf("increase %s log-scale SD (for example from %s to %s)", its, as.character(prior$sdlog), as.character(prior$sdlog * 2))
   } else {
     "use a wider prior"
   }
   if (is.null(parameter)) action else sprintf("for %s, %s", parameter, action)
 }
 
-# "The prior for sYear is influencing the estimate.", from kb_sensitivity() rows
+# "The prior for sd_year is influencing the estimate.", from kb_sensitivity() rows
 # whose prior is not weak.
 prior_influence <- function(flagged) {
   many <- nrow(flagged) > 1
   sprintf(
-    "The %s for %s %s influencing the %s.", if (many) "priors" else "prior", and_list(flagged$parameter),
+    "The %s for %s %s influencing the %s.", if (many) "priors" else "prior", and_list(flagged$term),
     if (many) "are" else "is", if (many) "estimates" else "estimate"
   )
 }
@@ -445,7 +447,7 @@ convergence_notice <- function(settings_id) {
 
 # Prior sensitivity: a warning for parameters whose prior is not weak, its
 # advice linking to the Settings tab. priors is the fit's priors list, whose
-# entries the rows' prior column names.
+# entries the rows' term column names.
 prior_notice <- function(rows, priors, settings_id) {
   if (!prior_flagged(rows)) {
     return(NULL)
@@ -453,7 +455,7 @@ prior_notice <- function(rows, priors, settings_id) {
   flagged <- rows[!rows$weak_prior, ]
   many <- nrow(flagged) > 1
   advice <- vapply(seq_len(nrow(flagged)), function(i) {
-    prior_advice(priors[[flagged$prior[i]]], if (many) flagged$parameter[i])
+    prior_advice(priors[[flagged$term[i]]], if (many) flagged$term[i])
   }, "")
   action <- if (many) {
     sprintf(
@@ -474,7 +476,7 @@ prior_notice <- function(rows, priors, settings_id) {
 # prior that the data say little about. The prior warning itself is in the model
 # page header.
 data_strength_notice <- function(rows) {
-  weak_data <- rows$parameter[rows$weak_prior & !rows$strong_data]
+  weak_data <- rows$term[rows$weak_prior & !rows$strong_data]
   if (all(rows$weak_prior) && length(weak_data) == 0) {
     return(notice("check-circle-2", "All parameters have weak priors and strong data", tone = "muted"))
   }
