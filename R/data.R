@@ -6,7 +6,7 @@
 # the value of the kelpbio accessor's reference argument
 # (kb_prefit_weight_nereo(reference = "hakai")).
 prefit_info <- list(
-  coastwide = list(label = "Pre-fit coastwide", data = "data compiled from surveys along the coast"),
+  coastwide = list(label = "Pre-fit Coastwide", data = "data compiled from surveys along the coast"),
   hakai = list(label = "Pre-fit Hakai Institute", data = "Hakai Institute survey data")
 )
 

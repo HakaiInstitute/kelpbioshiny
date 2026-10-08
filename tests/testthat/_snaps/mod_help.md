@@ -58,7 +58,7 @@
       Size
       Your data, Pre-fit Hakai Institute, Not used
       Weight
-      Your data, Pre-fit coastwide, Pre-fit Hakai Institute
+      Your data, Pre-fit Coastwide, Pre-fit Hakai Institute
       Wet:dry
       Your data, Pre-fit Hakai Institute, Not used
       Carbon
@@ -117,7 +117,7 @@
       Each estimate is the median of the posterior distribution. The lower and upper limits bound the 95% compatibility interval: the range of values most compatible with the data and the model.
       Learn more (https://hakaiinstitute.github.io/kelpbio/articles/results.html)
       Pre-fit models
-      Pre-fit coastwide models were fitted in advance to data compiled from surveys along the coast, and Pre-fit Hakai Institute models to Hakai Institute survey data. They need no data or fitting here. Sites in the reference data get their own estimates.
+      Pre-fit Coastwide models were fitted in advance to data compiled from surveys along the coast, and Pre-fit Hakai Institute models to Hakai Institute survey data. They need no data or fitting here. Sites in the reference data get their own estimates.
       Learn more (https://hakaiinstitute.github.io/kelpbio/articles/pre-fit-models.html)
       Site-years without data
       When a model has no data for a site-year, its estimate there uses the site's estimate from other years and the year's estimate from other sites. What is specific to that site-year is drawn from the variation the model estimated between site-years, so its compatibility interval is wider. With neither the site nor the year in the data, the estimate is for a typical site and year.
