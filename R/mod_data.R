@@ -120,8 +120,7 @@ mod_data_ui <- function(id) {
       div(class = "small text-body-secondary", "Applies to every model in this run."),
       id = ns("species_title")
     ),
-    # TODO: generate the template workbook (one sheet per model with its columns) for download.
-    sidebar_section("Template", button(ns("template"), "Download template workbook", "download", "outline")),
+    sidebar_section("Template", button(ns("template"), "Download template workbook", "download", "outline", download = TRUE)),
     div(
       class = "d-flex flex-column gap-2",
       div(class = "kb-eyebrow text-body-secondary", "Resume a run"),
@@ -227,11 +226,12 @@ mod_data_server <- function(id, store) {
       if (!identical(input$species, store$species())) updateRadioButtons(session, "species", selected = store$species())
     })
 
-    # TODO: replace the notices below with the template and fit bundle once they are built.
-    observeEvent(input$template, {
-      store$notify(sprintf("Prototype: kelpbio-template-%s.xlsx is not generated.", species_info[[store$species()]]$suffix))
-    })
+    output$template <- downloadHandler(
+      filename = function() template_file(store$species()),
+      content = function(file) writexl::write_xlsx(template_sheets(store$species()), file)
+    )
     observeEvent(input$guide, store$open_help("guide"))
+    # TODO: replace the notice with the fit bundle once it is built.
     observeEvent(input$bundle, store$notify("Prototype: resuming from a fit bundle is not simulated."))
     observeEvent(input$workbook, {
       upload <- input$workbook

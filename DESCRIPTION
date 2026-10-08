@@ -32,7 +32,8 @@ Imports:
     tibble,
     universals,
     utils,
-    withr
+    withr,
+    writexl
 Suggests:
     codetools,
     pkgload,

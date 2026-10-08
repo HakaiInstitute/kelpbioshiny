@@ -21,33 +21,34 @@ names(component_ids) <- component_ids
 # used). Your data is the default when there is a sheet; otherwise the first
 # pre-fit source, or none. No model is required: a run can, for example, use
 # only a size sheet and a pre-fit weight model to predict plant weights.
-# `columns` are the sheet's required columns, by species where they differ.
+# `columns` are the sheet's required columns, by species where they differ, and
+# `row` is what one row of the sheet holds.
 components <- list(
   density = list(
-    label = "Density", detail = "Stipes per square metre by site-year", sheet = "density",
+    label = "Density", detail = "Stipes per square metre by site-year", sheet = "density", row = "Transect",
     columns = list(nereo = c("site", "year", "stipes", "area_m2"), macro = c("site", "year", "plants", "area_m2")),
     sources = c("user", "none")
   ),
   size = list(
-    label = "Size", detail = "Distribution of plant size", sheet = "size",
+    label = "Size", detail = "Distribution of plant size", sheet = "size", row = "Plant",
     columns = list(nereo = c("site", "year", "diameter_mm"), macro = c("site", "year", "fronds")),
     sources = c("user", prefit_source("hakai"), "none")
   ),
   weight = list(
-    label = "Weight", detail = "Wet weight by plant size", sheet = "weight",
+    label = "Weight", detail = "Wet weight by plant size", sheet = "weight", row = "Plant",
     columns = list(nereo = c("site", "year", "diameter_mm", "weight_kg"), macro = c("site", "year", "fronds", "weight_kg")),
     sources = c("user", prefit_source(c("coastwide", "hakai")))
   ),
   blade = list(
-    label = "Blade fraction", detail = "Proportion of wet weight in blades", sheet = "blade",
+    label = "Blade fraction", detail = "Proportion of wet weight in blades", sheet = "blade", row = "Plant",
     columns = c("site", "year", "blade_weight_kg", "total_weight_kg"), sources = c("user", "none")
   ),
   wetdry = list(
-    label = "Wet:dry", detail = "Ratio of dry to wet mass", sheet = "wetdry",
+    label = "Wet:dry", detail = "Ratio of dry to wet mass", sheet = "wetdry", row = "Tissue sample",
     columns = c("wet_mass_g", "dry_mass_g"), sources = c("user", prefit_source("hakai"), "none")
   ),
   carbon = list(
-    label = "Carbon", detail = "Carbon fraction of dry mass", sheet = "carbon",
+    label = "Carbon", detail = "Carbon fraction of dry mass", sheet = "carbon", row = "Dried tissue sample",
     columns = c("sample_mass_mg", "carbon_mass_ug"), sources = c("user", prefit_source("hakai"), "none")
   ),
   # Optional: scales biomass per unit area up to total biomass per site-year.
@@ -55,7 +56,7 @@ components <- list(
   # site-years added, so once every other model in use is ready. The sheet holds
   # the surveys only, so its check is the surveys check (`check`).
   cover = list(
-    label = "Cover", detail = "Relates plot wet biomass to canopy cover from drone surveys", sheet = "cover",
+    label = "Cover", detail = "Relates plot wet biomass to canopy cover from drone surveys", sheet = "cover", row = "Drone survey of a plot",
     columns = c("site", "year", "canopy_m2", "polygon_m2", "tide_height_m"), sources = c("user", "none"),
     check = "cover_surveys"
   )
@@ -212,6 +213,73 @@ as_sheet_rows <- function(rows) {
   for (column in intersect(c("site", "year"), names(rows))) rows[[column]] <- as.character(rows[[column]])
   rows
 }
+
+# What each sheet column holds and the values it accepts, as kelpbio's
+# kb_check_data_*() documents them (the blade columns, not yet in kelpbio, as
+# the mock checks them).
+column_info <- list(
+  site = c("Site name, spelled the same way in every sheet", "Text, without commas or square brackets"),
+  year = c("Survey year", "Year, e.g. 2024"),
+  stipes = c("Stipes counted on the transect; sum counts recorded in bins along it", "Whole number, 0 or more"),
+  plants = c("Plants counted on the transect", "Whole number, 0 or more"),
+  area_m2 = c("Area of the transect surveyed (m\u00b2)", "Greater than 0"),
+  diameter_mm = c("Maximum sub-bulb diameter of the plant (mm)", "Greater than 0"),
+  fronds = c("Fronds reaching 1 m above the holdfast; leave out plants with none", "Whole number, greater than 0"),
+  weight_kg = c("Wet weight of the plant (kg)", "Greater than 0"),
+  blade_weight_kg = c("Wet weight of the plant's blades (kg)", "Greater than 0"),
+  total_weight_kg = c("Total wet weight of the plant (kg)", "Greater than 0"),
+  wet_mass_g = c("Mass of the tissue sample before drying (g)", "Greater than 0"),
+  dry_mass_g = c("Mass of the same sample after drying (g)", "Greater than 0, less than wet_mass_g"),
+  sample_mass_mg = c("Mass of the dried sample analysed, as the lab reports it (mg)", "Greater than 0"),
+  carbon_mass_ug = c("Carbon measured in the sample (\u00b5g)", "Greater than 0, less than the sample mass"),
+  canopy_m2 = c("Canopy area delineated in the plot from the drone imagery (m\u00b2)", "0 or more (0 for no canopy), at most polygon_m2"),
+  polygon_m2 = c("Area of the plot (m\u00b2)", "Greater than 0"),
+  tide_height_m = c("Tide height at the survey, chart datum (m)", "Number")
+)
+
+# Whether a run needs a model's sheet: density, size and weight make plot
+# biomass, and a pre-fit model stands in for a missing sheet.
+sheet_need <- function(id) {
+  prefit <- Filter(is_prefit, components[[id]]$sources)
+  if (length(prefit) > 0) {
+    return(sprintf("Optional: without it, the %s model is used", source_note(prefit[1])))
+  }
+  if (id %in% biomass_core_ids) "Required for biomass" else "Optional"
+}
+
+# The template's first sheet: each model sheet, whether it is needed, what a
+# row is, and its columns with their accepted values.
+template_readme <- function(species) {
+  rows <- lapply(component_ids, function(id) {
+    columns <- sheet_columns(id, species)
+    data.frame(
+      sheet = components[[id]]$sheet,
+      needed = sheet_need(id),
+      one_row_per = components[[id]]$row,
+      column = columns,
+      description = vapply(columns, function(x) column_info[[x]][1], ""),
+      values = vapply(columns, function(x) column_info[[x]][2], "")
+    )
+  })
+  all <- data.frame(
+    sheet = "All sheets", needed = "", one_row_per = "", column = "Every column",
+    description = "Fill every cell: a blank cell is an error. Other columns are ignored.", values = ""
+  )
+  do.call(rbind, c(list(all), unname(rows)))
+}
+
+# The template workbook for a species: a README sheet, then one sheet per
+# model, named as read_workbook() reads it, with the sheet's required columns
+# as headers and no rows.
+template_sheets <- function(species) {
+  sheets <- lapply(component_ids, function(id) {
+    columns <- sheet_columns(id, species)
+    as.data.frame(stats::setNames(rep(list(character()), length(columns)), columns))
+  })
+  c(list(README = template_readme(species)), stats::setNames(sheets, vapply(component_ids, function(id) components[[id]]$sheet, "")))
+}
+
+template_file <- function(species) sprintf("kelpbio-template-%s.xlsx", species_info[[species]]$suffix)
 
 # The rows of each sheet in an Excel workbook named after a model's sheet, by
 # model; other sheets are ignored.

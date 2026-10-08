@@ -128,14 +128,20 @@ warning_badge <- function(text, icon = "alert-triangle") badge(text, "bg-warning
 # other action) and "btn-light" the ghost variant (a small adjustment inside a
 # panel); $light is white in the theme. Each non-primary variant carries
 # btn-light, which keeps Shiny's btn-default styles off the button.
-button <- function(id, label, icon = NULL, variant = c("primary", "soft", "outline", "ghost"), size = NULL, ...) {
+# With `download = TRUE`, a link styled as the button that downloads the file
+# of the downloadHandler() output `id`.
+button <- function(id, label, icon = NULL, variant = c("primary", "soft", "outline", "ghost"), size = NULL, download = FALSE, ...) {
   variant <- match.arg(variant)
   class <- c(
     switch(variant, primary = "btn-primary", soft = "btn-light kb-btn-soft", outline = "btn-light border", ghost = "btn-light"),
     if (!is.null(size)) paste0("btn-", size)
   )
   if (is.character(icon) && !inherits(icon, "html")) icon <- lucide(icon)
-  actionButton(id, span(class = "d-inline-flex align-items-center gap-2", icon, label), class = paste(class, collapse = " "), ...)
+  label <- span(class = "d-inline-flex align-items-center gap-2", icon, label)
+  if (download) {
+    return(downloadLink(id, label, class = paste(c("btn btn-default", class), collapse = " "), ...))
+  }
+  actionButton(id, label, class = paste(class, collapse = " "), ...)
 }
 
 # A status in words: the badges, the hidden text beside status icons and the
