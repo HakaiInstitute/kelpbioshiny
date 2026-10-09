@@ -128,7 +128,10 @@ export_script <- function(species, sources, sheets, workbook, priors, samplers) 
 }
 
 # TODO: build each download (results workbook, figures, fit bundle and report);
-# the buttons only show a notice for now.
+# the buttons only show a notice for now. Build each file once per set of fits
+# and reuse it for every download of it (a preview, the file itself, a ZIP), as
+# rendering the report or figures again on each click would hold up the R
+# process that serves every session.
 download_items <- list(
   results = list(label = "Results workbook", detail = "Excel: every available estimate, with the settings and sources", file = "kelpbio-results-%s.xlsx", icon = "file-spreadsheet"),
   figures = list(label = "Figures", detail = "ZIP of PNG and PDF figures", file = "kelpbio-figures-%s.zip", icon = "file-image"),

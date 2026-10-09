@@ -718,7 +718,10 @@ new_store <- function(session, run_fit = mirai_fit_runner) {
   #   share draws.
   # - Each model's own predictions stay on demand on the Estimates step, cached
   #   with bindCache(), unless timing with kelpbio shows them slow; then run
-  #   them in the same daemon call as the fit.
+  #   them in the same daemon call as the fit. The cache is shared by every
+  #   session in the R process, so the key must identify the fit itself (for
+  #   example a hash of it), never a summary such as a rounded estimate, or one
+  #   user can be shown another's results.
   # - Statuses gain "predicting"; the navbar badge and Models banner show it,
   #   and Continue to estimates waits for the predictions.
   # - A refit, source change or new data marks the dependent predictions stale
