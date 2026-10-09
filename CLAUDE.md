@@ -22,7 +22,7 @@ The build runs are also Positron/VS Code tasks ("kelpbioshiny: build", "kelpbios
 | `R/run-app.R` | `run_app()`: `shinyAppDir()` on `inst/app` |
 | `R/app-ui.R`, `R/app-server.R` | `app_ui()` (navbar, steps, footer) and `app_server()` (wires the modules to one store) |
 | `R/mod_<step>.R` | One module per step: `mod_<step>_ui(id)` / `mod_<step>_server(id, store)` (`data`, `models`, `estimates`, `export`); `mod_model.R` is the per-model detail page (fit, settings, diagnostics), and `mod_estimates.R` holds each model's predictions and the biomass estimates |
-| `R/mod_help.R` | The Help tab: `help_ui()` and `help_server()` (its sidebar) hold two pages, `help_guide_ui()` (User guide, built from the app's definitions) and `help_about_ui()` (with the citations) |
+| `R/mod_help.R` | The Help tab: `help_ui()` and `help_server()` (its sidebar) hold three pages, `help_guide_ui()` (User guide, built from the app's definitions), `help_methods_ui()` (a tile per kelpbio article, from `kelpbio_articles`) and `help_about_ui()` (with the citations) |
 | `R/steps.R` | `app_purpose` and `app_steps`: the app's one-line purpose, and the step names and one-line descriptions |
 | `R/state.R` | `new_store()`: the per-session store of reactive state and actions, the fit queue and its runner, plus the pure fit-record transitions and status logic |
 | `R/data.R` | Model definitions, labels, sheets, prior and sampler settings |
@@ -49,7 +49,7 @@ The build runs are also Positron/VS Code tasks ("kelpbioshiny: build", "kelpbios
 
 ## Documentation and help text
 
-- kelpbio owns the statistics: model forms, priors, diagnostics theory, interpretation and any long-form explanation live in kelpbio's roxygen docs and vignettes/articles. kelpbioshiny never restates them; it links to the relevant kelpbio article or section (`kelpbio_url` and `kelpbio_articles` in `R/help.R`).
+- kelpbio owns the statistics: model forms, priors, diagnostics theory, interpretation and any long-form explanation live in kelpbio's roxygen docs and vignettes/articles. kelpbioshiny never restates them; it links to the relevant kelpbio article or section (`kelpbio_url` and `kelpbio_articles` in `R/help.R`, each article's title, summary and path, which the Methods page lists).
 - kelpbioshiny documents only how to use the app: what each step is for, what to click, which sheets and columns to provide, and what to do about a warning.
 - One fact, one home inside the app: step names and descriptions (`app_steps`), sheet and column lists and model sources (`components`, `prefit_info`), and glossary text (`help_topics`) are each defined once in R and reused by the UI, the welcome card, the help popovers and the User guide. Never duplicate them as hand-written prose.
 - Help popovers: one to three plain-language sentences, then a "Learn more" link to kelpbio. Short text that points elsewhere is preferred over long explanations.

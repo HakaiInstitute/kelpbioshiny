@@ -50,7 +50,7 @@ help_topics <- list(
         sprintf("A value above %s means the model needs more sampling before its estimates can be relied on.", default_arg(kb_converged, "rhat"))
       )
     },
-    link = kelpbio_articles[["diagnostics"]]
+    link = kelpbio_articles$diagnostics$path
   ),
   ess = list(
     title = "Effective sample size (ESS)",
@@ -63,7 +63,7 @@ help_topics <- list(
         )
       )
     },
-    link = kelpbio_articles[["diagnostics"]]
+    link = kelpbio_articles$diagnostics$path
   ),
   ppc = list(
     title = "Posterior predictive check",
@@ -72,7 +72,7 @@ help_topics <- list(
       "If the model fits well, the dark line for your data sits within the band of light lines for the simulated data.",
       "A systematic difference, such as a shifted peak or heavier tails, means the model misses a feature of the data."
     ),
-    link = kelpbio_articles[["diagnostics"]]
+    link = kelpbio_articles$diagnostics$path
   ),
   sensitivity = list(
     title = "Prior sensitivity",
@@ -100,17 +100,17 @@ help_topics <- list(
       "Overall predictions are for a typical site in a typical year. They leave out the differences between sites and between years, so they suit sites and years that were not sampled.",
       "Predictions by site or by year add the estimated difference for each sampled site or year, so they describe those sites and years. Predictions by site and year include both."
     ),
-    link = kelpbio_articles[["results"]]
+    link = kelpbio_articles$results$path
   ),
   chains = list(
     title = "Chains",
     body = "Independent runs of the sampler. Comparing the chains with each other shows whether the sampler has converged.",
-    link = kelpbio_articles[["diagnostics"]]
+    link = kelpbio_articles$diagnostics$path
   ),
   niters = list(
     title = "Iterations (niters)",
     body = "The number of draws kept from each chain. More draws give more reliable estimates, but fitting takes longer.",
-    link = kelpbio_articles[["diagnostics"]]
+    link = kelpbio_articles$diagnostics$path
   ),
   nthin = list(
     title = "Thinning (nthin)",
@@ -118,7 +118,7 @@ help_topics <- list(
       "Keeps every nth draw from each chain. The sampler runs n times as many iterations to keep the same number of draws,",
       "so the kept draws are less alike and ESS goes up. Fitting takes about n times as long."
     ),
-    link = kelpbio_articles[["diagnostics"]]
+    link = kelpbio_articles$diagnostics$path
   ),
   interval = list(
     title = "Estimates and limits",
@@ -126,7 +126,7 @@ help_topics <- list(
       "Each estimate is the median of the posterior distribution. The lower and upper limits bound the 95% compatibility interval:",
       "the range of values most compatible with the data and the model."
     ),
-    link = kelpbio_articles[["results"]]
+    link = kelpbio_articles$results$path
   ),
   prefit = list(
     title = "Pre-fit models",
@@ -138,7 +138,7 @@ help_topics <- list(
       "They need no data or fitting here.",
       "Sites in the reference data get their own estimates."
     ),
-    link = kelpbio_articles[["prefit"]]
+    link = kelpbio_articles$prefit$path
   ),
   coverage = list(
     title = "Site-years without data",
@@ -147,7 +147,7 @@ help_topics <- list(
       "What is specific to that site-year is drawn from the variation the model estimated between site-years, so its compatibility interval is wider.",
       "With neither the site nor the year in the data, the estimate is for a typical site and year."
     ),
-    link = kelpbio_articles[["results"]]
+    link = kelpbio_articles$results$path
   ),
   weight_density = list(
     title = "Density in the weight model",
@@ -156,7 +156,7 @@ help_topics <- list(
       "so the weight model uses stipe density as a predictor: the stipes counted over the area surveyed in each site-year of the density data.",
       "Site-years without density data take the mean density."
     ),
-    link = kelpbio_articles[["models"]]
+    link = kelpbio_articles$models$path
   ),
   canopy_area = list(
     title = "Canopy area",
@@ -164,7 +164,7 @@ help_topics <- list(
       "The area of kelp canopy the drone imagery delineated within a plot boundary, or mapped over a whole site, in square metres.",
       "A survey with no canopy has a canopy area of 0."
     ),
-    link = kelpbio_articles[["total_biomass"]]
+    link = kelpbio_articles$total_biomass$path
   ),
   tide_cover = list(
     title = "Tide-corrected cover",
@@ -172,7 +172,7 @@ help_topics <- list(
       "Less of the canopy shows at the surface at higher tides, so the cover biomass model corrects the canopy area for the tide height at the survey.",
       "Cover is the corrected canopy area as a proportion of the plot boundary area, from 0 to 1."
     ),
-    link = kelpbio_articles[["total_biomass"]]
+    link = kelpbio_articles$total_biomass$path
   ),
   total_biomass = list(
     title = "Total site biomass",
@@ -181,7 +181,7 @@ help_topics <- list(
       "Total site biomass applies it to the canopy mapped over each site in a drone survey.",
       "The uncertainty in every model is carried through to the limits."
     ),
-    link = kelpbio_articles[["total_biomass"]]
+    link = kelpbio_articles$total_biomass$path
   ),
   priors = list(
     title = "Priors",
@@ -189,7 +189,7 @@ help_topics <- list(
       "A prior states which parameter values are plausible before the data are seen.",
       "The defaults rule out implausible values but leave the data to decide the estimates, so most analyses keep them."
     ),
-    link = kelpbio_articles[["priors"]]
+    link = kelpbio_articles$priors$path
   )
 )
 

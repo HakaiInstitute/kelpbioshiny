@@ -132,6 +132,18 @@
 
 /* A section the user guide's contents jump to, which stops short of the
    window's top edge. */
+/* A link tile (Methods): its stretched link opens it from anywhere on it. */
+.kb-tile {
+  border: var(--bs-border-width) solid var(--bs-border-color);
+  transition: border-color 0.15s ease-in-out, background-color 0.15s ease-in-out;
+}
+
+.kb-tile:hover,
+.kb-tile:has(a:focus-visible) {
+  border-color: var(--bs-primary);
+  background-color: var(--bs-tertiary-bg);
+}
+
 .kb-anchor {
   scroll-margin-top: 1.5rem;
 }
