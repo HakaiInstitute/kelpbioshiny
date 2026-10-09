@@ -287,12 +287,37 @@ fit_call <- function(id, species, sheets, priors, sampler, progress_dir, biomass
 # A runner runs one kb_fit_*() call at a time in the background: invoke(fn, args)
 # starts it, status() is "initial", "running", "success" or "error", result() is
 # list(fit) or list(error), and cancel() stops it. The default runs each fit on a
-# mirai daemon (started in inst/app/global.R) through an ExtendedTask; the daemon
-# loads the installed kelpbioshiny namespace to run the mock fits. Tests pass a
-# runner that runs in the session.
+# mirai daemon through an ExtendedTask. Tests pass a runner that runs in the
+# session.
+
+# The daemons start with the first fit, so a session that never fits costs no
+# daemon. They are per R process and shared by its sessions; each session fits
+# one model at a time, so one daemon serves one user without waiting. The
+# option kelpbioshiny.daemons sets their number for a deployment.
+start_daemons <- function() {
+  if (mirai::daemons_set()) {
+    return(invisible())
+  }
+  n <- getOption("kelpbioshiny.daemons", 1L)
+  mirai::daemons(n)
+  # A fit's function is sent as a reference to its namespace, which a daemon
+  # loads: from source when the app was loaded with load_all() (as app.R does),
+  # so the daemons run the same code as the app; otherwise installed.
+  source_path <- if (requireNamespace("pkgload", quietly = TRUE) && pkgload::is_dev_package("kelpbioshiny")) {
+    pkgload::pkg_path(system.file(package = "kelpbioshiny"))
+  }
+  mirai::everywhere(
+    if (is.null(source_path)) loadNamespace("kelpbioshiny") else pkgload::load_all(source_path, quiet = TRUE),
+    source_path = source_path,
+    .min = n
+  )
+  invisible()
+}
+
 mirai_fit_runner <- function() {
   current <- NULL
   task <- ExtendedTask$new(function(fn, args) {
+    start_daemons()
     current <<- mirai::mirai(
       tryCatch(list(fit = do.call(fn, args)), error = function(e) list(error = conditionMessage(e))),
       .args = list(fn = fn, args = args)
