@@ -1,5 +1,6 @@
-# The Help tab: a user guide and an about page, as two pills. Help is not a
-# step, so it carries no step marker and takes no part in step completion. The guide is built
+# The Help tab: a user guide, a methods page and an about page, picked in the
+# sidebar as on the Models and Estimates steps. Help is not a step, so it carries no step marker
+# and takes no part in step completion. The guide is built
 # from the definitions the app already uses (app_steps, components, prefit_info,
 # warning_help, help_topics), so it changes when they do; only the connecting
 # sentences are written here.
@@ -92,76 +93,82 @@ guide_warnings <- function() {
   )
 }
 
-# The guide's sections, by anchor id, as titled on the page and in its contents.
-guide_sections <- c(guide_steps = "Steps", guide_warnings = "Warnings", guide_methods = "Methods", guide_glossary = "Glossary")
-
-# The guide's contents, beside it on large screens; each entry jumps to its
-# section, and the page stays scrollable.
-guide_contents <- function() {
-  card(
-    class = "d-none d-lg-flex",
-    card_body(
-      gap = "0.5rem",
-      div(class = "kb-eyebrow text-body-secondary", "Contents"),
-      tags$nav(
-        `aria-label` = "User guide contents",
-        tags$ul(
-          class = "list-unstyled d-flex flex-column gap-2 mb-0",
-          lapply(names(guide_sections), function(id) {
-            tags$li(tags$a(href = paste0("#", id), class = "link-body-emphasis text-decoration-none", guide_sections[[id]]))
-          })
-        )
-      )
+# Predicting the weight of each plant without biomass, after the steps.
+guide_plant_weights <- function() {
+  div(
+    class = "small text-body-secondary",
+    sprintf(
+      "The app can also predict the wet weight of each plant, without biomass. Load a %s sheet, use the %s model (fitted to your data or pre-fit), and open %s on the Estimates step with Group by set to %s. The %s example workbook shows this.",
+      components$size$sheet, lower_label("weight"), label_of("weight"), prediction_groupings[["plant"]], example_workbooks$size_only$label
     )
   )
 }
 
-# The pointer to kelpbio, which explains the statistics the app runs.
-guide_docs_callout <- function() {
-  card(id = "guide_methods", class = "kb-anchor", card_body(div(
-    class = "d-flex flex-wrap align-items-center gap-3",
-    div(class = "kb-tile-icon bg-primary-subtle text-primary-emphasis", lucide("book-open")),
-    div(
-      class = "flex-grow-1",
-      h2(class = "kb-card-title mb-0", guide_sections[["guide_methods"]]),
-      div(class = "small text-body-secondary mt-1", "The models, priors and diagnostics are explained in the kelpbio documentation.")
-    ),
-    tags$a(
-      href = kelpbio_url, target = "_blank", rel = "noopener", class = "btn btn-light border",
-      span(class = "d-inline-flex align-items-center gap-2", "Open the kelpbio documentation", lucide("external-link"))
-    )
-  )))
-}
+# The guide's sections, by anchor id, as titled on the page and in its contents.
+guide_sections <- c(guide_steps = "Steps", guide_warnings = "Warnings", guide_glossary = "Glossary")
 
-# A Help page's opening line. The pill above names the page, so its title is
-# hidden, there for screen readers and heading navigation.
-help_lead <- function(title, text) {
-  tagList(h1(class = "visually-hidden", title), div(class = "kb-lead text-body-secondary mb-4", text))
-}
+help_pages <- c(guide = "User guide", methods = "Methods", about = "About")
+help_page_icons <- c(guide = "book-open", methods = "sigma", about = "info")
 
 help_ui <- function() {
-  navset_pill(
-    id = "help_page",
-    nav_panel("User guide", value = "guide", div(class = "pt-4", help_guide_ui())),
-    nav_panel("About", value = "about", div(class = "pt-4", help_about_ui()))
+  step_layout(
+    card(card_body(padding = "0.5rem", uiOutput("help_subnav"))),
+    navset_hidden(
+      id = "help_page",
+      nav_panel_hidden("guide", help_guide_ui()),
+      nav_panel_hidden("methods", help_methods_ui()),
+      nav_panel_hidden("about", help_about_ui())
+    )
   )
+}
+
+# The sidebar: a link per page, with the guide's sections under it while it is
+# open; each section link jumps to its section, and the page stays scrollable.
+help_server <- function(input, output, session) {
+  lapply(names(help_pages), function(value) {
+    observeEvent(input[[paste0("help_nav_", value)]], nav_select("help_page", value))
+  })
+  output$help_subnav <- renderUI({
+    page <- input$help_page %||% "guide"
+    tags$nav(
+      class = "nav nav-pills flex-column gap-1",
+      `aria-label` = "Help",
+      lapply(names(help_pages), function(value) {
+        tagList(
+          subnav_link(paste0("help_nav_", value), page == value, lucide(help_page_icons[[value]], "text-body-secondary"), help_pages[[value]]),
+          if (value == "guide" && page == "guide") {
+            div(
+              class = "d-flex flex-column gap-1 small ps-4 ms-2 pb-1",
+              lapply(names(guide_sections), function(id) {
+                tags$a(href = paste0("#", id), class = "link-body-emphasis text-decoration-none py-1", guide_sections[[id]])
+              })
+            )
+          }
+        )
+      })
+    )
+  })
+  # Rendered while Help is hidden: opening Help from a link switches the step
+  # and the page at once, and Shiny can then miss that the sidebar is shown.
+  outputOptions(output, "help_subnav", suspendWhenHidden = FALSE)
 }
 
 help_guide_ui <- function() {
-  step_layout(guide_contents(), tagList(
-    help_lead("User guide", "How to use the app, step by step."),
+  tagList(
+    page_header(help_pages[["guide"]], "How to use the app, step by step."),
     div(
       class = "d-flex flex-column gap-3",
       panel(
         guide_sections[["guide_steps"]],
         id = "guide_steps", class = "kb-anchor",
-        description = "A run moves through four steps in the navbar. A step's marker shows a check mark once it is complete.",
+        description = "A run moves through four steps in the navbar. A step's marker shows a check mark once the step is complete: data loaded, models ready, or estimates saved.",
         div(
           class = "d-flex flex-column gap-4",
           lapply(names(steps), function(value) {
             step_item(value, if (!is.null(guide_extras[[value]])) guide_extras[[value]](), small = FALSE)
           })
-        )
+        ),
+        guide_plant_weights()
       ),
       panel(
         guide_sections[["guide_warnings"]],
@@ -169,7 +176,6 @@ help_guide_ui <- function() {
         description = "The warnings a model or sheet can show, and how to fix them.",
         guide_warnings()
       ),
-      guide_docs_callout(),
       panel(
         guide_sections[["guide_glossary"]],
         id = "guide_glossary", class = "kb-anchor",
@@ -177,7 +183,48 @@ help_guide_ui <- function() {
         guide_glossary()
       )
     )
-  ))
+  )
+}
+
+# A kelpbio article as a tile: the whole tile opens it in a new tab.
+article_tile <- function(article) {
+  div(
+    class = "kb-tile position-relative d-flex flex-column gap-1 rounded-3 p-3 small",
+    tags$a(
+      href = paste0(kelpbio_url, article$path), target = "_blank", rel = "noopener",
+      class = "stretched-link fw-medium link-body-emphasis text-decoration-none d-inline-flex align-items-center gap-1",
+      article$title, lucide("external-link", "text-body-secondary")
+    ),
+    div(class = "text-body-secondary", article$summary)
+  )
+}
+
+# The statistics are documented in kelpbio, so this page only points to them.
+help_methods_ui <- function() {
+  tagList(
+    page_header(help_pages[["methods"]], "The models, priors and diagnostics the app runs are documented in the kelpbio R package."),
+    div(
+      class = "d-flex flex-column gap-3",
+      panel(
+        "kelpbio articles",
+        description = "Each article opens in a new tab.",
+        layout_column_wrap(width = "16rem", fill = FALSE, gap = "0.75rem", !!!unname(lapply(kelpbio_articles, article_tile)))
+      ),
+      card(card_body(div(
+        class = "d-flex flex-wrap align-items-center gap-3",
+        div(class = "kb-tile-icon bg-primary-subtle text-primary-emphasis", lucide("book-open")),
+        div(
+          class = "flex-grow-1",
+          h2(class = "kb-card-title mb-0", "kelpbio documentation"),
+          div(class = "small text-body-secondary mt-1", "Every article, and the reference for each function the app calls.")
+        ),
+        tags$a(
+          href = kelpbio_url, target = "_blank", rel = "noopener", class = "btn btn-light border",
+          span(class = "d-inline-flex align-items-center gap-2", "Open the kelpbio documentation", lucide("external-link"))
+        )
+      )))
+    )
+  )
 }
 
 # A package's installed version, or "Not installed". The app currently uses
@@ -220,9 +267,20 @@ citation_block <- function(id, label, citation) {
   )
 }
 
+# A fact about the app, such as a version or its licence, as a muted badge.
+about_fact <- function(...) span(class = "badge border text-body-secondary fw-medium", ...)
+
+# A link out of the app, as a small outline button with an icon.
+about_link <- function(href, icon, text) {
+  tags$a(
+    href = href, target = "_blank", rel = "noopener", class = "btn btn-light border btn-sm",
+    span(class = "d-inline-flex align-items-center gap-2", lucide(icon), text)
+  )
+}
+
 help_about_ui <- function() {
   tagList(
-    help_lead("About", app_purpose),
+    page_header(help_pages[["about"]], app_purpose),
     div(
       class = "d-flex flex-column gap-3",
       card(card_body(
@@ -230,19 +288,17 @@ help_about_ui <- function() {
         div(
           class = "text-body-secondary",
           "The app runs the Bayesian models of the kelpbio R package without writing code. ",
-          "It was developed by Poisson Consulting for the Hakai Institute, funded by the Tula Foundation."
-        ),
-        tags$dl(
-          class = "row small mb-0",
-          tags$dt(class = "col-sm-3", "kelpbioshiny version"), tags$dd(class = "col-sm-9", package_version_text("kelpbioshiny")),
-          tags$dt(class = "col-sm-3", "kelpbio version"), tags$dd(class = "col-sm-9", package_version_text("kelpbio")),
-          tags$dt(class = "col-sm-3", "Licence"), tags$dd(class = "col-sm-9", "MIT"),
-          tags$dt(class = "col-sm-3", "Source code"), tags$dd(class = "col-sm-9", external_link(source_url, source_url)),
-          tags$dt(class = "col-sm-3", "kelpbio"), tags$dd(class = "col-sm-9 mb-0", external_link(kelpbio_url, kelpbio_url))
+          "It was developed by Poisson Consulting for the Hakai Institute, funded by the Tula Foundation. ",
+          "Estimates depend on the data and the model choices; check them with the diagnostics on the Models step."
         ),
         div(
-          class = "small text-body-secondary",
-          "Estimates depend on the data and the model choices; check them with the diagnostics on the Models step."
+          class = "d-flex flex-wrap align-items-center gap-2",
+          about_fact("kelpbioshiny ", package_version_text("kelpbioshiny")),
+          about_fact("kelpbio ", package_version_text("kelpbio")),
+          about_fact("MIT licence"),
+          span(class = "flex-grow-1"),
+          about_link(kelpbio_url, "book-open", "kelpbio"),
+          about_link(source_url, "github", "GitHub")
         )
       )),
       panel(
@@ -250,7 +306,17 @@ help_about_ui <- function() {
         description = "To cite the app and the kelpbio package in publications, use:",
         citation_block("citation_kelpbioshiny", "kelpbioshiny", utils::citation("kelpbioshiny")),
         citation_block("citation_kelpbio", "kelpbio", kelpbio_citation())
-      )
+      ),
+      card(card_body(div(
+        class = "d-flex flex-wrap align-items-center gap-3",
+        div(class = "kb-tile-icon bg-primary-subtle text-primary-emphasis", lucide("github")),
+        div(
+          class = "flex-grow-1",
+          h2(class = "kb-card-title mb-0", "Report an issue"),
+          div(class = "small text-body-secondary mt-1", "A bug, a confusing step or a feature request: open an issue on GitHub.")
+        ),
+        about_link(paste0(source_url, "/issues"), "external-link", "Open an issue")
+      )))
     )
   )
 }

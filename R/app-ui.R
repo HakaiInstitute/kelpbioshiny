@@ -33,18 +33,19 @@ kelp_art_switch <- function() {
 }
 
 # Inline-flex and vertically centred, so the brand sits on the navbar's centre
-# line with the step tabs rather than at the top of an inline line box. Below the
-# md breakpoint only the name shows, so the brand fits beside the menu toggler.
+# line with the step tabs rather than at the top of an inline line box. The logo
+# shows from the lg breakpoint and the subtitle from xl, so the brand leaves the
+# step tabs room on one line.
 brand <- function() {
   div(
     class = "d-inline-flex align-items-center align-middle gap-3",
-    tags$img(src = "hakai.png", alt = "Hakai Institute", class = "kb-brand-logo d-none d-md-inline"),
-    span(class = "kb-brand-divider d-none d-md-inline", `aria-hidden` = "true"),
+    tags$img(src = "hakai.png", alt = "Hakai Institute", class = "kb-brand-logo d-none d-lg-inline"),
+    span(class = "kb-brand-divider d-none d-lg-inline", `aria-hidden` = "true"),
     kelp_art_switch(),
     div(
       class = "lh-sm",
       div(class = "fs-5 fw-semibold", "kelpbio"),
-      div(class = "small fw-normal kb-brand-subtitle d-none d-md-block", "Bayesian kelp biomass estimation")
+      div(class = "small fw-normal kb-brand-subtitle d-none d-xl-block", "Bayesian kelp biomass estimation")
     )
   )
 }
@@ -53,6 +54,8 @@ brand <- function() {
 # only one main is visible at a time.
 step_main <- function(...) tags$main(class = "py-4", ...)
 
+# The fit running and its progress, beside the step tabs: "Size 45%", with the
+# fits queued on extra-wide screens only, so the tabs stay on one line.
 fit_activity <- function() {
   conditionalPanel(
     "output.fitting_active",
@@ -60,7 +63,9 @@ fit_activity <- function() {
       "activity",
       span(
         class = "kb-progress badge rounded-pill d-inline-flex align-items-center gap-2 border border-primary-subtle bg-primary-subtle text-primary-emphasis kb-tabular",
-        lucide("loader-2", "kb-spin"), textOutput("activity_label", inline = TRUE)
+        lucide("loader-2", "kb-spin"), span(class = "visually-hidden", "Fitting"),
+        textOutput("activity_label", inline = TRUE),
+        textOutput("activity_queued", inline = TRUE) |> tagAppendAttributes(class = "d-none d-xxl-inline")
       ),
       class = "text-decoration-none"
     )

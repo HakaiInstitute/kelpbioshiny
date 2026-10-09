@@ -89,9 +89,11 @@ notice <- function(icon, title, ..., tone = c("info", "warning", "muted"), actio
   )
   icon_class <- switch(tone, info = "text-info", warning = "text-warning", muted = "text-body-secondary")
   body <- Filter(Negate(is.null), list(...))
+  # With a body, the icon sits beside the title; without, it is centred on the line.
+  one_line <- length(body) == 0
   div(
-    class = paste("d-flex align-items-start gap-3 rounded-3 border p-3 small", box),
-    span(class = "mt-1", lucide(icon, icon_class)),
+    class = paste("d-flex gap-3 rounded-3 border p-3 small", if (one_line) "align-items-center" else "align-items-start", box),
+    span(class = if (one_line) "d-inline-flex" else "mt-1", lucide(icon, icon_class)),
     div(
       class = "flex-grow-1 d-flex flex-column gap-1",
       div(class = "fw-medium", title),
@@ -126,19 +128,28 @@ warning_badge <- function(text, icon = "alert-triangle") badge(text, "bg-warning
 # other action) and "btn-light" the ghost variant (a small adjustment inside a
 # panel); $light is white in the theme. Each non-primary variant carries
 # btn-light, which keeps Shiny's btn-default styles off the button.
-button <- function(id, label, icon = NULL, variant = c("primary", "soft", "outline", "ghost"), size = NULL, ...) {
+# With `download = TRUE`, a link styled as the button that downloads the file
+# of the downloadHandler() output `id`.
+button <- function(id, label, icon = NULL, variant = c("primary", "soft", "outline", "ghost"), size = NULL, download = FALSE, ...) {
   variant <- match.arg(variant)
   class <- c(
     switch(variant, primary = "btn-primary", soft = "btn-light kb-btn-soft", outline = "btn-light border", ghost = "btn-light"),
     if (!is.null(size)) paste0("btn-", size)
   )
   if (is.character(icon) && !inherits(icon, "html")) icon <- lucide(icon)
-  actionButton(id, span(class = "d-inline-flex align-items-center gap-2", icon, label), class = paste(class, collapse = " "), ...)
+  label <- span(class = "d-inline-flex align-items-center gap-2", icon, label)
+  if (download) {
+    return(downloadLink(id, label, class = paste(c("btn btn-default", class), collapse = " "), ...))
+  }
+  actionButton(id, label, class = paste(class, collapse = " "), ...)
 }
 
 # A status in words: the badges, the hidden text beside status icons and the
 # reasons biomass is locked all use it.
 status_label <- function(status) {
+  if (isTRUE(status$outdated)) {
+    return("Settings changed")
+  }
   if (status$kind == "ready" && has_warning(status)) {
     return("Ready with warnings")
   }
@@ -158,6 +169,9 @@ status_label <- function(status) {
 status_hidden <- function(status) span(class = "visually-hidden", paste0(", ", tolower(status_label(status))), .noWS = "before")
 
 status_icon <- function(status) {
+  if (isTRUE(status$outdated)) {
+    return(lucide("refresh-cw", "text-warning"))
+  }
   if (has_warning(status)) {
     return(lucide("alert-triangle", "text-warning"))
   }
@@ -178,7 +192,7 @@ status_icon <- function(status) {
 status_badge <- function(status) {
   label <- status_label(status)
   switch(status$kind,
-    "not-used" = span(class = "small text-body-secondary", label),
+    "not-used" = badge(label, "bg-secondary-subtle text-secondary-emphasis", "minus-circle"),
     "no-data" = badge(label, "text-bg-danger", "x-circle"),
     "data-error" = badge(label, "text-bg-danger", "x-circle"),
     "not-fitted" = badge(label, "bg-secondary-subtle text-secondary-emphasis", "circle-dashed"),
@@ -187,7 +201,13 @@ status_badge <- function(status) {
       class = "badge d-inline-flex align-items-center gap-1 border border-primary-subtle text-primary",
       lucide("loader-2", "kb-spin"), label
     ),
-    "ready" = if (has_warning(status)) warning_badge(label) else success_badge(label),
+    "ready" = if (isTRUE(status$outdated)) {
+      warning_badge(label, "refresh-cw")
+    } else if (has_warning(status)) {
+      warning_badge(label)
+    } else {
+      success_badge(label)
+    },
     "failed" = badge(label, "text-bg-danger", "x-circle")
   )
 }
@@ -216,8 +236,10 @@ fit_control <- function(fit_id, cancel_id, status, invalid, fit_label = "Fit", v
   }
   refit <- status$kind %in% c("ready", "failed")
   label <- if (refit) "Refit" else fit_label
+  # A fit whose settings have changed is a step still to do.
+  refit_variant <- if (isTRUE(status$outdated)) "soft" else "outline"
   button(
-    fit_id, label, "play", if (refit) "outline" else variant,
+    fit_id, label, "play", if (refit) refit_variant else variant,
     size = size, disabled = !can_fit(status) || invalid, `aria-label` = aria(if (refit) "Refit" else "Fit")
   )
 }
@@ -236,6 +258,21 @@ block_reason <- function(status) tolower(status_label(status))
 # as a digit in tabular figures), so text around it does not shift as it grows.
 percent_text <- function(value) {
   paste0(gsub(" ", "\u2007", formatC(floor(value), width = 3), fixed = TRUE), "%")
+}
+
+# The banner of a fit in progress, on the Models list and a model's page: an
+# icon and title, a detail on the right (the percentage, the fits queued) and
+# the bar. A queued fit shows a clock and no bar.
+fit_progress <- function(title, detail = NULL, bar = NULL, icon = lucide("loader-2", "kb-spin text-primary")) {
+  div(
+    class = "kb-progress d-flex flex-column gap-2 border rounded-3 p-3 mb-3 bg-primary-subtle border-primary-subtle",
+    div(
+      class = "d-flex flex-wrap align-items-center justify-content-between gap-2",
+      span(class = "d-inline-flex align-items-center gap-2 fw-medium", icon, title),
+      if (!is.null(detail)) span(class = "small text-body-secondary kb-tabular", detail)
+    ),
+    bar
+  )
 }
 
 progress_bar <- function(value) {
@@ -310,56 +347,80 @@ status_list <- function(statuses, notes) {
 warning_help <- list(
   convergence = list(
     title = "Convergence warning",
-    advice = "Some parameters have not converged. Increase thinning (nthin) in Sampler settings, for example to 2, and refit."
+    advice = "Some parameters have not converged. Increase thinning (nthin) on the Settings tab, for example to 2, and refit."
   ),
   prior = list(
     title = "Prior sensitivity warning",
     advice = "If the flagged prior was not chosen on purpose, make it less informative on the Settings tab and refit."
+  ),
+  influence = list(
+    title = "Influential observations",
+    advice = paste(
+      "Check the flagged observations, listed on the Diagnostics tab, for recording errors.",
+      "Correct any error in the sheet, upload it again and refit; keep observations that check out."
+    )
+  ),
+  outdated = list(
+    title = "Settings changed since the fit",
+    advice = "The results and the R script use the settings the model was fitted with. Refit the model to use the new settings."
   ),
   failed = list(title = "The fit failed", advice = "Refit the model to see its results."),
   data_check = list(title = "The data check failed", advice = "Correct the sheet and upload it again."),
   mismatch = list(title = "Site names differ across sheets", advice = mismatch_advice)
 )
 
-# The action of a model's warning notice: opens its Settings tab. Outline, so
-# the page's Fit or Refit button stays the main action.
-settings_button <- function(id) button(id, "Open settings", "sliders-horizontal", variant = "outline", size = "sm")
-
-# A convergence warning whose action opens the model's settings.
-convergence_notice <- function(title, settings_id) {
-  notice(
-    "alert-triangle", title, warning_help$convergence$advice,
-    tone = "warning",
-    action = settings_button(settings_id)
-  )
-}
-
-# One notice per warning of the models `ids`, for the steps after Models: a
-# failed fit, a convergence warning or a prior sensitivity warning. sensitivity
-# holds the kb_sensitivity() rows of each model fitted to your data. The buttons
-# are ns("open_<id>"), ns("settings_<id>") and ns("priors_<id>").
-warning_notices <- function(ns, statuses, sensitivity, ids = component_ids) {
-  title <- function(id, key) sprintf("%s model: %s", label_of(id), tolower(warning_help[[key]]$title))
-  notices <- lapply(ids, function(id) {
+# The warnings of each model in `ids`, in words: "convergence", "prior
+# sensitivity" and "influential observations" for a ready model, "fit failed"
+# for a failed one.
+model_warnings <- function(statuses, ids = component_ids) {
+  warnings <- lapply(ids, function(id) {
     status <- statuses[[id]]
-    list(
-      if (status$kind == "failed") {
-        notice(
-          "x-circle", title(id, "failed"), status$message,
-          tone = "warning", action = button(ns(paste0("open_", id)), "Open model", variant = "outline", size = "sm")
-        )
-      },
-      if (isTRUE(status$convergence)) convergence_notice(title(id, "convergence"), ns(paste0("settings_", id))),
-      if (isTRUE(status$prior)) {
-        rows <- sensitivity[[id]]
-        notice(
-          "alert-triangle", title(id, "prior"), paste(prior_influence(rows[!rows$weak_prior, ]), warning_help$prior$advice),
-          tone = "warning", action = settings_button(ns(paste0("priors_", id)))
-        )
-      }
+    c(
+      if (status$kind == "failed") "fit failed",
+      if (isTRUE(status$convergence)) "convergence",
+      if (isTRUE(status$prior)) "prior sensitivity",
+      if (isTRUE(status$influence)) "influential observations"
     )
   })
-  Filter(Negate(is.null), unlist(notices, recursive = FALSE))
+  Filter(length, stats::setNames(warnings, ids))
+}
+
+# A model's warnings as a phrase, for its own estimate page: "convergence and
+# prior sensitivity warnings", or "fit failed".
+warnings_phrase <- function(warnings) {
+  if ("fit failed" %in% warnings) {
+    return("fit failed")
+  }
+  paste(and_list(warnings), if (length(warnings) > 1) "warnings" else "warning")
+}
+
+# One line naming the models in `ids` with warnings, for the steps after Models;
+# the full warnings are on each model's page. On a model's own estimate page
+# (`own`), it names only the warnings. Each link is ns("open_<id>"), observed by
+# observe_warning_links().
+warnings_summary <- function(ns, statuses, ids = component_ids, own = FALSE) {
+  warnings <- model_warnings(statuses, ids)
+  if (length(warnings) == 0) {
+    return(NULL)
+  }
+  link <- function(id, label) actionLink(ns(paste0("open_", id)), label, class = "fw-normal")
+  title <- if (own) {
+    id <- names(warnings)[[1]]
+    tagList(sentence_case(warnings_phrase(warnings[[id]])), span(class = "text-body-secondary", "\u00b7"), link(id, "View diagnostics"))
+  } else {
+    last <- names(warnings)[[length(warnings)]]
+    tagList("Warnings:", lapply(names(warnings), function(id) {
+      span(class = "fw-normal", link(id, paste(label_of(id), "model")), sprintf("(%s)%s", paste(warnings[[id]], collapse = ", "), if (id == last) "" else ";"))
+    }))
+  }
+  notice("alert-triangle", title, tone = "warning")
+}
+
+# Opens a model's diagnostics from a link of warnings_summary().
+observe_warning_links <- function(input, store) {
+  lapply(component_ids, function(cid) {
+    observeEvent(input[[paste0("open_", cid)]], store$open_tab(cid, "diagnostics"))
+  })
 }
 
 # How to make one prior less informative, from its family in the fit's priors
@@ -373,25 +434,47 @@ prior_advice <- function(prior, parameter = NULL) {
     sprintf("reduce %s rate (for example from %s to %s)", its, as.character(prior$rate), as.character(prior$rate / 2))
   } else if (inherits(prior, "kb_prior_normal")) {
     sprintf("increase %s SD (for example from %s to %s)", its, as.character(prior$sd), as.character(prior$sd * 2))
+  } else if (inherits(prior, "kb_prior_lognormal")) {
+    sprintf("increase %s log-scale SD (for example from %s to %s)", its, as.character(prior$sdlog), as.character(prior$sdlog * 2))
   } else {
     "use a wider prior"
   }
   if (is.null(parameter)) action else sprintf("for %s, %s", parameter, action)
 }
 
-# "The prior for sYear is influencing the estimate.", from kb_sensitivity() rows
+# "The prior for sd_year is influencing the estimate.", from kb_sensitivity() rows
 # whose prior is not weak.
 prior_influence <- function(flagged) {
   many <- nrow(flagged) > 1
   sprintf(
-    "The %s for %s %s influencing the %s.", if (many) "priors" else "prior", and_list(flagged$parameter),
+    "The %s for %s %s influencing the %s.", if (many) "priors" else "prior", and_list(flagged$term),
     if (many) "are" else "is", if (many) "estimates" else "estimate"
   )
 }
 
-# Prior sensitivity: a warning, with a link to the priors, for parameters whose
-# prior is not weak. priors is the fit's priors list, whose entries the rows'
-# prior column names.
+# Advice text with "the Settings tab" as a link that opens it (settings_id).
+# Built as one HTML string, so no space appears around the link.
+settings_link <- function(text, settings_id) {
+  parts <- strsplit(text, "the Settings tab", fixed = TRUE)[[1]]
+  if (length(parts) != 2) {
+    return(text)
+  }
+  link <- actionLink(settings_id, "the Settings tab")
+  HTML(paste0(htmltools::htmlEscape(parts[[1]]), as.character(link), htmltools::htmlEscape(parts[[2]])))
+}
+
+# A convergence warning, its advice linking to the Settings tab.
+convergence_notice <- function(settings_id) {
+  notice(
+    "alert-triangle", warning_help$convergence$title,
+    settings_link(warning_help$convergence$advice, settings_id),
+    tone = "warning"
+  )
+}
+
+# Prior sensitivity: a warning for parameters whose prior is not weak, its
+# advice linking to the Settings tab. priors is the fit's priors list, whose
+# entries the rows' term column names.
 prior_notice <- function(rows, priors, settings_id) {
   if (!prior_flagged(rows)) {
     return(NULL)
@@ -399,7 +482,7 @@ prior_notice <- function(rows, priors, settings_id) {
   flagged <- rows[!rows$weak_prior, ]
   many <- nrow(flagged) > 1
   advice <- vapply(seq_len(nrow(flagged)), function(i) {
-    prior_advice(priors[[flagged$prior[i]]], if (many) flagged$parameter[i])
+    prior_advice(priors[[flagged$term[i]]], if (many) flagged$term[i])
   }, "")
   action <- if (many) {
     sprintf(
@@ -411,9 +494,30 @@ prior_notice <- function(rows, priors, settings_id) {
   }
   notice(
     "alert-triangle", warning_help$prior$title,
-    paste(prior_influence(flagged), action),
+    settings_link(paste(prior_influence(flagged), action), settings_id),
+    tone = "warning"
+  )
+}
+
+# Influential observations: a warning naming how many observations strongly
+# influence the fit, from kb_influence() rows, with a button to the Diagnostics
+# tab (diagnostics_id) that lists them.
+influence_notice <- function(rows, diagnostics_id) {
+  if (!influence_flagged(rows)) {
+    return(NULL)
+  }
+  n <- sum(rows$influential)
+  notice(
+    "alert-triangle", warning_help$influence$title,
+    paste(
+      sprintf(
+        "%s strongly %s the fit.",
+        if (n == 1) "One observation" else sprintf("%d observations", n), if (n == 1) "influences" else "influence"
+      ),
+      warning_help$influence$advice
+    ),
     tone = "warning",
-    action = settings_button(settings_id)
+    action = button(diagnostics_id, "View observations", variant = "outline", size = "sm")
   )
 }
 
@@ -421,7 +525,7 @@ prior_notice <- function(rows, priors, settings_id) {
 # prior that the data say little about. The prior warning itself is in the model
 # page header.
 data_strength_notice <- function(rows) {
-  weak_data <- rows$parameter[rows$weak_prior & !rows$strong_data]
+  weak_data <- rows$term[rows$weak_prior & !rows$strong_data]
   if (all(rows$weak_prior) && length(weak_data) == 0) {
     return(notice("check-circle-2", "All parameters have weak priors and strong data", tone = "muted"))
   }
@@ -445,6 +549,25 @@ sentence_case <- function(x) paste0(toupper(substr(x, 1, 1)), substring(x, 2))
 number_text <- function(value) as.character(value)
 
 
+# The column definitions for `data`, each at least as wide as its name and
+# values (about 8 px a character and the cell padding, up to 160 px; numbers to
+# 3 significant figures, as shown), so on a narrow screen a table scrolls
+# sideways rather than wrapping short values. The first column stays in view as
+# it scrolls. A width or sticky setting in `columns` is kept.
+fit_columns <- function(data, columns = NULL) {
+  lapply(stats::setNames(nm = names(data)), function(name) {
+    def <- columns[[name]] %||% reactable::colDef()
+    if (is.null(def$minWidth)) {
+      values <- data[[name]]
+      if (is.numeric(values)) values <- signif(values, 3)
+      chars <- max(nchar(def$name %||% name), nchar(as.character(values)), na.rm = TRUE)
+      def$minWidth <- min(8 * chars + 24, 160)
+    }
+    if (name == names(data)[[1]] && is.null(def$sticky)) def$sticky <- "left"
+    def
+  })
+}
+
 # A Copy button for the text of the element with id `target`. Once the text is on
 # the clipboard it sets the `copied` input to `what`, and the server confirms
 # with copied_messages[[what]].
@@ -465,7 +588,7 @@ copy_button <- function(target, what, aria_label) {
 app_table <- function(data, columns = NULL, page_size = 10, row_style = NULL, height = "auto", pagination = TRUE, ...) {
   reactable::reactable(
     data,
-    columns = columns,
+    columns = fit_columns(data, columns),
     defaultPageSize = page_size,
     pagination = pagination,
     paginationType = "simple",

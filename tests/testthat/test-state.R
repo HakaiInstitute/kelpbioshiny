@@ -16,10 +16,28 @@ test_that("Fit all fits each model with its sheet data and sampler settings", {
     store$fit_all()
     finish_fits(session, runner)
 
-    expect_identical(fitted_models(log), c("density", "size"))
+    expect_identical(fitted_models(log), c("density", "size", "cover"))
     size <- log$calls[[2]]$args
     expect_identical(size$data, store$sheets()$size$rows)
     expect_identical(size$nthin, 2)
     expect_identical(store$statuses()$size$kind, "ready")
+  })
+})
+
+test_that("a fit keeps its settings and is out of date once they change", {
+  local_stub_fits()
+  shiny::testServer(store_app(), {
+    store$fit_all()
+    finish_fits(session, runner)
+
+    store$update_sampler("size", "nthin", 2)
+    session$flushReact()
+    expect_true(store$statuses()$size$outdated)
+    expect_identical(store$run_settings()$size$sampler$nthin, 1)
+    expect_true("size" %in% store$fit_plan()$ids)
+
+    store$update_sampler("size", "nthin", 1)
+    session$flushReact()
+    expect_false(store$statuses()$size$outdated)
   })
 })

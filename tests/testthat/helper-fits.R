@@ -3,7 +3,7 @@
 
 # Stubs every kb_fit_<model>_<species>() for the calling test. Each records its
 # arguments and returns the mock's fake fit. Returns an environment whose `calls`
-# lists list(model, species, args) in order.
+# lists list(model, species, args) in order, `model` being the app's model id.
 local_stub_fits <- function(env = parent.frame()) {
   log <- new.env()
   log$calls <- list()
@@ -13,13 +13,13 @@ local_stub_fits <- function(env = parent.frame()) {
     function(...) {
       args <- list(...)
       log$calls <- c(log$calls, list(list(model = model, species = species, args = args)))
-      .mock_new_fit(model, species, args$data, args$priors, args$chains, args$niters, args$nthin)
+      .mock_new_fit(model_name(model), species, args$data, args$priors, args$chains, args$niters, args$nthin)
     }
   }
   stubs <- list()
   for (id in component_ids) {
     for (species in names(species_info)) {
-      stubs[[sprintf("kb_fit_%s_%s", id, species)]] <- stub(id, species)
+      stubs[[sprintf("kb_fit_%s_%s", model_name(id), species)]] <- stub(id, species)
     }
   }
   testthat::local_mocked_bindings(!!!stubs, .env = env)
