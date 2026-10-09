@@ -74,6 +74,8 @@ mod_model_server <- function(id, store) {
     sensitivity <- reactive({
       if (page()$mode == "prefit") kb_sensitivity(fitted_fit()) else req(store$sensitivity[[cid]]())
     })
+    # Influential observations of the fit to your data, shared with the other steps.
+    influence <- reactive(req(store$influence[[cid]]()))
     errors <- reactive(store$setting_errors()[[cid]])
 
     # A pre-fit model shows only its diagnostics and description; the page opens
@@ -101,6 +103,7 @@ mod_model_server <- function(id, store) {
     observeEvent(input$view_estimates, store$open_estimate(cid))
     observeEvent(input$settings_convergence, nav_select("tab", "settings", session = session))
     observeEvent(input$settings_prior, nav_select("tab", "settings", session = session))
+    observeEvent(input$diagnostics_influence, nav_select("tab", "diagnostics", session = session))
     observeEvent(store$tab_request(), {
       request <- store$tab_request()
       if (identical(request$id, cid)) nav_select("tab", request$tab, session = session)
@@ -173,8 +176,10 @@ mod_model_server <- function(id, store) {
         }
       } else if (mode == "user" && status$kind == "ready") {
         tagList(
+          if (isTRUE(status$outdated)) notice("refresh-cw", warning_help$outdated$title, warning_help$outdated$advice, tone = "warning"),
           if (isTRUE(status$convergence)) convergence_notice(ns("settings_convergence")),
-          prior_notice(store$sensitivity[[cid]](), fit()$meta$priors, ns("settings_prior"))
+          prior_notice(store$sensitivity[[cid]](), fit()$meta$priors, ns("settings_prior")),
+          influence_notice(store$influence[[cid]](), ns("diagnostics_influence"))
         )
       }
       if (length(notice_ui) > 0) div(class = "d-flex flex-column gap-2 mb-3", notice_ui)
@@ -255,13 +260,13 @@ mod_model_server <- function(id, store) {
     output$tab_diagnostics <- renderUI({
       mode <- page()$mode
       if (mode == "user" && kind() == "ready") {
-        return(diagnostics_panel(ns, "your data"))
+        return(diagnostics_panel(ns, "your data", influence = TRUE))
       }
       if (mode == "prefit" && !is.null(fit())) {
         return(diagnostics_panel(ns, "the reference data"))
       }
       switch(mode,
-        user = fit_pending_state(kind(), "Fit the model to check its convergence, prior sensitivity and posterior predictive check."),
+        user = fit_pending_state(kind(), "Fit the model to check its convergence, prior sensitivity, influential observations and posterior predictive check."),
         "no-sheet" = no_sheet("Diagnostics appear once the model is fitted to your data."),
         none = not_used(),
         NULL
@@ -462,6 +467,23 @@ mod_model_server <- function(id, store) {
         )
       )
     })
+
+    output$influence_note <- renderUI({
+      if (!influence_flagged(influence())) notice("check-circle-2", "No influential observations", tone = "muted")
+    })
+
+    # The influential observations, most influential first, as fitted.
+    output$influence <- reactable::renderReactable({
+      rows <- influence()
+      req(influence_flagged(rows))
+      rows <- rows[rows$influential, setdiff(names(rows), c("elpd_loo", "influential"))]
+      rows <- rows[order(rows$pareto_k, decreasing = TRUE), ]
+      app_table(
+        rows,
+        page_size = 8,
+        columns = list(pareto_k = reactable::colDef(name = "Pareto k", class = "kb-tabular"))
+      )
+    })
   })
 }
 
@@ -479,10 +501,15 @@ fit_pending_state <- function(kind, description) {
 }
 
 # The diagnostics of a fit, in one scrolling tab: convergence and trace plots,
-# prior sensitivity and posterior predictive checks. `data` names the data the
-# model was fitted to: "your data", or "the reference data" of a pre-fit model.
-diagnostics_panel <- function(ns, data) {
-  div(class = "d-flex flex-column gap-3", convergence_panel(ns), sensitivity_panel(ns), ppc_panel(ns, data))
+# prior sensitivity, influential observations (`influence`, for a fit to your
+# data, whose sheet can be corrected) and posterior predictive checks. `data`
+# names the data the model was fitted to: "your data", or "the reference data"
+# of a pre-fit model.
+diagnostics_panel <- function(ns, data, influence = FALSE) {
+  div(
+    class = "d-flex flex-column gap-3",
+    convergence_panel(ns), sensitivity_panel(ns), if (influence) influence_panel(ns), ppc_panel(ns, data)
+  )
 }
 
 sensitivity_panel <- function(ns) {
@@ -491,6 +518,18 @@ sensitivity_panel <- function(ns) {
     description = "No under Weak prior means the prior is influencing the estimate; No under Strong data means the data say little about the parameter.",
     uiOutput(ns("sensitivity_note")),
     reactable::reactableOutput(ns("sensitivity"))
+  )
+}
+
+influence_panel <- function(ns) {
+  panel(
+    with_help("Influential observations", "influence"),
+    description = sprintf(
+      "Observations with a Pareto k above %s strongly influence the fit. Check them for recording errors.",
+      default_arg(kb_influence, "threshold")
+    ),
+    uiOutput(ns("influence_note")),
+    reactable::reactableOutput(ns("influence"))
   )
 }
 

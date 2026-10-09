@@ -3,15 +3,42 @@
 # wording stays consistent.
 
 # kelpbio owns the statistics; help text links to its articles rather than
-# restating them. Every link is kelpbio_url plus one of kelpbio_articles.
+# restating them. Every link is kelpbio_url plus the path of one of
+# kelpbio_articles, which the Methods page shows as tiles, in this order.
+# TODO: match the titles, summaries and paths to kelpbio's articles once they
+# are written.
 kelpbio_url <- "https://hakaiinstitute.github.io/kelpbio/"
-kelpbio_articles <- c(
-  diagnostics = "articles/diagnostics.html",
-  results = "articles/results.html",
-  prefit = "articles/pre-fit-models.html",
-  models = "articles/models.html",
-  total_biomass = "articles/total-biomass.html",
-  priors = "articles/priors.html"
+kelpbio_articles <- list(
+  models = list(
+    title = "The models",
+    summary = "What each model estimates, and how they combine into plot and site biomass.",
+    path = "articles/models.html"
+  ),
+  priors = list(
+    title = "Priors",
+    summary = "The default priors of each model, and how to choose others.",
+    path = "articles/priors.html"
+  ),
+  prefit = list(
+    title = "Pre-fit models",
+    summary = "The reference data behind each pre-fit model, and when to use one.",
+    path = "articles/pre-fit-models.html"
+  ),
+  diagnostics = list(
+    title = "Checking a fit",
+    summary = "Convergence, prior sensitivity, influential observations and posterior predictive checks.",
+    path = "articles/diagnostics.html"
+  ),
+  results = list(
+    title = "Interpreting the estimates",
+    summary = "Overall and group predictions, and their compatibility intervals.",
+    path = "articles/results.html"
+  ),
+  total_biomass = list(
+    title = "Total site biomass",
+    summary = "Scaling plot biomass to whole sites from drone surveys of canopy area.",
+    path = "articles/total-biomass.html"
+  )
 )
 
 help_topics <- list(
@@ -54,7 +81,18 @@ help_topics <- list(
       "A weak prior means the priors are not driving the estimate, and strong data means the data are informative about it.",
       "A parameter without both depends on the priors as much as on the data."
     ),
-    link = kelpbio_articles[["diagnostics"]]
+    link = kelpbio_articles$diagnostics$path
+  ),
+  influence = list(
+    title = "Influential observations",
+    body = function() {
+      paste(
+        "Pareto k measures how much the fit changes when an observation is left out.",
+        sprintf("Above %s, the observation strongly influences the estimates.", default_arg(kb_influence, "threshold")),
+        "That can be a recording error, or a valid observation in a site-year with few others."
+      )
+    },
+    link = kelpbio_articles$diagnostics$path
   ),
   prediction_groups = list(
     title = "Overall and group predictions",

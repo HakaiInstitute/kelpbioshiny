@@ -91,7 +91,8 @@
 #   carbon are pre-fit;
 # - "bad_weight": density and size, a weight sheet with two rows missing their
 #   year, so its data check fails, and a carbon sheet with three samples outside
-#   the plausible carbon fractions, so its check passes with a warning;
+#   the plausible carbon fractions, so its check passes with a warning and its
+#   fit flags them as influential observations;
 # - "size_only": plant diameters only, to predict the weight of each plant.
 # data-raw/test-workbooks.R writes each example as an Excel workbook.
 kb_example_data <- function(species = c("nereo", "macro"), example = c("density_size", "full", "bad_weight", "size_only")) {

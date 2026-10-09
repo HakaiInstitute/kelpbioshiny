@@ -339,20 +339,33 @@ warning_help <- list(
     title = "Prior sensitivity warning",
     advice = "If the flagged prior was not chosen on purpose, make it less informative on the Settings tab and refit."
   ),
+  influence = list(
+    title = "Influential observations",
+    advice = paste(
+      "Check the flagged observations, listed on the Diagnostics tab, for recording errors.",
+      "Correct any error in the sheet, upload it again and refit; keep observations that check out."
+    )
+  ),
+  outdated = list(
+    title = "Settings changed since the fit",
+    advice = "The results and the R script use the settings the model was fitted with. Refit the model to use the new settings."
+  ),
   failed = list(title = "The fit failed", advice = "Refit the model to see its results."),
   data_check = list(title = "The data check failed", advice = "Correct the sheet and upload it again."),
   mismatch = list(title = "Site names differ across sheets", advice = mismatch_advice)
 )
 
-# The warnings of each model in `ids`, in words: "convergence" and "prior
-# sensitivity" for a ready model, "fit failed" for a failed one.
+# The warnings of each model in `ids`, in words: "convergence", "prior
+# sensitivity" and "influential observations" for a ready model, "fit failed"
+# for a failed one.
 model_warnings <- function(statuses, ids = component_ids) {
   warnings <- lapply(ids, function(id) {
     status <- statuses[[id]]
     c(
       if (status$kind == "failed") "fit failed",
       if (isTRUE(status$convergence)) "convergence",
-      if (isTRUE(status$prior)) "prior sensitivity"
+      if (isTRUE(status$prior)) "prior sensitivity",
+      if (isTRUE(status$influence)) "influential observations"
     )
   })
   Filter(length, stats::setNames(warnings, ids))
@@ -469,6 +482,28 @@ prior_notice <- function(rows, priors, settings_id) {
     "alert-triangle", warning_help$prior$title,
     settings_link(paste(prior_influence(flagged), action), settings_id),
     tone = "warning"
+  )
+}
+
+# Influential observations: a warning naming how many observations strongly
+# influence the fit, from kb_influence() rows, with a button to the Diagnostics
+# tab (diagnostics_id) that lists them.
+influence_notice <- function(rows, diagnostics_id) {
+  if (!influence_flagged(rows)) {
+    return(NULL)
+  }
+  n <- sum(rows$influential)
+  notice(
+    "alert-triangle", warning_help$influence$title,
+    paste(
+      sprintf(
+        "%s strongly %s the fit.",
+        if (n == 1) "One observation" else sprintf("%d observations", n), if (n == 1) "influences" else "influence"
+      ),
+      warning_help$influence$advice
+    ),
+    tone = "warning",
+    action = button(diagnostics_id, "View observations", variant = "outline", size = "sm")
   )
 }
 

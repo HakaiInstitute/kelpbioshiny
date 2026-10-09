@@ -100,10 +100,14 @@ fitting_id <- function(records) {
 # What the app shows for each model, from its source, sheet, fit record and, for
 # a pre-fit source, the pre-fit model (list(fit, error)). Kinds: "not-used",
 # "no-data", "data-error", "not-fitted", "queued", "fitting", "ready" (pre-fit,
-# or fitted) and "failed". A fitted model carries two warnings: `convergence`
-# when the fit did not converge, and `prior` (prior_warning, from its prior
-# sensitivity) when a prior is influencing an estimate.
-component_status <- function(source, sheet, record, prefit = NULL, cover_blocked = FALSE, prior_warning = FALSE) {
+# or fitted) and "failed". A fitted model carries three warnings: `convergence`
+# when the fit did not converge, `prior` (prior_warning, from its prior
+# sensitivity) when a prior is influencing an estimate, and `influence`
+# (influence_warning, from kb_influence()) when observations strongly influence
+# the fit; and `outdated` when its current `settings` differ from those it was
+# fitted with.
+component_status <- function(source, sheet, record, prefit = NULL, cover_blocked = FALSE, prior_warning = FALSE,
+                             influence_warning = FALSE, settings = NULL) {
   if (source == "none") {
     return(list(kind = "not-used", source = source))
   }
@@ -122,7 +126,11 @@ component_status <- function(source, sheet, record, prefit = NULL, cover_blocked
   switch(record$status,
     queued = list(kind = "queued", source = source),
     fitting = list(kind = "fitting", source = source),
-    fitted = list(kind = "ready", source = source, convergence = !kb_converged(record$fit), prior = prior_warning),
+    fitted = list(
+      kind = "ready", source = source, convergence = !kb_converged(record$fit), prior = prior_warning,
+      influence = influence_warning,
+      outdated = !is.null(record$settings) && !is.null(settings) && settings_changed(record$settings, settings)
+    ),
     failed = list(kind = "failed", source = source, message = record$error),
     list(kind = "not-fitted", source = source, blocked = cover_blocked)
   )
@@ -130,17 +138,26 @@ component_status <- function(source, sheet, record, prefit = NULL, cover_blocked
 
 is_ready_status <- function(status) status$kind %in% c("ready", "not-used")
 is_pending_status <- function(status) status$kind %in% c("queued", "fitting")
-has_warning <- function(status) isTRUE(status$convergence) || isTRUE(status$prior)
+has_warning <- function(status) isTRUE(status$convergence) || isTRUE(status$prior) || isTRUE(status$influence)
 
 # kb_sensitivity() rows flag a prior warning when any prior is not weak.
 prior_flagged <- function(rows) !is.null(rows) && !all(rows$weak_prior)
 
+# kb_influence() rows flag an influence warning when any observation is influential.
+influence_flagged <- function(rows) !is.null(rows) && any(rows$influential)
+
 # The biomass models first; the cover model can be fitted once they are ready
 # and biomass per unit area can be estimated from them. prior_warnings flags, by
-# model, a fit whose priors influence its estimates.
-component_statuses <- function(sources, sheets, records, prefits = list(), prior_warnings = list()) {
+# model, a fit whose priors influence its estimates, influence_warnings a fit
+# with influential observations, and settings each model's current settings.
+component_statuses <- function(sources, sheets, records, prefits = list(), prior_warnings = list(),
+                               influence_warnings = list(), settings = list()) {
   status <- function(id, ...) {
-    component_status(sources[[id]], sheets[[id]], records[[id]], ..., prior_warning = isTRUE(prior_warnings[[id]]))
+    component_status(
+      sources[[id]], sheets[[id]], records[[id]], ...,
+      prior_warning = isTRUE(prior_warnings[[id]]), influence_warning = isTRUE(influence_warnings[[id]]),
+      settings = settings[[id]]
+    )
   }
   statuses <- lapply(biomass_ids, function(id) status(id, prefits[[id]]))
   ready <- all(vapply(statuses, is_ready_status, logical(1)))
@@ -338,9 +355,27 @@ new_store <- function(session, run_fit = mirai_fit_runner) {
     sources <- s$sources()
     prefit_ids <- Filter(function(id) is_prefit(sources[[id]]), component_ids)
     prior_warnings <- lapply(component_ids, function(id) prior_flagged(s$sensitivity[[id]]()))
-    component_statuses(sources, s$sheets(), s$records(), lapply(prefit_ids, s$prefit), prior_warnings)
+    influence_warnings <- lapply(component_ids, function(id) influence_flagged(s$influence[[id]]()))
+    component_statuses(
+      sources, s$sheets(), s$records(), lapply(prefit_ids, s$prefit), prior_warnings, influence_warnings,
+      s$settings()
+    )
   })
   s$fitting <- reactive(fitting_id(s$records()))
+
+  # Each model's current prior and sampler settings.
+  s$settings <- reactive({
+    priors <- s$priors()
+    samplers <- s$samplers()
+    lapply(component_ids, function(id) fit_settings(priors[[id]], samplers[[id]]))
+  })
+  # The settings behind each model's results: those it was fitted with, or the
+  # current settings while it has no fit.
+  s$run_settings <- reactive({
+    records <- s$records()
+    current <- s$settings()
+    lapply(component_ids, function(id) if (records[[id]]$status == "fitted") records[[id]]$settings else current[[id]])
+  })
 
   # The fit a model contributes: its pre-fit model, or its fit to your data once
   # fitted; NULL otherwise.
@@ -361,6 +396,11 @@ new_store <- function(session, run_fit = mirai_fit_runner) {
   s$sensitivity <- lapply(component_ids, function(id) {
     fit <- dedupe(reactive(s$records()[[id]]$fit))
     reactive(if (!is.null(fit())) kb_sensitivity(fit()))
+  })
+  # Influential observations of each model's fit to your data; NULL until fitted.
+  s$influence <- lapply(component_ids, function(id) {
+    fit <- dedupe(reactive(s$records()[[id]]$fit))
+    reactive(if (!is.null(fit())) kb_influence(fit()))
   })
 
   # Plot biomass by site-year, by measure, and total biomass of each drone

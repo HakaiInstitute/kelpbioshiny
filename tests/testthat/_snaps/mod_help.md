@@ -101,6 +101,9 @@
       Prior sensitivity
       Prior sensitivity measures how far each estimate moves when the priors, and then the data, are given slightly more or less weight. A weak prior means the priors are not driving the estimate, and strong data means the data are informative about it. A parameter without both depends on the priors as much as on the data.
       Learn more (https://hakaiinstitute.github.io/kelpbio/articles/diagnostics.html)
+      Influential observations
+      Pareto k measures how much the fit changes when an observation is left out. Above 0.7, the observation strongly influences the estimates. That can be a recording error, or a valid observation in a site-year with few others.
+      Learn more (https://hakaiinstitute.github.io/kelpbio/articles/diagnostics.html)
       Overall and group predictions
       Overall predictions are for a typical site in a typical year. They leave out the differences between sites and between years, so they suit sites and years that were not sampled. Predictions by site or by year add the estimated difference for each sampled site or year, so they describe those sites and years. Predictions by site and year include both.
       Learn more (https://hakaiinstitute.github.io/kelpbio/articles/results.html)

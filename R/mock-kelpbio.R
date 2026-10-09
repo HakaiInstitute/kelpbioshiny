@@ -1180,6 +1180,50 @@ kb_sensitivity <- function(fit, ..., prior_threshold = 0.1, likelihood_threshold
   )
 }
 
+# Influential observations ----------------------------------------------------------------
+
+# Each observation's response on the model's scale, and its predictor where the
+# response depends on one, from the fitted data.
+.mock_influence_response <- function(fit) {
+  d <- fit$data
+  measure <- intersect(c("diameter_mm", "fronds"), names(d))
+  switch(.mock_model_of(fit),
+    density = list(y = log((d[[intersect(c("stipes", "plants"), names(d))]] + 0.5) / d$area_m2)),
+    size = list(y = log(d[[measure]])),
+    weight = list(y = log(d$weight_kg), x = log(d[[measure]])),
+    wetdry = list(y = stats::qlogis(d$dry_mass_g / d$wet_mass_g)),
+    carbon = list(y = stats::qlogis(d$carbon_mass_ug / (d$sample_mass_mg * 1000))),
+    cover_biomass = list(y = log(d$estimate), x = d$canopy_area_m2 / d$plot_area_m2)
+  )
+}
+
+# Exists on kelpbio's add-loo branch (kelpbio#43), not yet merged. The fitted
+# data with each observation's elpd_loo and pareto_k, and whether it is
+# influential (pareto_k above `threshold`). In the mock, an observation's Pareto
+# k grows with its robust z-score about the fitted trend, so values far from the
+# rest, such as recording errors, are flagged.
+kb_influence <- function(fit, ..., threshold = 0.7) {
+  rlang::check_dots_empty()
+  chk::chk_number(threshold)
+  chk::chk_gt(threshold)
+  if (nrow(fit$data) == 0) {
+    stop("A zero-observation fit has no likelihood, so it cannot be cross-validated.", call. = FALSE)
+  }
+  response <- .mock_influence_response(fit)
+  y <- response$y
+  resid <- if (is.null(response$x)) y - stats::median(y) else stats::residuals(stats::lm(y ~ response$x))
+  z <- abs(resid - stats::median(resid)) / stats::mad(resid)
+  .mock_with_seed(17, {
+    pareto_k <- round(0.12 * z + stats::runif(length(z), -0.05, 0.1), 2)
+    elpd_loo <- round(-1 - z^2 / 2 + stats::rnorm(length(z), 0, 0.1), 2)
+  })
+  out <- tibble::as_tibble(fit$data)
+  out$elpd_loo <- elpd_loo
+  out$pareto_k <- pareto_k
+  out$influential <- pareto_k > threshold
+  out
+}
+
 # Biomass -----------------------------------------------------------------------------------
 
 .mock_normalise_site <- function(site) gsub("[[:space:]_-]", "", tolower(site))
