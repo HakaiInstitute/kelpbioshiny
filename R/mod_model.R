@@ -429,7 +429,7 @@ mod_model_server <- function(id, store) {
           ess_bulk = reactable::colDef(name = "Bulk ESS", class = "kb-tabular"),
           ess_tail = reactable::colDef(name = "Tail ESS", class = "kb-tabular"),
           converged = reactable::colDef(
-            name = "Status",
+            name = "Status", minWidth = 130,
             cell = function(value) if (value) "Converged" else warning_badge("Not converged", NULL)
           )
         )

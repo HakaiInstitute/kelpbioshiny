@@ -549,6 +549,25 @@ sentence_case <- function(x) paste0(toupper(substr(x, 1, 1)), substring(x, 2))
 number_text <- function(value) as.character(value)
 
 
+# The column definitions for `data`, each at least as wide as its name and
+# values (about 8 px a character and the cell padding, up to 160 px; numbers to
+# 3 significant figures, as shown), so on a narrow screen a table scrolls
+# sideways rather than wrapping short values. The first column stays in view as
+# it scrolls. A width or sticky setting in `columns` is kept.
+fit_columns <- function(data, columns = NULL) {
+  lapply(stats::setNames(nm = names(data)), function(name) {
+    def <- columns[[name]] %||% reactable::colDef()
+    if (is.null(def$minWidth)) {
+      values <- data[[name]]
+      if (is.numeric(values)) values <- signif(values, 3)
+      chars <- max(nchar(def$name %||% name), nchar(as.character(values)), na.rm = TRUE)
+      def$minWidth <- min(8 * chars + 24, 160)
+    }
+    if (name == names(data)[[1]] && is.null(def$sticky)) def$sticky <- "left"
+    def
+  })
+}
+
 # A Copy button for the text of the element with id `target`. Once the text is on
 # the clipboard it sets the `copied` input to `what`, and the server confirms
 # with copied_messages[[what]].
@@ -569,7 +588,7 @@ copy_button <- function(target, what, aria_label) {
 app_table <- function(data, columns = NULL, page_size = 10, row_style = NULL, height = "auto", pagination = TRUE, ...) {
   reactable::reactable(
     data,
-    columns = columns,
+    columns = fit_columns(data, columns),
     defaultPageSize = page_size,
     pagination = pagination,
     paginationType = "simple",
