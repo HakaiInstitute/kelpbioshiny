@@ -1,6 +1,7 @@
 /* App classes only. Colours, radii, spacing and component looks come from the
    bs_theme() Sass variables in R/theme.R; nothing here targets Bootstrap, bslib,
-   Shiny or reactable internals. */
+   Shiny or reactable internals, except the one Shiny busy indicator rule at the
+   end. */
 
 .kb-icon {
   width: 1rem;
@@ -151,6 +152,10 @@
   height: 0.875rem;
 }
 
+.kb-with-help .kb-help {
+  margin-left: 0.25rem;
+}
+
 @media (min-width: 992px) {
   .kb-aside {
     position: sticky;
@@ -214,4 +219,11 @@
    jump on each tick; a zero spinner size reserves none here. */
 .kb-progress {
   --shiny-spinner-size: 0px;
+}
+
+/* Shiny's busy indicators give a recalculating output room for a spinner, but
+   show none on HTML outputs, so an empty notice or button output grows and
+   moves the page below it while it recalculates. */
+[data-shiny-busy-spinners] .recalculating.shiny-html-output:not(.shiny-table-output) {
+  min-height: 0;
 }

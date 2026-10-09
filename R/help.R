@@ -221,7 +221,8 @@ help_topic <- function(key) {
   help_icon(topic$title, topic_body(topic), help_url(key))
 }
 
-# A label followed by its help icon, kept on one line.
+# A label followed by its help icon, which follows the label's last word also
+# when the label wraps.
 with_help <- function(label, key) {
-  span(class = "d-inline-flex align-items-center gap-1", label, help_topic(key))
+  span(class = "kb-with-help", label, help_topic(key))
 }
