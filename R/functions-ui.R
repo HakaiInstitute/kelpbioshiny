@@ -147,6 +147,9 @@ button <- function(id, label, icon = NULL, variant = c("primary", "soft", "outli
 # A status in words: the badges, the hidden text beside status icons and the
 # reasons biomass is locked all use it.
 status_label <- function(status) {
+  if (isTRUE(status$outdated)) {
+    return("Settings changed")
+  }
   if (status$kind == "ready" && has_warning(status)) {
     return("Ready with warnings")
   }
@@ -166,6 +169,9 @@ status_label <- function(status) {
 status_hidden <- function(status) span(class = "visually-hidden", paste0(", ", tolower(status_label(status))), .noWS = "before")
 
 status_icon <- function(status) {
+  if (isTRUE(status$outdated)) {
+    return(lucide("refresh-cw", "text-warning"))
+  }
   if (has_warning(status)) {
     return(lucide("alert-triangle", "text-warning"))
   }
@@ -195,7 +201,13 @@ status_badge <- function(status) {
       class = "badge d-inline-flex align-items-center gap-1 border border-primary-subtle text-primary",
       lucide("loader-2", "kb-spin"), label
     ),
-    "ready" = if (has_warning(status)) warning_badge(label) else success_badge(label),
+    "ready" = if (isTRUE(status$outdated)) {
+      warning_badge(label, "refresh-cw")
+    } else if (has_warning(status)) {
+      warning_badge(label)
+    } else {
+      success_badge(label)
+    },
     "failed" = badge(label, "text-bg-danger", "x-circle")
   )
 }
@@ -224,8 +236,10 @@ fit_control <- function(fit_id, cancel_id, status, invalid, fit_label = "Fit", v
   }
   refit <- status$kind %in% c("ready", "failed")
   label <- if (refit) "Refit" else fit_label
+  # A fit whose settings have changed is a step still to do.
+  refit_variant <- if (isTRUE(status$outdated)) "soft" else "outline"
   button(
-    fit_id, label, "play", if (refit) "outline" else variant,
+    fit_id, label, "play", if (refit) refit_variant else variant,
     size = size, disabled = !can_fit(status) || invalid, `aria-label` = aria(if (refit) "Refit" else "Fit")
   )
 }

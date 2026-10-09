@@ -224,8 +224,12 @@ mod_export_server <- function(id, store) {
     })
 
     output$script_block <- renderUI({
+      # A fitted model's settings are those it was fitted with, which may differ
+      # from the settings now shown on its page.
+      settings <- store$run_settings()
       code <- export_script(
-        store$species(), store$sources(), store$sheets(), store$workbook(), store$priors(), store$samplers()
+        store$species(), store$sources(), store$sheets(), store$workbook(),
+        lapply(settings, `[[`, "priors"), lapply(settings, `[[`, "sampler")
       )
       tags$pre(id = session$ns("script"), class = "m-0 px-3 py-3 small bg-white border-0", .noWS = "inside", tags$code(.noWS = "inside", code))
     })

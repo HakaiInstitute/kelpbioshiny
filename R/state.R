@@ -7,11 +7,25 @@ TICK_MS <- 200
 
 # Fit records -------------------------------------------------------------------
 # Each model's fit to your data is a record: its status ("idle", "queued",
-# "fitting", "fitted" or "failed"), the kelpbio fit once fitted, and the error
-# message once failed. The transitions below are pure, so they can be tested
-# without a session.
+# "fitting", "fitted" or "failed"), the kelpbio fit once fitted, the error
+# message once failed, and the settings it was fitted with once it starts. The
+# transitions below are pure, so they can be tested without a session.
 
-new_record <- function(status = "idle", fit = NULL, error = NULL) list(status = status, fit = fit, error = error)
+new_record <- function(status = "idle", fit = NULL, error = NULL, settings = NULL) {
+  list(status = status, fit = fit, error = error, settings = settings)
+}
+
+# A model's prior and sampler settings, as recorded with its fit.
+fit_settings <- function(priors, sampler) list(priors = priors, sampler = sampler)
+
+# Whether the settings now differ from those a fit used. Values are compared as
+# shown, so a setting edited and then put back is unchanged.
+settings_changed <- function(fitted, current) {
+  shown <- function(settings) {
+    c(paste(settings$priors$name, format_prior(settings$priors)), vapply(settings$sampler, format, ""))
+  }
+  !identical(shown(fitted), shown(current))
+}
 
 idle_records <- function() lapply(component_ids, function(id) new_record())
 
@@ -68,15 +82,15 @@ cancel_record <- function(records, id) {
   records
 }
 
-start_record <- function(records, id) {
-  records[[id]] <- new_record("fitting")
+start_record <- function(records, id, settings = NULL) {
+  records[[id]] <- new_record("fitting", settings = settings)
   records
 }
 
 # A result applies only while its record is still fitting: a fit that was
 # cancelled or reset in the meantime is discarded.
 finish_record <- function(records, id, fit) {
-  if (records[[id]]$status == "fitting") records[[id]] <- new_record("fitted", fit = fit)
+  if (records[[id]]$status == "fitting") records[[id]] <- new_record("fitted", fit = fit, settings = records[[id]]$settings)
   records
 }
 
@@ -170,14 +184,14 @@ can_fit <- function(status) {
   status$source == "user" && (status$kind %in% c("failed", "ready") || (status$kind == "not-fitted" && !status$blocked))
 }
 
-# The models Fit all queues: those not yet fitted or failed, less those with an
-# invalid setting (`skipped`). The cover model joins when the density, size and
+# The models Fit all queues: those not yet fitted, failed, or fitted with
+# settings since changed, less those with an invalid setting (`skipped`). The cover model joins when the density, size and
 # weight models are in use and every biomass model is ready, already pending,
 # or in the same batch.
 fit_all_plan <- function(statuses, invalid = character()) {
   candidates <- Filter(function(id) {
     status <- statuses[[id]]
-    status$source == "user" && status$kind %in% c("not-fitted", "failed")
+    status$source == "user" && (status$kind %in% c("not-fitted", "failed") || isTRUE(status$outdated))
   }, component_ids)
   skipped <- intersect(candidates, invalid)
   ids <- setdiff(candidates, invalid)
@@ -770,7 +784,7 @@ new_store <- function(session, run_fit = mirai_fit_runner) {
       },
       error = function(e) e
     )
-    set_records(start_record(s$records(), id))
+    set_records(start_record(s$records(), id, s$settings()[[id]]))
     if (inherits(call, "error")) {
       unlink(progress_dir, recursive = TRUE)
       fit_failed(id, conditionMessage(call))

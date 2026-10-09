@@ -78,15 +78,16 @@
       Some parameters have not converged. Increase thinning (nthin) on the Settings tab, for example to 2, and refit.
       Prior sensitivity warning
       If the flagged prior was not chosen on purpose, make it less informative on the Settings tab and refit.
+      Influential observations
+      Check the flagged observations, listed on the Diagnostics tab, for recording errors. Correct any error in the sheet, upload it again and refit; keep observations that check out.
+      Settings changed since the fit
+      The results and the R script use the settings the model was fitted with. Refit the model to use the new settings.
       The fit failed
       Refit the model to see its results.
       The data check failed
       Correct the sheet and upload it again.
       Site names differ across sheets
       Rename the sites in the workbook so the names match exactly, then upload again.
-      Methods
-      The models, priors and diagnostics are explained in the kelpbio documentation.
-      Open the kelpbio documentation
       Glossary
       The terms behind the help icons in the app.
       R-hat
