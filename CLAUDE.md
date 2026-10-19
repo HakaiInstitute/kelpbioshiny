@@ -21,7 +21,7 @@ The build runs are also Positron/VS Code tasks ("kelpbioshiny: build", "kelpbios
 |------|----------|
 | `R/run-app.R` | `run_app()`: `shinyAppDir()` on `inst/app` |
 | `R/app-ui.R`, `R/app-server.R` | `app_ui()` (navbar, steps, footer) and `app_server()` (wires the modules to one store) |
-| `R/mod_<step>.R` | One module per step: `mod_<step>_ui(id)` / `mod_<step>_server(id, store)` (`data`, `models`, `estimates`, `export`); `mod_model.R` is the per-model detail page (fit, settings, diagnostics), and `mod_estimates.R` holds each model's predictions and the derived estimates (survey biomass, canopy biomass) |
+| `R/mod_<step>.R` | One module per step: `mod_<step>_ui(id)` / `mod_<step>_server(id, store)` (`data`, `models`, `estimates`, `export`); `mod_model.R` is the per-model detail page (fit, settings, diagnostics, parameter estimates, description), and `mod_estimates.R` holds each model's predictions and the derived estimates (survey biomass, canopy biomass) |
 | `R/mod_help.R` | The Help tab: `help_ui()` and `help_server()` (its sidebar) hold three pages, `help_guide_ui()` (User guide, built from the app's definitions), `help_methods_ui()` (a tile per kelpbio article, from `kelpbio_articles`) and `help_about_ui()` (with the citations) |
 | `R/steps.R` | `app_purpose` and `app_steps`: the app's one-line purpose, and the step names and one-line descriptions |
 | `R/state.R` | `new_store()`: the per-session store of reactive state and actions, the fit queue and its runner, plus the pure fit-record transitions and status logic |

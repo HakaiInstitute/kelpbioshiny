@@ -1,5 +1,6 @@
 # One model's detail page: a header (name, source, status, fit button and
-# progress) above tabs for settings, diagnostics and the model description; its
+# progress) above tabs for settings, diagnostics, parameter estimates and the
+# model description; its
 # data are on the Data step and its predictions on the Estimates step. A single
 # module, instantiated per model. A pre-fit model has no settings of its own,
 # so it shows only the diagnostics and description of the model as fitted in
@@ -8,9 +9,9 @@
 # The labels of each prior family's hyperparameter inputs (a, then b).
 prior_inputs <- list(normal = c("Mean", "SD"), lognormal = c("Mean (log)", "SD (log)"), exponential = "Rate")
 
-model_tabs <- c(settings = "Settings", diagnostics = "Diagnostics", description = "Description")
+model_tabs <- c(settings = "Settings", diagnostics = "Diagnostics", parameters = "Parameters", description = "Description")
 own_fit_tabs <- "settings"
-fit_tabs <- c("settings", "diagnostics", "description")
+fit_tabs <- c("settings", "diagnostics", "parameters", "description")
 
 mod_model_ui <- function(id, cid) {
   ns <- NS(id)
@@ -255,6 +256,23 @@ mod_model_server <- function(id, store) {
       )
     })
 
+    # The fitted parameters, from kelpbio's tidy().
+    output$tab_parameters <- renderUI({
+      if (!is.null(fit())) {
+        return(panel(
+          "Parameter estimates",
+          description = with_help("With 95% compatibility intervals, to 3 significant figures.", "interval"),
+          reactable::reactableOutput(ns("parameters"))
+        ))
+      }
+      switch(page()$mode,
+        user = fit_pending_state(kind(), "Fit the model to see its parameter estimates."),
+        "no-sheet" = no_sheet("Parameter estimates appear once the model is fitted to your data."),
+        none = not_used(),
+        NULL
+      )
+    })
+
     # kb_model_describe() describes a fit, with its priors and the effects it fitted.
     output$tab_description <- renderUI({
       if (!is.null(fit())) {
@@ -265,6 +283,21 @@ mod_model_server <- function(id, store) {
         "no-sheet" = no_sheet("The description appears once the model is fitted to your data."),
         none = not_used(),
         NULL
+      )
+    })
+
+    output$parameters <- reactable::renderReactable({
+      rows <- tidy(fitted_fit())[c("term", "estimate", "lower", "upper")]
+      number <- function(name) reactable::colDef(name = name, cell = number_text, align = "right", class = "kb-tabular")
+      app_table(
+        rows,
+        pagination = FALSE,
+        columns = list(
+          term = reactable::colDef(name = "Parameter", style = list(fontFamily = "var(--bs-font-monospace)")),
+          estimate = number("Estimate"),
+          lower = number("Lower"),
+          upper = number("Upper")
+        )
       )
     })
 
