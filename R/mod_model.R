@@ -103,7 +103,10 @@ mod_model_server <- function(id, store) {
     observeEvent(input$cancel, store$cancel_fit(cid))
     observeEvent(input$view_estimates, store$open_estimate(cid))
     observeEvent(input$settings_convergence, nav_select("tab", "settings", session = session))
-    observeEvent(input$settings_prior, nav_select("tab", "settings", session = session))
+    observeEvent(input$settings_prior, {
+      nav_select("tab", "settings", session = session)
+      accordion_panel_open("priors_open", "priors", session = session)
+    })
     observeEvent(input$diagnostics_influence, nav_select("tab", "diagnostics", session = session))
     observeEvent(store$tab_request(), {
       request <- store$tab_request()
@@ -143,20 +146,12 @@ mod_model_server <- function(id, store) {
       mode <- page()$mode
       notice_ui <- if (mode == "prefit" && status$kind != "failed") {
         notice(
-          "layout-list", with_help(sprintf("Fitted in advance to %s", prefit_info[[page()$reference]]$data), "prefit"),
-          "No fitting needed. The estimates use this model's saved results."
+          "layout-list", with_help(sprintf("Fitted in advance to %s", prefit_info[[page()$reference]]$data), "prefit")
         )
       } else if (mode == "census" && status$kind == "ready") {
         notice(
           "list-checks", with_help("Census of every counted plant", "census"),
-          if (store$species() == "macro") {
-            "Every counted Macrocystis plant has its fronds recorded, so the size sheet holds every plant of each survey. Survey biomass weighs each plant, and no size model is fitted."
-          } else {
-            sprintf(
-              "Size data is set to %s on the Data step, so the size sheet holds every counted plant of each survey. Survey biomass weighs each plant, and no size model is fitted. To fit a size model to a sample of the plants, choose %s there.",
-              size_data_info$census$label, size_data_info$sample$label
-            )
-          },
+          "All plants measured, so survey biomass weighs each plant.",
           action = button(ns("to_data"), "View data", variant = "outline", size = "sm")
         )
       } else if (mode == "none") {
@@ -177,7 +172,12 @@ mod_model_server <- function(id, store) {
         )
       } else if (status$kind == "data-error") {
         notice(
-          "x-circle", warning_help$data_check$title, status$message, warning_help$data_check$advice,
+          "x-circle", warning_help$data_check$title, status$message,
+          paste(
+            warning_help$data_check$advice,
+            # A pre-fit model stands in until the sheet is fixed.
+            if (any(is_prefit(def$sources))) sprintf("Meanwhile, choose the %s model as its source.", source_note(Filter(is_prefit, def$sources)[[1]]))
+          ),
           tone = "warning", action = button(ns("to_data"), "View data", variant = "outline", size = "sm")
         )
       } else if (status$kind == "failed") {
@@ -214,14 +214,23 @@ mod_model_server <- function(id, store) {
         user = tagList(
           panel(
             "Sampler settings",
-            description = "More iterations or more thinning give more reliable estimates, but fitting takes longer.",
             uiOutput(ns("sampler"))
           ),
+          # Priors are an advanced setting, so they are collapsed unless the
+          # fit flagged one.
           panel(
             with_help("Priors", "priors"),
-            description = "The defaults suit most datasets.",
-            action = button(ns("reset"), "Reset to defaults", "rotate-ccw", "ghost", "sm"),
-            uiOutput(ns("priors"))
+            description = "Advanced: the defaults suit most datasets.",
+            accordion(
+              id = ns("priors_open"),
+              open = if (isTRUE(isolate(status()$prior))) "priors" else FALSE,
+              accordion_panel(
+                "Show priors",
+                value = "priors",
+                div(class = "d-flex justify-content-end mb-2", button(ns("reset"), "Reset to defaults", "rotate-ccw", "ghost", "sm")),
+                uiOutput(ns("priors"))
+              )
+            )
           )
         ),
         "no-sheet" = no_sheet("Settings can be changed once there are data to fit."),
@@ -405,6 +414,36 @@ mod_model_server <- function(id, store) {
 
     output$sensitivity_note <- renderUI(data_strength_notice(sensitivity()))
 
+    # One line per check, from the same kelpbio results as the panels below,
+    # each linking to its panel.
+    output$verdict <- renderUI({
+      line <- function(ok, text, target, tone = if (ok) "ok" else "warning") {
+        icon <- switch(tone, ok = lucide("check-circle-2", "text-success"), warning = lucide("alert-triangle", "text-warning"), info = lucide("info", "text-body-secondary"))
+        tags$li(class = "d-flex align-items-center gap-2", icon, tags$a(href = paste0("#", ns(target)), class = "link-body-emphasis", text))
+      }
+      convergence <- kb_convergence(fitted_fit())
+      unconverged <- convergence$term[!convergence$converged]
+      rows <- sensitivity()
+      influencing <- rows$term[!rows$weak_prior]
+      weak_data <- rows$term[rows$weak_prior & !rows$strong_data]
+      influential <- if (page()$mode == "user") sum(influence()$influential)
+      tags$ul(
+        class = "list-unstyled d-flex flex-column gap-2 mb-0 small",
+        line(length(unconverged) == 0, if (length(unconverged) == 0) "All parameters converged" else sprintf("Not converged: %s", and_list(unconverged)), "diag_convergence"),
+        if (length(influencing) > 0) {
+          line(FALSE, sprintf("Prior influencing the estimate: %s", and_list(influencing)), "diag_sensitivity")
+        } else if (length(weak_data) > 0) {
+          line(FALSE, sprintf("Not strongly informed by the data: %s", and_list(weak_data)), "diag_sensitivity")
+        } else {
+          line(TRUE, "No prior sensitivity", "diag_sensitivity")
+        },
+        if (!is.null(influential)) {
+          line(influential == 0, if (influential == 0) "No influential observations" else sprintf("%d influential observations to check", influential), "diag_influence")
+        },
+        line(TRUE, "Posterior predictive check: compare the data with the simulated datasets", "diag_ppc", tone = "info")
+      )
+    })
+
     output$sensitivity <- reactable::renderReactable({
       rows <- sensitivity()[c("term", "weak_prior", "strong_data")]
       flag <- function(value) if (value) "Yes" else warning_badge("No", NULL)
@@ -459,6 +498,7 @@ fit_pending_state <- function(kind, description) {
 diagnostics_panel <- function(ns, data, influence = FALSE) {
   div(
     class = "d-flex flex-column gap-3",
+    panel("Summary", uiOutput(ns("verdict"))),
     convergence_panel(ns), sensitivity_panel(ns), if (influence) influence_panel(ns), ppc_panel(ns, data)
   )
 }
@@ -466,7 +506,8 @@ diagnostics_panel <- function(ns, data, influence = FALSE) {
 sensitivity_panel <- function(ns) {
   panel(
     with_help("Prior sensitivity", "sensitivity"),
-    description = "No under Weak prior means the prior is influencing the estimate; No under Strong data means the data say little about the parameter.",
+    id = ns("diag_sensitivity"),
+    description = "Weak prior: the prior is not driving the estimate. Strong data: the data inform it.",
     uiOutput(ns("sensitivity_note")),
     reactable::reactableOutput(ns("sensitivity"))
   )
@@ -475,10 +516,8 @@ sensitivity_panel <- function(ns) {
 influence_panel <- function(ns) {
   panel(
     with_help("Influential observations", "influence"),
-    description = sprintf(
-      "Observations with a Pareto k above %s strongly influence the fit. Check them for recording errors.",
-      default_arg(kb_influence, "threshold")
-    ),
+    id = ns("diag_influence"),
+    description = sprintf("Pareto k above %s: check these for recording errors.", default_arg(kb_influence, "threshold")),
     uiOutput(ns("influence_note")),
     reactable::reactableOutput(ns("influence"))
   )
@@ -488,22 +527,19 @@ influence_panel <- function(ns) {
 ppc_panel <- function(ns, data) {
   panel(
     with_help("Posterior predictive check", "ppc"),
-    description = sprintf("Datasets simulated from the fitted model, compared with %s.", data),
+    id = ns("diag_ppc"),
     h3(class = "fs-6 fw-medium mb-0", "Density overlay"),
     figure_plot(
       ns("ppc_dens"),
       HTML(sprintf(
-        "Densities of %s (<em>y</em>) and of 50 datasets simulated from the fitted model (<em>y</em><sub>rep</sub>). The dark line for the data should sit within the light lines.",
-        data
+        "%s (<em>y</em>) and 50 simulated datasets (<em>y</em><sub>rep</sub>): the dark line should sit within the light ones.",
+        sentence_case(data)
       ))
     ),
     h3(class = "fs-6 fw-medium mb-0", "Deviance residuals overlay"),
     figure_plot(
       ns("ppc_resid"),
-      HTML(sprintf(
-        "Densities of the deviance residuals of %s (<em>y</em>) and of the 50 simulated datasets (<em>y</em><sub>rep</sub>). The shapes should match.",
-        data
-      ))
+      "The same check on deviance residuals."
     )
   )
 }
@@ -511,6 +547,7 @@ ppc_panel <- function(ns, data) {
 convergence_panel <- function(ns) {
   panel(
     "Convergence",
+    id = ns("diag_convergence"),
     description = tagList(
       "Parameters with ", with_help("R-hat", "rhat"), sprintf(" above %s or a bulk or tail ", default_arg(kb_converged, "rhat")),
       with_help("effective sample size (ESS)", "ess"),

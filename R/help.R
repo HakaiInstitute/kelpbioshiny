@@ -143,8 +143,8 @@ help_topics <- list(
   coverage = list(
     title = "Site-years without data",
     body = paste(
-      "When a model has no data for a site-year, its estimate there uses the site's estimate from other years and the year's estimate from other sites.",
-      "What is specific to that site-year is drawn from the variation the model estimated between site-years, so its compatibility interval is wider.",
+      "The models are hierarchical, so a site-year without data still gets an estimate.",
+      "It uses the site's estimate from other years and the year's estimate from other sites, with a wider compatibility interval.",
       "With neither the site nor the year in the data, the estimate is for a typical site and year."
     ),
     link = kelpbio_articles$results$path
@@ -158,19 +158,11 @@ help_topics <- list(
     ),
     link = kelpbio_articles$models$path
   ),
-  mean_weight = list(
-    title = "Mean plant weight",
-    body = paste(
-      "The expected weight of a plant at a site-year: the weight model's curve averaged over the site-year's size distribution from the size model.",
-      "Survey biomass is the plants counted in a survey times this weight."
-    ),
-    link = kelpbio_articles$models$path
-  ),
   survey_biomass = list(
     title = "Survey biomass",
     body = paste(
-      "The biomass of the plants counted in an in situ survey, per square metre of the area searched.",
-      "By site and year, the surveys of a site-year are pooled: their summed biomass over their summed area."
+      "The biomass of the plants counted in an in situ survey, per square metre of the area surveyed or in total over it.",
+      "By site and year, the surveys of a site-year are pooled: their summed biomass, divided by their summed area for biomass per square metre."
     ),
     link = kelpbio_articles$models$path
   ),

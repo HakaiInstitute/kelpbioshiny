@@ -71,7 +71,7 @@ sheet_label <- function(id) sheet_info[[id]]$label
 # plants of each survey and survey biomass weighs each plant. Macrocystis
 # surveys are always a census, as kelpbio has no Macrocystis size model.
 size_data_info <- list(
-  sample = list(label = "Sample of plants measured", detail = "Plants tallied; size model fitted"),
+  sample = list(label = "Sample of plants measured", detail = "Size model fitted"),
   census = list(label = "All plants measured", detail = "A census; no size model fitted")
 )
 
@@ -125,7 +125,7 @@ components <- list(
   # fitted to the survey biomass of the surveys with a drone flight, once the
   # weight and size models are ready.
   cover = list(
-    label = "Cover calibration", detail = "Relates the wet biomass of each survey to the tide-corrected drone canopy cover of its plot",
+    label = "Cover calibration", detail = "Survey biomass by drone canopy cover",
     sheet = "survey", sources = c("user", "none"), model = "cover_calibration"
   )
 )
@@ -133,6 +133,15 @@ components <- list(
 # The models whose results survey biomass combines; the cover calibration is
 # fitted to it, so a change to either makes the calibration out of date.
 survey_ids <- c("weight", "size")
+
+# The models by what they are for, in the order the Models and Estimates steps
+# list them; the optional groups add to survey biomass.
+model_groups <- list(
+  survey = list(label = "For survey biomass", ids = survey_ids),
+  canopy = list(label = "For canopy biomass", optional = TRUE, detail = "fitted once the weight and size models are ready", ids = "cover"),
+  measure = list(label = "For dry and carbon biomass", optional = TRUE, ids = c("wetdry", "carbon"))
+)
+model_order <- unlist(lapply(model_groups, `[[`, "ids"), use.names = FALSE)
 
 # The model fitted to a sheet, or NULL for the canopy sheet.
 sheet_component <- function(id) {
@@ -155,9 +164,9 @@ sheet_errors <- function(sheets, sources) {
 }
 
 # The models and estimates a run shows: a census has no size model, so no size
-# predictions or mean plant weight.
+# predictions.
 shown_models <- function(census) if (census) setdiff(component_ids, "size") else component_ids
-shown_estimates <- function(census) if (census) setdiff(estimate_ids, c("size", "mean_weight")) else estimate_ids
+shown_estimates <- function(census) if (census) setdiff(estimate_ids, "size") else estimate_ids
 
 # kelpbio has no Macrocystis size model: Macrocystis surveys are a census.
 has_model <- function(id, species) !(id == "size" && species == "macro")
@@ -239,7 +248,7 @@ census_sources <- function(sources, census, sheets) {
 data_plot_info <- list(
   weight = list(caption = c(nereo = "Wet weight of each plant by diameter.", macro = "Wet weight of each plant by frond count."), aspect = 4 / 8),
   size = list(caption = c(nereo = "Distribution of plant diameter.", macro = "Distribution of frond counts."), aspect = 4 / 8),
-  survey = list(caption = "Canopy cover of each plot flown by drone, by tide height.", aspect = 4 / 8),
+  survey = list(caption = "Canopy cover fraction of each plot flown by drone, by the plants counted in its survey.", aspect = 4 / 8),
   canopy = list(caption = "Canopy area mapped at each site, by year.", aspect = 4 / 8),
   wetdry = list(caption = "Distribution of the ratio of dry to wet mass of the tissue samples.", aspect = 4 / 8),
   carbon = list(caption = "Distribution of the carbon fraction of dry mass of the tissue samples.", aspect = 4 / 8)
@@ -264,23 +273,15 @@ sheet_facets <- function(id, rows) {
   facets
 }
 
-# A sheet's data figure, in one panel or a panel per `facet`.
-sheet_plot <- function(id, rows, species, facet = NULL) {
+# A sheet's data figure, in one panel or a panel per `facet`. In a census the
+# survey figure counts each survey's plants in the size sheet (`plants`).
+sheet_plot <- function(id, rows, species, facet = NULL, plants = NULL) {
   switch(id,
-    survey = kb_plot_data_survey(rows, facet = facet),
+    survey = kb_plot_data_survey(rows, plants = plants, facet = facet),
     canopy = kb_plot_data_canopy(rows, facet = facet),
     kelpbio_fn("plot_data", id, species)(rows, facet = facet)
   )
 }
-
-# The example workbooks the Data step offers, by kb_example_data()'s `example`,
-# in the order shown.
-example_workbooks <- list(
-  full = list(label = "All sheets", detail = "One plot per site-year, as the Hakai Institute surveys have; every model fitted to the data, through to canopy biomass"),
-  survey = list(label = "Several plots, no harvests", detail = "Two or three plots per site-year with size, survey and canopy data; weight, wet:dry and carbon are pre-fit"),
-  census = list(label = "Census of whole sites", detail = "All plants measured, by bulb diameter for Nereocystis, with no drone flights: survey biomass only"),
-  bad_weight = list(label = "Sheets with an error and a warning", detail = "All sheets, with a weight sheet missing dates and a carbon sheet with implausible values")
-)
 
 # Each biomass measure (kelpbio's `measure`), with its unit per m\u00b2 (area)
 # and in total.
@@ -293,13 +294,13 @@ output_info <- list(
 # The models a measure needs besides those of the biomass itself.
 output_components <- list(wet = character(), dry = "wetdry", carbon = c("wetdry", "carbon"))
 
-# The estimates on the Estimates step: each model's predictions, then the mean
-# plant weight, survey biomass and canopy biomass from the combined models.
-estimate_ids <- c(component_ids, mean_weight = "mean_weight", survey = "survey", canopy = "canopy")
-derived_ids <- c("mean_weight", "survey", "canopy")
+# The estimates on the Estimates step: each model's predictions, then survey
+# biomass and canopy biomass from the combined models.
+estimate_ids <- c(component_ids, survey = "survey", canopy = "canopy")
+# Survey biomass first, as canopy biomass builds on it.
+derived_ids <- c("survey", "canopy")
 estimate_label <- function(id) {
   switch(id,
-    mean_weight = "Mean plant weight",
     survey = "Survey biomass",
     canopy = "Canopy biomass",
     label_of(id)
@@ -307,7 +308,7 @@ estimate_label <- function(id) {
 }
 
 # The models each derived estimate uses, whose warnings show on its page.
-derived_components <- list(mean_weight = survey_ids, survey = survey_ids, canopy = c(survey_ids, "cover"))
+derived_components <- list(survey = survey_ids, canopy = c(survey_ids, "cover"))
 
 # Sheets --------------------------------------------------------------------------------
 
@@ -423,7 +424,7 @@ column_info <- list(
   fronds = c("Fronds reaching 1 m above the holdfast; leave out plants with none", "Whole number, greater than 0"),
   weight_kg = c("Wet weight of the plant (kg)", "Greater than 0"),
   partial = c("Whether the plant counts as half, such as on the edge of a transect", "TRUE or FALSE; optional"),
-  survey_area_m2 = c("Area searched in the survey, such as the transects of a dive (m\u00b2)", "Greater than 0, at most plot_area_m2"),
+  survey_area_m2 = c("Area surveyed, such as the transects of a dive (m\u00b2)", "Greater than 0, at most plot_area_m2"),
   plants = c("Plants counted in the survey", "Whole number, 0 or more"),
   plot_area_m2 = c("Area of the plot polygon the drone canopy is measured over (m\u00b2)", "Greater than 0; blank for a survey without a drone flight"),
   canopy_area_m2 = c(
@@ -781,17 +782,17 @@ prediction_caption <- function(id, grouping, species = "nereo") {
 }
 
 # Derived estimates ----------------------------------------------------------------
-# The rows survey and canopy biomass are shown in: each choice's label, what it
-# means, and its kelpbio sum_by value (NULL keeps one row per survey or drone
+# The rows survey and canopy biomass are shown in: each choice's label, a note
+# where the label does not say what the rows are, and its kelpbio sum_by value (NULL keeps one row per survey or drone
 # map). Biomass is a standing stock in the peak season, so sums stay within a
 # year. kelpbio sums any grouping; the app offers the ones a report uses.
 
 survey_sums <- list(
   site_year = list(
     label = "By site and year", sum_by = c("site", "year"),
-    detail = "The surveys of each site-year pooled: their summed biomass over their summed area searched."
+    detail = list(area = "The surveys of each site-year pooled: their summed biomass over their summed area.", total = "")
   ),
-  survey = list(label = "Each survey", sum_by = NULL, detail = "One row per survey, as the cover calibration is fitted to them.")
+  survey = list(label = "Each survey", sum_by = NULL)
 )
 
 # The canopy sheet's own grouping columns (canopy_groups()), such as a region
@@ -799,13 +800,12 @@ survey_sums <- list(
 canopy_sums <- function(groups = character()) {
   c(
     list(
-      site_year = list(label = "Total by site and year", sum_by = NULL, detail = "The biomass over the canopy mapped at each site in each year."),
-      year = list(label = "Total by year", sum_by = "year", detail = "Summed over the sites mapped each year, draw by draw.")
+      site_year = list(label = "Total by site and year", sum_by = NULL),
+      year = list(label = "Total by year", sum_by = "year")
     ),
     stats::setNames(lapply(groups, function(g) {
       list(
-        label = sprintf("Total by %s and year", g), sum_by = c(g, "year"),
-        detail = sprintf("Summed over the sites of each %s mapped each year, draw by draw.", g)
+        label = sprintf("Total by %s and year", g), sum_by = c(g, "year")
       )
     }), groups)
   )

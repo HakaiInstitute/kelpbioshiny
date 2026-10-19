@@ -697,8 +697,8 @@ kb_fit_cover_calibration_macro <- function(data, priors = NULL, ..., prior_only 
   .mock_fit_cover_calibration("macro", data, priors, prior_only, chains, niters, nthin, cores, seed, progress, progress_dir)
 }
 
-# Exists. The completed fraction of a fit, kb_predict_mean_weight() or
-# kb_predict_biomass_survey() writing to progress_dir.
+# Exists. The completed fraction of a fit or kb_predict_biomass_survey()
+# writing to progress_dir.
 kb_progress <- function(progress_dir) {
   chk::chk_string(progress_dir)
   file <- file.path(progress_dir, "mock-progress.rds")
@@ -1004,7 +1004,6 @@ kb_predict_cover_calibration <- function(fit, new_data = NULL, ..., new_levels =
   factor
 }
 
-.mock_weight_response <- c(wet = "weight_kg", dry = "dry_weight_kg", carbon = "carbon_weight_g")
 .mock_biomass_response <- list(
   area = c(wet = "biomass_kg_m2", dry = "dry_biomass_kg_m2", carbon = "carbon_biomass_g_m2"),
   total = c(wet = "biomass_kg", dry = "dry_biomass_kg", carbon = "carbon_biomass_kg")
@@ -1036,33 +1035,7 @@ kb_predict_cover_calibration <- function(fit, new_data = NULL, ..., new_levels =
   data.frame(estimate = estimate, lower = estimate * exp(-1.96 * sdlog), upper = estimate * exp(1.96 * sdlog))
 }
 
-# Exists. The expected weight of a plant at each site-year of new_data (by
-# default the size fit's site-years), from the weight curve averaged over the
-# site-year's size distribution.
-kb_predict_mean_weight <- function(weight, size, new_data = NULL, wetdry = NULL, carbon = NULL, ...,
-                                   measure = c("wet", "dry", "carbon"), new_levels = c("sample", "average"),
-                                   representative_site = NULL, n_plants = 100L, conf_level = 0.95,
-                                   estimate = stats::median, sig_fig = 3, progress = c("bar", "none"),
-                                   progress_dir = NULL) {
-  measure <- rlang::arg_match(measure)
-  if (!inherits(weight, "kb_fit_weight")) stop("`weight` must be a <kb_fit_weight> object.", call. = FALSE)
-  if (!inherits(size, "kb_fit_size")) stop("`size` must be a <kb_fit_size> object.", call. = FALSE)
-  .mock_chk_measure_fits(measure, wetdry, carbon)
-  grid <- if (is.null(new_data)) {
-    keys <- unique(data.frame(site = as.character(size$data$site), year = .mock_year(size$data)))
-    keys[order(keys$site, keys$year), ]
-  } else {
-    data.frame(site = as.character(new_data$site), year = as.character(new_data$year))
-  }
-  grid$weight_support <- .mock_support(weight, grid$site, grid$year)
-  grid$size_support <- .mock_support(size, grid$site, grid$year)
-  mw <- .mock_mean_weight(weight, size, grid$site, grid$year)
-  factor <- .mock_measure_factor(measure, wetdry, carbon, carbon_scale = 1000)
-  draws <- lapply(.mock_draws(mw$estimate, mw$lower, mw$upper, seed = 41), function(x) x * factor)
-  .mock_new_predictions(.mock_summarise(grid, draws, .mock_weight_response[[measure]], sig_fig), c("site", "year"), .mock_weight_response[[measure]])
-}
-
-# Exists. The biomass of each in situ survey, per m2 of the area searched
+# Exists. The biomass of each in situ survey, per m2 of the area surveyed
 # (per_area) or in kg: its tally of plants times the site-year's mean plant
 # weight with a size fit, or the sum of its counted plants' weights (a partial
 # plant counted as half) with a table of every counted plant as `size`.
@@ -1160,8 +1133,8 @@ kb_predict_biomass_canopy <- function(fit, new_data, wetdry = NULL, carbon = NUL
 # Planned; the names are a proposal, following kb_check_data_<model>_<species>().
 # A figure of a sheet's data, to look at before fitting: weight by size, the
 # size distribution, the dry:wet ratio and carbon fraction of the samples, the
-# canopy cover of each plot flown by drone by tide height, and the canopy area
-# mapped at each site by year. All the data in one panel, or a panel per site
+# canopy cover fraction of each plot flown by drone by the plants counted, and
+# the canopy area mapped at each site by year. All the data in one panel, or a panel per site
 # or year (`facet`).
 .mock_plot_data <- function(data, sheet, species, facet = NULL) {
   data <- as.data.frame(data)
@@ -1188,7 +1161,7 @@ kb_predict_biomass_canopy <- function(fit, new_data, wetdry = NULL, carbon = NUL
     survey = {
       data <- data[!is.na(data$canopy_area_m2), ]
       data$cover <- data$canopy_area_m2 / data$plot_area_m2
-      ggplot(data, aes(.data$tide_height_m, .data$cover)) + points() + labs(x = "Tide height (m)", y = "Canopy cover")
+      ggplot(data, aes(.data$plants, .data$cover)) + points() + labs(x = "Plants counted", y = "Canopy cover fraction")
     },
     canopy = ggplot(data, aes(.data$year, .data$canopy_area_m2)) + points() + labs(x = "Year", y = "Canopy area (m\u00b2)")
   )
@@ -1205,8 +1178,19 @@ kb_plot_data_wetdry_nereo <- function(data, facet = NULL) .mock_plot_data(data, 
 kb_plot_data_wetdry_macro <- function(data, facet = NULL) .mock_plot_data(data, "wetdry", "macro", facet)
 kb_plot_data_carbon_nereo <- function(data, facet = NULL) .mock_plot_data(data, "carbon", "nereo", facet)
 kb_plot_data_carbon_macro <- function(data, facet = NULL) .mock_plot_data(data, "carbon", "macro", facet)
-# Planned. Of the surveys flown by drone, as kb_check_data_survey() is for both species.
-kb_plot_data_survey <- function(data, facet = NULL) .mock_plot_data(data, "survey", "nereo", facet)
+# Planned. Of the surveys flown by drone, as kb_check_data_survey() is for both
+# species: the canopy cover fraction of each survey's plot by the plants
+# counted, from its plants tally or, in a census, the rows of `plants` (a
+# partial plant counted as half).
+kb_plot_data_survey <- function(data, plants = NULL, facet = NULL) {
+  if (!is.null(plants)) {
+    half <- if ("partial" %in% names(plants)) plants$partial else FALSE
+    counts <- tapply(ifelse(half, 0.5, 1), .mock_survey_key(plants), sum)
+    data$plants <- unname(counts[.mock_survey_key(data)])
+    data$plants[is.na(data$plants)] <- 0
+  }
+  .mock_plot_data(data, "survey", "nereo", facet)
+}
 # Planned.
 kb_plot_data_canopy <- function(data, facet = NULL) .mock_plot_data(data, "canopy", "nereo", facet)
 

@@ -1,6 +1,5 @@
-# Estimates step: a sidebar listing every estimate (each model's predictions,
-# then mean plant weight, survey biomass and canopy biomass from the combined
-# models) beside the chosen estimate's page, switched with a hidden navset. An
+# Estimates step: a sidebar listing every estimate (survey and canopy biomass
+# from the combined models, then each model's predictions) beside the chosen estimate's page, switched with a hidden navset. An
 # estimate whose models are not ready shows why instead.
 
 mod_estimates_ui <- function(id) {
@@ -29,7 +28,7 @@ mod_estimates_server <- function(id, store) {
       if (!is.null(chosen) && chosen %in% store$shown_estimates()) {
         return(chosen)
       }
-      first <- intersect(c("canopy", "survey", "mean_weight", component_ids), store$own_estimates())
+      first <- intersect(c("survey", "canopy", component_ids), store$own_estimates())
       if (length(first) > 0) first[[1]] else "survey"
     })
     observe(nav_select("view", shown(), session = session))
@@ -57,12 +56,17 @@ mod_estimates_server <- function(id, store) {
         }
         subnav_link(session$ns(paste0("nav_", eid)), eid == shown, icon, estimate_label(eid), hidden)
       }
+      # The biomass estimates first, then each model's predictions, in the
+      # order of the Models step.
+      heading <- function(text) div(class = "kb-eyebrow text-body-secondary px-2 pt-1", text)
       tags$nav(
         class = "nav nav-pills flex-column gap-1",
         `aria-label` = "Estimates",
-        lapply(intersect(component_ids, store$shown_estimates()), link),
+        heading("Biomass"),
+        lapply(intersect(derived_ids, store$shown_estimates()), link),
         tags$hr(class = "my-1"),
-        lapply(intersect(derived_ids, store$shown_estimates()), link)
+        heading("Model predictions"),
+        lapply(intersect(model_order, store$shown_estimates()), link)
       )
     })
   })
@@ -275,23 +279,19 @@ predictions_panel <- function(ns, cid, prefit, species, plants) {
 }
 
 # Derived estimates -----------------------------------------------------------
-# Mean wet weight of a plant by site-year, survey biomass per m\u00b2 searched,
-# and total biomass over the canopy mapped by drone, the last two for the
-# chosen measure (wet, dry or carbon) and rows. kelpbio offers more (other
-# measures of mean weight, survey totals, canopy biomass per m\u00b2, any
-# sum); the app keeps to those a report uses.
+# Survey biomass and total biomass over the canopy mapped by drone, for the
+# chosen measure (wet, dry or carbon) and rows; survey biomass per m\u00b2
+# surveyed or in total over the area surveyed (for a census of whole sites,
+# the site's total). kelpbio offers more (mean plant weight, canopy biomass per
+# m\u00b2, any sum); the app keeps to those a report uses.
 
 derived_info <- list(
-  mean_weight = list(
-    detail = "The expected wet weight of a plant at each site-year, from the weight curve over the site-year's size distribution.",
-    help = "mean_weight"
-  ),
   survey = list(
-    detail = "Biomass per m\u00b2 of the area searched by each in situ survey, from its plants and their weights.",
-    help = "survey_biomass", per_area = TRUE
+    detail = "Biomass of the area surveyed in situ.",
+    help = "survey_biomass", scales = c(area = "Per m\u00b2 surveyed", total = "Total over the area surveyed")
   ),
   canopy = list(
-    detail = "Total biomass over the canopy mapped in each drone map of a site, from the cover calibration.",
+    detail = "Biomass over the canopy mapped at each site.",
     help = "canopy_biomass", per_area = FALSE
   )
 )
@@ -326,7 +326,15 @@ mod_derived_estimate_server <- function(id, store) {
     output_key <- reactive(if (store$outputs()[[chosen()]]$available) chosen() else "wet")
     available <- dedupe(reactive(store$estimates()[[eid]]))
     sums <- dedupe(reactive(derived_sums(eid, store$sheets())))
-    per_area <- reactive(info$per_area)
+    # Survey biomass is per m\u00b2 surveyed unless chosen otherwise, or in
+    # total in a census, where the area surveyed is often the whole site.
+    per_area <- reactive({
+      if (is.null(info$scales)) {
+        return(info$per_area)
+      }
+      scale <- input$scale %||% if (store$census()) "total" else "area"
+      scale == "area"
+    })
     sum_key <- reactive({
       choices <- sums()
       if (is.null(choices)) {
@@ -371,11 +379,16 @@ mod_derived_estimate_server <- function(id, store) {
       tagList(
         div(
           class = "d-flex flex-wrap align-items-start column-gap-4 row-gap-2 mb-3",
-          if (eid != "mean_weight") {
-            group("Output", "output", selectInput(
-              ns("output"), NULL,
-              choices = stats::setNames(open, vapply(output_info[open], `[[`, "", "label")), selected = isolate(output_key()),
-              selectize = FALSE, width = "12rem"
+          group("Output", "output", selectInput(
+            ns("output"), NULL,
+            choices = stats::setNames(open, vapply(output_info[open], `[[`, "", "label")), selected = isolate(output_key()),
+            selectize = FALSE, width = "12rem"
+          )),
+          if (!is.null(info$scales)) {
+            group("Scale", "scale", selectInput(
+              ns("scale"), NULL,
+              choices = stats::setNames(names(info$scales), info$scales), selected = if (isolate(per_area())) "area" else "total",
+              selectize = FALSE, width = "14rem"
             ))
           },
           if (!is.null(choices)) {
@@ -391,7 +404,11 @@ mod_derived_estimate_server <- function(id, store) {
       )
     })
 
-    output$sum_detail <- renderText(sums()[[req(sum_key())]]$detail)
+    # A note only where the rows are not obvious from their label.
+    output$sum_detail <- renderText({
+      detail <- sums()[[req(sum_key())]]$detail
+      if (is.list(detail)) detail[[if (per_area()) "area" else "total"]] else detail %||% ""
+    })
 
     labels <- reactive(derived_labels(eid, output_key(), per_area()))
     # Each survey is plotted one site at a time, by plot within each year, so
@@ -434,7 +451,6 @@ mod_derived_estimate_server <- function(id, store) {
       key <- output_key()
       tryCatch(
         switch(eid,
-          mean_weight = store$mean_weight("wet"),
           survey = store$survey_biomass(key, per_area(), sums()[[sum_key()]]$sum_by),
           canopy = store$canopy_biomass(key, per_area(), sums()[[sum_key()]]$sum_by)
         ),
@@ -484,7 +500,7 @@ mod_derived_estimate_server <- function(id, store) {
       named <- c(site = "Site", year = "Year", plot_id = "Plot", date = "Date")
       columns <- lapply(stats::setNames(nm = setdiff(names(rows), c("estimate", "lower", "upper", "flags"))), function(name) {
         switch(name,
-          survey_area_m2 = area("Area searched (m\u00b2)"),
+          survey_area_m2 = area("Area surveyed (m\u00b2)"),
           canopy_area_m2 = area("Canopy area (m\u00b2)"),
           plants = reactable::colDef(name = "Plants", align = "right", class = "kb-tabular"),
           reactable::colDef(name = if (name %in% names(named)) named[[name]] else sentence_case(name))
@@ -516,26 +532,17 @@ mod_derived_estimate_server <- function(id, store) {
 
 # A derived estimate's label and unit, for the chosen measure and scale.
 derived_labels <- function(eid, key, per_area) {
-  if (eid == "mean_weight") {
-    return(list(
-      label = "Mean plant wet weight", unit = "kg"
-    ))
-  }
   info <- output_info[[key]]
   list(label = info$label, unit = info$unit[[if (per_area) "area" else "total"]])
 }
 
 derived_caption <- function(eid, labels, sum_key) {
-  by <- if (eid == "mean_weight") {
-    " of each site-year by year, faceted by site"
-  } else {
-    switch(sum_key,
-      survey = " of each survey at the chosen site by plot, faceted by year",
-      site_year = if (eid == "canopy") " of each drone map of a site by year, faceted by site" else " of each site-year by year, faceted by site",
-      year = " summed over sites by year",
-      sprintf(" summed by %s and year, faceted by %s", sum_key, sum_key)
-    )
-  }
+  by <- switch(sum_key,
+    survey = " of each survey at the chosen site by plot, faceted by year",
+    site_year = if (eid == "canopy") " of each drone map of a site by year, faceted by site" else " of each site-year by year, faceted by site",
+    year = " summed over sites by year",
+    sprintf(" summed by %s and year, faceted by %s", sum_key, sum_key)
+  )
   sprintf("Estimated %s (%s)%s, with 95%% compatibility intervals.", tolower(labels$label), labels$unit, by)
 }
 

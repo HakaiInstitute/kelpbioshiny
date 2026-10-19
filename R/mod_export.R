@@ -117,7 +117,7 @@ export_script <- function(species, sources, sheets, workbook, priors, samplers, 
       if (survey) {
         c(
           "",
-          if (census) "# Survey biomass per m\u00b2 searched, weighing each counted plant" else "# Survey biomass per m\u00b2 searched",
+          if (census) "# Survey biomass per m\u00b2 surveyed, weighing each counted plant" else "# Survey biomass per m\u00b2 surveyed",
           sprintf("%sbiomass <- kb_predict_biomass_survey(%s)", prefix[measures], vapply(measures, survey_call, "")),
           "kb_plot_predictions(biomass)"
         )
@@ -225,7 +225,7 @@ mod_export_server <- function(id, store) {
 
     output$downloads_note <- renderText({
       if (store$any_estimate()) {
-        "Files from the current run."
+        ""
       } else {
         "Results, figures and the report become available once there is an estimate to save."
       }
@@ -239,7 +239,7 @@ mod_export_server <- function(id, store) {
           em(species_info[[store$species()]]$latin),
           if (store$census()) paste0(", ", tolower(size_data_info$census$label))
         ),
-        status_list(store$statuses(), as.list(source_labels(sources)), store$shown_models())
+        status_list(store$statuses(), as.list(source_labels(sources)), intersect(model_order, store$shown_models()))
       )
     })
 

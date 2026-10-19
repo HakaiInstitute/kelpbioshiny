@@ -525,25 +525,27 @@ influence_notice <- function(rows, diagnostics_id) {
   )
 }
 
-# Above the prior sensitivity table: a muted note for parameters with a weak
-# prior that the data say little about. The prior warning itself is in the model
-# page header.
+# Above the prior sensitivity table: a note when no prior is influential and
+# the data inform every parameter, or a caution for parameters with a weak
+# prior that the data do not strongly inform, whose estimates then rest
+# largely on the prior. The prior warning itself is in the model page header.
 data_strength_notice <- function(rows) {
   weak_data <- rows$term[rows$weak_prior & !rows$strong_data]
   if (all(rows$weak_prior) && length(weak_data) == 0) {
-    return(notice("check-circle-2", "All parameters have weak priors and strong data", tone = "muted"))
+    return(notice("check-circle-2", "No prior sensitivity", tone = "muted"))
   }
   if (length(weak_data) == 0) {
     return(NULL)
   }
   many <- length(weak_data) > 1
   notice(
-    "info", sprintf("The data say little about %s", and_list(weak_data)),
+    "alert-triangle", sprintf("Not strongly informed by the data: %s", and_list(weak_data)),
     sprintf(
-      "%s uncertain. More data would narrow %s.",
-      if (many) "Their estimates are" else "Its estimate is", if (many) "them" else "it"
+      "%s largely on %s prior. Check that the %s reasonable; more data would narrow %s.",
+      if (many) "Their estimates depend" else "Its estimate depends", if (many) "their" else "its",
+      if (many) "priors are" else "prior is", if (many) "them" else "it"
     ),
-    tone = "muted"
+    tone = "warning"
   )
 }
 

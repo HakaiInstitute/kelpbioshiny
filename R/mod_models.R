@@ -69,12 +69,16 @@ mod_models_ui <- function(id) {
       )
     )
   })
-  # The cover calibration is optional and builds on the others, so it sits in its own group.
-  group_row <- tags$tr(tags$td(
-    colspan = 4, class = "ps-4 py-2 bg-body-tertiary small text-body-secondary",
-    span(class = "fw-medium text-body", "For canopy biomass"), " (optional): fitted once the weight and size models are ready"
-  ))
-  rows <- append(rows, list(group_row), after = length(component_ids) - 1)
+  # The models in their groups (model_groups), each under a row naming what it is for.
+  names(rows) <- component_ids
+  rows <- unlist(lapply(model_groups, function(group) {
+    title <- tags$tr(tags$td(
+      colspan = 4, class = "ps-4 py-2 bg-body-tertiary small text-body-secondary",
+      span(class = "fw-medium text-body", group$label),
+      paste0(if (isTRUE(group$optional)) " (optional)", if (!is.null(group$detail)) paste0(": ", group$detail))
+    ))
+    c(list(title), unname(rows[group$ids]))
+  }), recursive = FALSE)
   head_cell <- function(...) tags$th(class = "bg-body-tertiary text-body-secondary small", ...)
 
   hub <- tagList(
@@ -243,10 +247,12 @@ mod_models_server <- function(id, store) {
         `aria-label` = "Models",
         subnav_link(session$ns("hub"), open == "hub", lucide("layout-list", "text-body-secondary"), "All models"),
         tags$hr(class = "my-1"),
-        lapply(store$shown_models(), function(cid) {
+        lapply(seq_along(model_groups), function(i) {
           tagList(
-            if (cid == "cover") tags$hr(class = "my-1"),
-            subnav_link(session$ns(paste0("nav_", cid)), open == cid, status_icon(statuses[[cid]]), label_of(cid), status_hidden(statuses[[cid]]))
+            if (i > 1) tags$hr(class = "my-1"),
+            lapply(intersect(model_groups[[i]]$ids, store$shown_models()), function(cid) {
+              subnav_link(session$ns(paste0("nav_", cid)), open == cid, status_icon(statuses[[cid]]), label_of(cid), status_hidden(statuses[[cid]]))
+            })
           )
         })
       )

@@ -216,10 +216,9 @@ fit_all_plan <- function(statuses, invalid = character()) {
 
 # Whether an estimate on the Estimates step can be shown, with the reason when
 # not: a model's predictions need the model ready (fitted to your data or
-# pre-fit); mean plant weight and survey biomass need the weight and size
-# models ready (survey biomass also a survey sheet); canopy biomass needs a
-# fitted cover calibration and a canopy sheet.
-estimate_availability <- function(id, statuses, sources, sheets, mismatches, census) {
+# pre-fit); survey biomass needs the weight and size models ready and a survey
+# sheet; canopy biomass needs a fitted cover calibration and a canopy sheet.
+estimate_availability <- function(id, statuses, sources, sheets, mismatches) {
   unavailable <- function(reason) list(available = FALSE, reason = reason)
   if (id %in% component_ids) {
     status <- statuses[[id]]
@@ -259,19 +258,14 @@ estimate_availability <- function(id, statuses, sources, sheets, mismatches, cen
     }
     return(if (is.null(reason)) list(available = TRUE) else unavailable(reason))
   }
-  if (id == "mean_weight" && census) {
-    return(unavailable("Mean plant weight needs a size model. In a census, survey biomass weighs each counted plant instead."))
-  }
   if (!survey_possible(sources)) {
     return(unavailable(sprintf("%s needs the weight and size models, each fitted to your data or pre-fit.", estimate_label(id))))
   }
-  if (id == "survey") {
-    if (is.null(sheets$survey)) {
-      return(unavailable("Survey biomass needs a survey sheet. Add one on the Data step."))
-    }
-    if (!is.null(sheets$survey$error)) {
-      return(unavailable("The survey sheet failed its data check."))
-    }
+  if (is.null(sheets$survey)) {
+    return(unavailable("Survey biomass needs a survey sheet. Add one on the Data step."))
+  }
+  if (!is.null(sheets$survey$error)) {
+    return(unavailable("The survey sheet failed its data check."))
   }
   blocking <- survey_ids[!vapply(statuses[survey_ids], is_ready_status, logical(1))]
   if (length(blocking) > 0) {
@@ -281,6 +275,44 @@ estimate_availability <- function(id, statuses, sources, sheets, mismatches, cen
     )))
   }
   list(available = TRUE)
+}
+
+# What the loaded data can estimate once the models are fitted, for the Data
+# step: each biomass estimate, list(possible, reason, prefit), `prefit` naming
+# the pre-fit models a possible estimate relies on (the conversion models for
+# dry biomass and carbon). A model can be used when it is pre-fit, or its sheet
+# passes its check.
+data_estimable <- function(sheets, sources, census, mismatches = character()) {
+  valid <- function(id) !is.null(sheets[[id]]) && is.null(sheets[[id]]$error)
+  usable <- function(id) is_prefit(sources[[id]]) || (sources[[id]] %in% c("user", "census") && valid(components[[id]]$sheet))
+  result <- function(reason, ids) {
+    if (!is.null(reason)) {
+      return(list(possible = FALSE, reason = reason))
+    }
+    list(possible = TRUE, prefit = Filter(function(id) is_prefit(sources[[id]]), ids))
+  }
+  survey <- if (!valid("survey")) {
+    if (is.null(sheets$survey)) "needs a survey sheet" else "the survey sheet fails its check"
+  } else if (!usable("weight")) {
+    "needs a weight sheet that passes its check, or a pre-fit weight model"
+  } else if (!usable("size")) {
+    if (census) "needs a size sheet of every counted plant" else "needs a size sheet that passes its check, or a pre-fit size model"
+  } else if (length(mismatches) > 0) {
+    "site names differ across sheets"
+  }
+  canopy <- if (!is.null(survey)) {
+    "needs survey biomass"
+  } else if (sources[["cover"]] == "none" || nrow(drone_surveys(sheets$survey$rows)) == 0) {
+    "needs drone flights on the surveys"
+  } else if (!valid("canopy")) {
+    if (is.null(sheets$canopy)) "needs a canopy sheet of drone maps" else "the canopy sheet fails its check"
+  }
+  dry <- if (!usable("wetdry")) "needs a wetdry sheet or a pre-fit wet:dry model"
+  carbon <- dry %||% if (!usable("carbon")) "needs a carbon sheet or a pre-fit carbon model"
+  list(
+    survey = result(survey, survey_ids), canopy = result(canopy, survey_ids),
+    dry = result(dry, "wetdry"), carbon = result(carbon, c("wetdry", "carbon"))
+  )
 }
 
 output_availability <- function(sources) {
@@ -468,8 +500,8 @@ new_store <- function(session, run_fit = mirai_fit_runner) {
   })
 
   # The derived estimates, from the fits in use and the sheets, for the
-  # Estimates step: mean plant weight by site-year, the biomass of each survey,
-  # and biomass over the canopy mapped in each drone map of a site. Each is
+  # Estimates step: the biomass of each survey, and biomass over the canopy
+  # mapped in each drone map of a site. Each is
   # called from a reactive, so it reruns when its inputs change.
   fits <- dedupe(reactive(lapply(component_ids, s$fit_of)))
   survey_inputs <- dedupe(reactive({
@@ -480,10 +512,6 @@ new_store <- function(session, run_fit = mirai_fit_runner) {
     f <- fits()
     list(fit = f$cover, canopy = s$sheets()$canopy$rows, wetdry = f$wetdry, carbon = f$carbon)
   }))
-  s$mean_weight <- function(measure) {
-    f <- fits()
-    kb_predict_mean_weight(f$weight, f$size, wetdry = f$wetdry, carbon = f$carbon, measure = measure, progress = "none")
-  }
   s$survey_biomass <- function(measure, per_area, sum_by) {
     a <- survey_inputs()
     kb_predict_biomass_survey(
@@ -517,8 +545,7 @@ new_store <- function(session, run_fit = mirai_fit_runner) {
   # Each estimate on the Estimates step: list(available, reason).
   s$estimates <- reactive({
     lapply(estimate_ids, estimate_availability,
-      statuses = s$statuses(), sources = s$sources(), sheets = s$sheets(), mismatches = s$mismatches(),
-      census = s$census()
+      statuses = s$statuses(), sources = s$sources(), sheets = s$sheets(), mismatches = s$mismatches()
     )
   })
   # A run has an estimate of its own to save once it has a biomass estimate or
@@ -635,9 +662,9 @@ new_store <- function(session, run_fit = mirai_fit_runner) {
     s$sources(census_sources(isolate(s$sources()), isolate(s$census()), sheets))
   }
 
-  # One of the example workbooks (example_workbooks); the census example holds
-  # a census, the others a measured sample.
-  s$load_example <- function(example = "survey") {
+  # An example workbook of kb_example_data(), by default the one with every
+  # sheet; the census example holds a census, the others a measured sample.
+  s$load_example <- function(example = "full") {
     s$size_data(if (example == "census") "census" else "sample")
     species <- isolate(s$species())
     file <- sprintf("example-%s-%s.xlsx", gsub("_", "-", example), species)
@@ -841,7 +868,7 @@ new_store <- function(session, run_fit = mirai_fit_runner) {
   #   and Continue to estimates waits for the predictions.
   # - A refit, source change or new data marks the dependent predictions stale
   #   and queues them again.
-  # - kb_predict_biomass_survey() and kb_predict_mean_weight() record progress
+  # - kb_predict_biomass_survey() records progress
   #   in a progress_dir for kb_progress(), as the fits do. Needs from kelpbio:
   #   pre-fit models shipped with their predictions.
 

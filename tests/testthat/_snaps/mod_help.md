@@ -9,7 +9,7 @@
       A run moves through four steps in the navbar. A step's marker shows a check mark once the step is complete: data loaded, models ready, or estimates saved.
       1
       Data
-      Load the survey data, from a workbook or a CSV file per sheet.
+      Load your survey data.
       The columns of each sheet. Every sheet is optional, and other columns are ignored. For Nereocystis, choose under Size data whether a sample of plants was measured or all of them. With all plants measured, a census, the size sheet holds every counted plant and the survey sheet has no plants column. Macrocystis surveys are always a census.
       Sheet
       One row per
@@ -59,7 +59,7 @@
       sample_mass_mg, carbon_mass_ug
       2
       Models
-      Fit each model to your data or use a pre-fit model; open a model to adjust settings and view diagnostics.
+      Fit the models, or use pre-fit ones.
       Each model uses one source: your data, a pre-fit model, or none. With all plants measured (a census) there is no size model.
       Model
       Sources
@@ -75,7 +75,7 @@
       Your data, Not used
       3
       Estimates
-      Review the estimates from each model, and survey and canopy biomass from the combined models.
+      Review biomass and model estimates.
       4
       Export
       Save the estimates, or rerun the whole analysis in R.
@@ -132,16 +132,13 @@
       Pre-fit Coastwide models were fitted in advance to data compiled from surveys along the coast, and Pre-fit Hakai Institute models to Hakai Institute survey data. They need no data or fitting here. Sites in the reference data get their own estimates.
       Learn more (https://hakaiinstitute.github.io/kelpbio/articles/pre-fit-models.html)
       Site-years without data
-      When a model has no data for a site-year, its estimate there uses the site's estimate from other years and the year's estimate from other sites. What is specific to that site-year is drawn from the variation the model estimated between site-years, so its compatibility interval is wider. With neither the site nor the year in the data, the estimate is for a typical site and year.
+      The models are hierarchical, so a site-year without data still gets an estimate. It uses the site's estimate from other years and the year's estimate from other sites, with a wider compatibility interval. With neither the site nor the year in the data, the estimate is for a typical site and year.
       Learn more (https://hakaiinstitute.github.io/kelpbio/articles/results.html)
       Census
       With a sample of plants measured, the surveys tally their plants and a size model is fitted to the plants measured. With all plants measured (a census), the size sheet holds the plants of each survey, joined to it by site, plot_id and date, and the survey sheet has no plants column. Survey biomass then sums the weights of the plants, and no size model is fitted. Macrocystis surveys are always a census.
       Learn more (https://hakaiinstitute.github.io/kelpbio/articles/models.html)
-      Mean plant weight
-      The expected weight of a plant at a site-year: the weight model's curve averaged over the site-year's size distribution from the size model. Survey biomass is the plants counted in a survey times this weight.
-      Learn more (https://hakaiinstitute.github.io/kelpbio/articles/models.html)
       Survey biomass
-      The biomass of the plants counted in an in situ survey, per square metre of the area searched. By site and year, the surveys of a site-year are pooled: their summed biomass over their summed area.
+      The biomass of the plants counted in an in situ survey, per square metre of the area surveyed or in total over it. By site and year, the surveys of a site-year are pooled: their summed biomass, divided by their summed area for biomass per square metre.
       Learn more (https://hakaiinstitute.github.io/kelpbio/articles/models.html)
       Canopy area
       The area of kelp canopy the drone imagery delineated within a plot polygon, or mapped over a whole site, in square metres. A flight with no canopy has a canopy area of 0.

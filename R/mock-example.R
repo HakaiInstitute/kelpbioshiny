@@ -94,7 +94,7 @@
   round(exp(b[["intercept"]] + b[["slope"]] * log(.mock_draw_diameter(site, year, n)) + stats::rnorm(n, 0, b[["sdlog"]])), 1)
 }
 
-# The surveys of `plots`, each searching transects within its plot, the plants
+# The surveys of `plots`, each surveying transects within its plot, the plants
 # tallied (Nereocystis with a measured sample) or not (a census), and the plot
 # polygon, canopy and tide height of the plots flown by drone: the plots of the
 # fake cover data with a percent cover, at one tide height per site-year.
@@ -179,7 +179,7 @@
   )
 }
 
-# A census of whole sites, each a single plot searched in full, at 6 sites over
+# A census of whole sites, each a single plot surveyed in full, at 6 sites over
 # 2021-2024, with no drone flights. Nereocystis plants have their bulb
 # diameter measured (in diameter_mm), and the harvests are weighed against
 # bulb diameter, simulated from the Hakai relationships above; Macrocystis

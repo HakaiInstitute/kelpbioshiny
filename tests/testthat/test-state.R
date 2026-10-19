@@ -22,8 +22,8 @@ test_that("Fit all fits each model with its sheet data and sampler settings", {
     store$fit_all()
     finish_fits(session, runner)
 
-    expect_identical(fitted_models(log), c("size", "cover"))
-    size <- log$calls[[1]]$args
+    expect_identical(fitted_models(log), c("weight", "size", "wetdry", "carbon", "cover"))
+    size <- log$calls[[2]]$args
     expect_identical(size$data, store$sheets()$size$rows)
     expect_identical(size$nthin, 2)
     expect_identical(store$statuses()$size$kind, "ready")
