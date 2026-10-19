@@ -1,37 +1,34 @@
 # Data step: species, template, workbook or per-model CSVs, sheet checks and coverage.
 
-# The models fitted to your data whose estimates differ by site or year, so a
-# site-year's estimate depends on which sites and years their sheets hold.
-# Density is left out: biomass is estimated for the site-years in its sheet.
-coverage_ids <- function(sheets, sources, species) {
-  ids <- setdiff(component_ids, "density")
-  ids[vapply(ids, function(id) {
+# The sheets of the models fitted to your data whose estimates differ by site
+# or year (weight, and size unless it is a census), so a surveyed site-year's
+# estimate depends on which sites and years their sheets hold.
+coverage_models <- function(sheets, sources, species) {
+  Filter(function(id) {
     !is.null(sheets[[id]]) && sources[[id]] == "user" && any(has_effect(id, c("site", "year"), species))
-  }, NA)]
+  }, survey_ids)
 }
 
-# The models in use that the coverage card leaves out: pre-fit, or with no
-# site or year effects.
-coverage_omitted <- function(sources, species, shown) {
-  ids <- setdiff(component_ids, c("density", shown))
+# The models in use that the coverage card leaves out: pre-fit, a census, or
+# with no site or year effects.
+coverage_omitted <- function(sources, shown) {
+  ids <- setdiff(c(survey_ids, "wetdry", "carbon"), shown)
   ids[vapply(ids, function(id) sources[[id]] != "none", NA)]
 }
 
-# The site-years in the density sheet and in the sheets of coverage_ids(): for
-# each model, the sites, years and site-years its data hold and its site, year
-# and site-year effects. `gaps` are the site-years with density data that some
-# model other than cover has no data for, so they borrow its estimate from other
-# sites and years. For cover, the site-years are those with a drone survey of
-# the whole site; one without gets no total site biomass instead. `no_density` are the other site-years without density data, which
-# get no biomass.
+# The site-years of the survey sheet, of the sheets of coverage_models() and of
+# the canopy sheet: for each, the sites, years and site-years its rows hold and,
+# for a model, its site, year and site-year effects. `gaps` are the surveyed
+# site-years that a model has no data for, so they borrow its estimate from
+# other sites and years; `unsurveyed` are the other site-years of the models,
+# which get no survey biomass.
 coverage <- function(sheets, sources, species) {
-  ids <- c(if (!is.null(sheets$density)) "density", coverage_ids(sheets, sources, species))
+  ids <- c(if (!is.null(sheets$survey)) "survey", coverage_models(sheets, sources, species), if (!is.null(sheets$canopy)) "canopy")
   models <- lapply(stats::setNames(nm = ids), function(id) {
     rows <- sheets[[id]]$rows
-    if (id == "cover" && is.null(sheets$cover$error)) rows <- site_surveys(rows)
     list(
-      effects = c("site", "year", "site_year")[has_effect(id, c("site", "year", "site_year"), species)],
-      sites = unique(rows$site), years = unique(as.character(rows$year)), keys = site_years(rows)
+      effects = if (id %in% survey_ids) c("site", "year", "site_year")[has_effect(id, c("site", "year", "site_year"), species)],
+      sites = unique(rows$site), years = unique(row_years(rows)), keys = site_years(rows)
     )
   })
   keys <- unique(unlist(lapply(models, `[[`, "keys"), use.names = FALSE))
@@ -43,41 +40,44 @@ coverage <- function(sheets, sources, species) {
   year <- vapply(parts, `[`, "", 2)
   site_number <- suppressWarnings(as.numeric(gsub("\\D", "", site)))
   year_number <- suppressWarnings(as.numeric(year))
-  density <- models$density$keys
-  borrowing <- setdiff(ids, c("density", "cover"))
-  gaps <- if (is.null(density)) character() else {
-    keys[keys %in% density & !vapply(keys, function(k) all(vapply(borrowing, function(id) k %in% models[[id]]$keys, NA)), NA)]
+  surveyed <- models$survey$keys
+  borrowing <- intersect(ids, survey_ids)
+  gaps <- if (is.null(surveyed)) character() else {
+    keys[keys %in% surveyed & !vapply(keys, function(k) all(vapply(borrowing, function(id) k %in% models[[id]]$keys, NA)), NA)]
   }
+  model_keys <- unique(unlist(lapply(models[borrowing], `[[`, "keys"), use.names = FALSE))
   mismatched <- site_mismatches(sheets)
   list(
-    ids = ids, models = models, keys = keys, density = density,
+    ids = ids, models = models, keys = keys, surveyed = surveyed,
     sites = unique(site[order(site_number, site)]), years = unique(year[order(year_number, year)]),
-    gaps = gaps, no_density = if (is.null(density)) character() else setdiff(keys, density),
+    gaps = gaps, unsurveyed = if (is.null(surveyed)) character() else setdiff(model_keys, surveyed),
     mismatched = mismatched, mismatched_keys = keys[site %in% mismatched]
   )
 }
 
-# A cell of a model's site-by-year grid: "data", "gap" (no data, so the
-# estimate is borrowed from other sites and years), "none" (no density data, so
-# no biomass) or "blank", with the text shown on hover.
+# A cell of a sheet's site-by-year grid: "data", "gap" (no data, so the
+# estimate is borrowed from other sites and years), "none" (not surveyed, so
+# no survey biomass) or "blank", with the text shown on hover.
 coverage_cell <- function(cov, id, site, year) {
   key <- paste(site, year, sep = "|")
   model <- cov$models[[id]]
-  label <- lower_label(id)
-  density <- if (is.null(cov$density)) NA else key %in% cov$density
+  surveyed <- if (is.null(cov$surveyed)) NA else key %in% cov$surveyed
+  if (id == "survey") {
+    return(if (isTRUE(surveyed)) list(state = "data", text = "Surveyed") else list(state = "blank", text = "Not surveyed"))
+  }
+  if (id == "canopy") {
+    return(if (key %in% model$keys) list(state = "data", text = "Drone map of the site") else list(state = "blank", text = "No drone map, so no canopy biomass"))
+  }
   if (key %in% model$keys) {
-    text <- if (id == "cover") "Drone survey of the site" else paste(label_of(id), "data")
-    if (isFALSE(density) && id != "density") text <- paste0(text, "; no density data, so biomass is not estimated")
+    text <- paste(sheet_label(id), "data")
+    if (isFALSE(surveyed)) text <- paste0(text, "; not surveyed, so no survey biomass")
     return(list(state = "data", text = text))
   }
-  if (isTRUE(density) && id == "cover") {
-    return(list(state = "blank", text = "No drone survey of the whole site, so no total site biomass"))
+  if (isTRUE(surveyed)) {
+    return(list(state = "gap", text = coverage_borrowed(model, lower_label(id), site, year)))
   }
-  if (isTRUE(density)) {
-    return(list(state = "gap", text = coverage_borrowed(model, label, site, year)))
-  }
-  if (isFALSE(density)) {
-    return(list(state = "none", text = "No density data, so biomass is not estimated"))
+  if (isFALSE(surveyed)) {
+    return(list(state = "none", text = "Not surveyed, so no survey biomass"))
   }
   list(state = "blank", text = "No data")
 }
@@ -95,7 +95,7 @@ coverage_borrowed <- function(model, label, site, year) {
 coverage_states <- list(
   data = "Data",
   gap = "No data: estimate borrowed from other sites and years",
-  none = "No density data: biomass not estimated"
+  none = "Not surveyed: no survey biomass"
 )
 
 # Names for a fileInput's two fields: the file picker, which would otherwise be
@@ -121,6 +121,23 @@ mod_data_ui <- function(id) {
       div(class = "small text-body-secondary", "Applies to every model in this run."),
       id = ns("species_title")
     ),
+    # Macrocystis surveys are always a census, so only Nereocystis has the choice.
+    conditionalPanel(
+      "input.species == 'nereo'",
+      ns = ns,
+      sidebar_section(
+        with_help("Size data", "census"),
+        radioButtons(
+          ns("size_data"), NULL,
+          choiceNames = unname(lapply(size_data_info, function(x) {
+            span(class = "d-inline-flex flex-column align-top", style = "max-width: 100%", x$label, span(class = "small text-body-secondary", x$detail))
+          })),
+          choiceValues = names(size_data_info)
+        ) |>
+          tagAppendAttributes(class = "mb-0", `aria-labelledby` = ns("size_data_title")),
+        id = ns("size_data_title")
+      )
+    ),
     sidebar_section("Template", button(ns("template"), "Download template workbook", "download", "outline", download = TRUE)),
     div(
       class = "d-flex flex-column gap-2",
@@ -133,18 +150,18 @@ mod_data_ui <- function(id) {
     )
   ))
 
-  csv_rows <- lapply(component_ids, function(cid) {
+  csv_rows <- lapply(sheet_ids, function(cid) {
     div(
       class = "d-flex flex-wrap align-items-center gap-3 py-2 border-bottom",
       div(
         class = "flex-grow-1",
-        div(class = "fw-medium", label_of(cid)),
+        div(class = "fw-medium", sheet_label(cid)),
         textOutput(ns(paste0("csv_columns_", cid))) |> tagAppendAttributes(class = "small font-monospace text-body-secondary")
       ),
       textOutput(ns(paste0("csv_file_", cid)), inline = TRUE) |> tagAppendAttributes(class = "small text-body-secondary"),
       fileInput(ns(paste0("csv_", cid)), NULL, accept = ".csv", buttonLabel = "Choose CSV", width = "15rem") |>
         tagAppendAttributes(class = "mb-0") |>
-        file_names(sprintf("Upload a CSV for the %s model", lower_label(cid)), sprintf("Chosen %s CSV", lower_label(cid)))
+        file_names(sprintf("Upload a CSV for the %s sheet", cid), sprintf("Chosen %s CSV", cid))
     )
   })
 
@@ -191,7 +208,7 @@ mod_data_ui <- function(id) {
         accordion_panel(
           title = div(
             div(class = "fw-medium", "Upload individual CSV files instead"),
-            div(class = "small text-body-secondary", "One file per model, for example to add a sheet later")
+            div(class = "small text-body-secondary", "One file per sheet, for example to add a sheet later")
           ),
           value = "csv",
           csv_rows
@@ -201,7 +218,8 @@ mod_data_ui <- function(id) {
     conditionalPanel("output.has_data", uiOutput(ns("sheets")), ns = ns)
   )
 
-  step_layout(sidebar, main)
+  # The sidebar holds the run's setup, so on a phone it comes first.
+  step_layout(sidebar, main, aside_first = TRUE)
 }
 
 mod_data_server <- function(id, store) {
@@ -226,10 +244,24 @@ mod_data_server <- function(id, store) {
     observeEvent(store$species(), {
       if (!identical(input$species, store$species())) updateRadioButtons(session, "species", selected = store$species())
     })
+    observeEvent(input$size_data, {
+      value <- input$size_data
+      if (!identical(value, store$size_data())) {
+        store$confirm_reset(
+          "size",
+          function() store$set_size_data(value),
+          function() updateRadioButtons(session, "size_data", selected = store$size_data())
+        )
+      }
+    }, ignoreInit = TRUE)
+    observeEvent(store$size_data(), {
+      if (!identical(input$size_data, store$size_data())) updateRadioButtons(session, "size_data", selected = store$size_data())
+    })
 
+    # The template follows the species and the kind of size data.
     output$template <- downloadHandler(
-      filename = function() template_file(store$species()),
-      content = function(file) writexl::write_xlsx(template_sheets(store$species()), file)
+      filename = function() template_file(store$species(), store$census()),
+      content = function(file) writexl::write_xlsx(template_sheets(store$species(), store$census()), file)
     )
     observeEvent(input$guide, store$open_help("guide"))
     # TODO: replace the notice with the fit bundle once it is built.
@@ -244,15 +276,48 @@ mod_data_server <- function(id, store) {
     observeEvent(input$clear, replace_data(store$clear_data))
     observeEvent(input$continue, store$go_to("models"))
 
-    lapply(component_ids, function(cid) {
-      observeEvent(input[[paste0("csv_", cid)]], {
-        upload <- input[[paste0("csv_", cid)]]
-        store$confirm_reset(cid, function() store$load_csv(cid, upload$name, upload$datapath))
+    lapply(sheet_ids, function(sid) {
+      model <- sheet_component(sid)
+      observeEvent(input[[paste0("csv_", sid)]], {
+        upload <- input[[paste0("csv_", sid)]]
+        store$confirm_reset(if (is.null(model)) character() else model, function() store$load_csv(sid, upload$name, upload$datapath))
       })
-      output[[paste0("csv_file_", cid)]] <- renderText(store$sheets()[[cid]]$file)
-      output[[paste0("csv_columns_", cid)]] <- renderText(paste(sheet_columns(cid, store$species()), collapse = ", "))
-      observeEvent(input[[paste0("view_", cid)]], store$open_tab(cid, "data"))
-      observeEvent(input[[paste0("view_", cid, "_more")]], store$open_tab(cid, "data"))
+      output[[paste0("csv_file_", sid)]] <- renderText(store$sheets()[[sid]]$file)
+      output[[paste0("csv_columns_", sid)]] <- renderText(paste(sheet_columns(sid, store$species(), store$census()), collapse = ", "))
+
+      # The sheet's figure, in one panel or a panel per site or year, and its
+      # rows, searchable, with the missing values marked.
+      sheet <- reactive(req(store$sheets()[[sid]]))
+      facet <- reactive({
+        value <- input[[paste0("facet_", sid)]]
+        if (is.null(value) || value == "none" || !value %in% names(sheet_facets(sid, sheet()$rows))) NULL else value
+      })
+      output[[paste0("plot_", sid)]] <- render_figure(
+        function() sheet_plot(sid, sheet()$rows, store$species(), facet()),
+        paste0("plot_", sid),
+        height = function() {
+          rows <- sheet()$rows
+          if (is.null(facet())) {
+            width <- session$clientData[[paste0("output_", session$ns(paste0("plot_", sid)), "_width")]]
+            return(if (is.null(width) || width == 0) 400 else round(width * data_plot_info[[sid]]$aspect))
+          }
+          levels <- if (facet() == "site") unique(rows$site) else unique(row_years(rows))
+          figure_px(60 + 170 * ggplot2::wrap_dims(length(levels))[1])
+        },
+        alt = function() data_plot_caption(sid, store$species())
+      )
+      output[[paste0("table_", sid)]] <- reactable::renderReactable({
+        app_table(
+          sheet()$rows,
+          page_size = 8,
+          searchable = TRUE,
+          filterable = TRUE,
+          defaultColDef = reactable::colDef(
+            na = "missing",
+            style = function(value, ...) if (is.na(value)) list(color = "var(--bs-warning-text-emphasis)")
+          )
+        )
+      })
     })
 
     output$has_data <- reactive(loaded())
@@ -277,29 +342,29 @@ mod_data_server <- function(id, store) {
         return(NULL)
       }
       sources <- store$sources()
-      present <- component_ids[component_ids %in% names(sheets)]
-      absent <- setdiff(component_ids, present)
+      present <- sheet_ids[sheet_ids %in% names(sheets)]
+      absent <- setdiff(sheet_ids, present)
       tagList(
         issues_summary(session$ns, sheets, cov(), sources),
         panel(
           "Recognised sheets",
           id = session$ns("sheets_card"),
-          description = "Each sheet is matched to a model and checked before fitting.",
-          tags$ul(class = "list-unstyled d-flex flex-column gap-2 mb-0", lapply(present, function(id) {
-            sheet_row(sheets[[id]], sources[[id]], session$ns(paste0("view_", id)))
-          })),
+          description = "Each sheet is checked before fitting. Open a sheet to see its data.",
+          accordion(
+            id = session$ns("sheet_list"),
+            open = isolate(input$sheet_list) %||% FALSE,
+            multiple = TRUE,
+            !!!lapply(unname(present), function(id) sheet_panel(session$ns, sheets[[id]], sheet_source(id, sources), store$species(), isolate(input[[paste0("facet_", id)]])))
+          ),
           if (length(absent) > 0) {
             notice(
-              "file-spreadsheet", "No sheet for some models",
+              "file-spreadsheet", "Some optional sheets are missing",
               tone = "muted",
-              paste0(
-                paste(sprintf("%s: %s", vapply(absent, label_of, ""), vapply(absent, function(id) source_note(sources[[id]]), "")), collapse = "; "),
-                ". You can change sources on the Models step."
-              )
+              paste0(paste(sprintf("%s: %s", vapply(absent, sheet_label, ""), vapply(absent, absent_note, "", sources = sources)), collapse = "; "), ".")
             )
           }
         ),
-        coverage_panel(session$ns, sources, store$species(), cov(), isolate(input$coverage_view))
+        coverage_panel(session$ns, sources, store$species(), cov(), isolate(input$coverage_view), store$census())
       )
     })
 
@@ -365,21 +430,35 @@ welcome_card <- function(ns) {
 # The one description of the workbook's sheets; the columns are in the guide and
 # under the CSV uploads.
 sheets_description <- paste(
-  "An Excel workbook with one sheet per model, named after the model; leave out the sheets you do not have.",
-  "Plot biomass needs density, size and weight, from your data or pre-fit models, and a cover sheet of drone surveys adds total site biomass."
+  "An Excel workbook with one sheet per kind of data, named weight, size, survey, canopy, wetdry and carbon; leave out the sheets you do not have.",
+  "Survey biomass needs a survey sheet with weight and size, from your data or pre-fit models; drone flights over the surveyed plots and a canopy sheet of drone maps add canopy biomass."
 )
 
-# A sheet whose model uses a pre-fit model or none shows its check muted, as it
-# blocks nothing until its source is Your data. A sheet in use links to its
-# model's Data tab (view_id), with a figure and table of its rows and every
-# warning of its check; the row shows the first warning.
-sheet_row <- function(sheet, source, view_id) {
-  used <- source == "user"
-  model <- lower_label(sheet$component)
-  unused_note <- sprintf(
-    "Not used: %s. To fit it to this sheet, set its source to Your data on the Models step.",
-    if (is_prefit(source)) sprintf("the %s model uses the %s model", model, source_note(source)) else sprintf("the %s model is not used", model)
+# What a missing sheet means for the run.
+absent_note <- function(id, sources) {
+  switch(id,
+    survey = "no survey biomass or cover calibration",
+    canopy = "no canopy biomass",
+    source_note(sources[[id]])
   )
+}
+
+# A sheet as an accordion panel. Its title holds the sheet's name, the result
+# of its check and the first error or warning; a sheet whose model uses a
+# pre-fit model or none shows its check muted, as it blocks nothing until its
+# source is Your data. Opened, it shows every warning of the check, then the
+# sheet's figure and table; a sheet that fails its check, or has no figure,
+# shows only its table, where missing values are marked.
+sheet_panel <- function(ns, sheet, source, species, facet = NULL) {
+  id <- sheet$component
+  used <- source %in% c("user", "census")
+  model <- sheet_component(id)
+  unused_note <- if (!used) {
+    sprintf(
+      "Not used: %s. To fit it to this sheet, set its source to Your data on the Models step.",
+      if (is_prefit(source)) sprintf("the %s model uses the %s model", lower_label(model), source_note(source)) else sprintf("the %s model is not used", lower_label(model))
+    )
+  }
   badge_ui <- if (!used) {
     badge("Not used", "bg-secondary-subtle text-secondary-emphasis", "minus-circle")
   } else if (!is.null(sheet$error)) {
@@ -389,33 +468,59 @@ sheet_row <- function(sheet, source, view_id) {
   } else {
     success_badge("Checks passed")
   }
-  # The text wraps rather than the row, so the badge stays on the right.
-  tags$li(
-    class = "d-flex align-items-center gap-3 border rounded-3 p-3",
+  warning_line <- function(text) {
     div(
-      class = "flex-grow-1 d-flex flex-column gap-2",
-      div(
-        class = "d-flex flex-wrap align-items-center gap-2",
-        lucide("file-spreadsheet", "text-body-secondary"),
-        tags$code(sheet$name),
-        if (endsWith(sheet$file, ".csv")) span(class = "small text-body-secondary", "from ", sheet$file),
-        if (used) actionLink(view_id, "View data", class = "small ms-1")
-      ),
-      if (!used) div(class = "small text-body-secondary", unused_note),
-      if (!is.null(sheet$error)) div(class = paste("small", if (used) "text-danger-emphasis" else "text-body-secondary"), sheet$error),
-      if (!is.null(sheet$warnings)) {
-        more <- length(sheet$warnings) - 1
-        div(
-          class = paste("small d-flex align-items-center gap-2", if (used) "text-warning-emphasis" else "text-body-secondary"),
-          lucide("alert-triangle", if (used) "text-warning"),
-          span(sheet$warnings[[1]], if (more > 0 && used) actionLink(paste0(view_id, "_more"), sprintf("and %d more", more)))
-        )
-      },
-      if (!is.null(sheet$note)) {
-        div(class = "small d-flex align-items-center gap-2 text-info-emphasis", lucide("info", "text-info"), sheet$note)
-      }
+      class = paste("small d-flex align-items-center gap-2", if (used) "text-warning-emphasis" else "text-body-secondary"),
+      lucide("alert-triangle", if (used) "text-warning"), span(text)
+    )
+  }
+  more <- length(sheet$warnings) - 1
+  # The badge follows the name, which has a fixed width so the badges line up
+  # down the list; the messages wrap below.
+  title <- div(
+    class = "d-flex flex-column gap-2",
+    div(
+      class = "d-flex flex-wrap align-items-center gap-2",
+      lucide("file-spreadsheet", "text-body-secondary"),
+      tags$code(style = "min-width: 4.5rem", sheet$name),
+      badge_ui,
+      if (endsWith(sheet$file, ".csv")) span(class = "small text-body-secondary fw-normal", "from ", sheet$file),
+      # Text styled as a link: the whole title opens the panel, and a link
+      # inside the accordion's button would not be valid HTML.
+      span(class = "small link-primary fw-normal ms-1", "View data")
     ),
-    tagAppendAttributes(badge_ui, class = "flex-shrink-0")
+    if (!used) div(class = "small text-body-secondary fw-normal", unused_note),
+    if (!is.null(sheet$error)) div(class = paste("small fw-normal", if (used) "text-danger-emphasis" else "text-body-secondary"), sheet$error),
+    if (!is.null(sheet$warnings)) warning_line(paste0(sheet$warnings[[1]], if (more > 0) sprintf(" (and %d more)", more))),
+    if (!is.null(sheet$note)) {
+      div(class = "small d-flex align-items-center gap-2 text-info-emphasis fw-normal", lucide("info", "text-info"), sheet$note)
+    }
+  )
+  table <- reactable::reactableOutput(ns(paste0("table_", id)))
+  facets <- sheet_facets(id, sheet$rows)
+  plot <- tagList(
+    if (length(facets) > 0) {
+      div(
+        class = "d-flex align-items-center gap-2 mb-2",
+        span(class = "small fw-medium", id = ns(paste0("facet_", id, "_title")), "Facet"),
+        selectInput(
+          ns(paste0("facet_", id)), NULL,
+          choices = c(None = "none", stats::setNames(names(facets), facets)), selected = facet %||% "none",
+          selectize = FALSE, width = "10rem"
+        ) |>
+          tagAppendAttributes(class = "mb-0", `aria-labelledby` = ns(paste0("facet_", id, "_title")))
+      )
+    },
+    figure_plot(ns(paste0("plot_", id)), data_plot_caption(id, species))
+  )
+  accordion_panel(
+    title = title,
+    value = id,
+    div(
+      class = "d-flex flex-column gap-3",
+      if (more > 0) div(class = "d-flex flex-column gap-1", lapply(sheet$warnings[-1], warning_line)),
+      if (!is.null(sheet$error) || !sheet_has_plot(id, sheet$rows)) table else plot_table_nav(ns(paste0("view_", id)), plot, table)
+    )
   )
 }
 
@@ -424,16 +529,17 @@ sheet_row <- function(sheet, source, view_id) {
 # errors or warnings. Site-years that borrow estimates from other sites or years
 # are listed but are not a warning.
 issues_summary <- function(ns, sheets, cov, sources) {
-  present <- sheets[component_ids[component_ids %in% names(sheets)]]
-  used <- function(field) sum(vapply(names(present), function(id) !is.null(present[[id]][[field]]) && sources[[id]] == "user", logical(1)))
+  present <- sheets[sheet_ids[sheet_ids %in% names(sheets)]]
+  used <- function(field) {
+    sum(vapply(names(present), function(id) !is.null(present[[id]][[field]]) && sheet_source(id, sources) %in% c("user", "census"), logical(1)))
+  }
   count <- function(n, one, many = paste0(one, "s")) sprintf("%d %s", n, if (n == 1) one else many)
   site_years <- function(n, what) paste(count(n, "site-year"), what)
   link <- function(text, target) tags$a(href = paste0("#", ns(target)), class = "link-body-emphasis", text)
   warnings <- c(
     "sheet errors" = used("error"),
     "sheet warnings" = used("warnings"),
-    "with site names that differ across sheets" = length(cov$mismatched_keys),
-    "without density data" = length(cov$no_density)
+    "with site names that differ across sheets" = length(cov$mismatched_keys)
   )
   warnings <- warnings[warnings > 0]
   gaps <- length(cov$gaps)
@@ -470,17 +576,17 @@ issues_summary <- function(ns, sheets, cov, sources) {
 # The coverage card: a site-by-year grid for each model, or all site-years in
 # one table ("all"), picked by `view`, which keeps the reader's choice when the
 # card is redrawn.
-coverage_panel <- function(ns, sources, species, cov, view) {
+coverage_panel <- function(ns, sources, species, cov, view, census = FALSE) {
   if (is.null(cov)) {
     return(NULL)
   }
-  choices <- c(vapply(cov$ids, label_of, ""), all = "All")
+  choices <- c(vapply(cov$ids, sheet_label, ""), all = "All")
   if (is.null(view) || !view %in% names(choices)) view <- cov$ids[[1]]
   topic <- help_topics$coverage
   panel(
     "Coverage",
     id = ns("coverage_card"),
-    description = "The site-years each model has data for. Biomass is estimated for every site-year with density data.",
+    description = "The site-years each sheet has data for. Survey biomass is estimated for every survey, and canopy biomass for every drone map of a site.",
     if (length(cov$mismatched) > 0) {
       notice(
         "alert-triangle", warning_help$mismatch$title,
@@ -495,15 +601,16 @@ coverage_panel <- function(ns, sources, species, cov, view) {
     div(
       class = "d-flex flex-column gap-1",
       div(class = "small text-body-secondary", topic_body(topic), " ", tags$a(href = help_url("coverage"), target = "_blank", rel = "noopener", "Learn more")),
-      coverage_omitted_note(coverage_omitted(sources, species, cov$ids), species)
+      coverage_omitted_note(coverage_omitted(sources, cov$ids), species, census)
     )
   )
 }
 
 # Why the models in use are missing from the coverage table: no site or year
 # effects, or pre-fit to other data.
-coverage_omitted_note <- function(ids, species) {
-  if (length(ids) == 0) {
+coverage_omitted_note <- function(ids, species, census = FALSE) {
+  if (census) ids <- setdiff(ids, "size")
+  if (length(ids) == 0 && !census) {
     return(NULL)
   }
   grouped <- vapply(ids, function(id) any(has_effect(id, c("site", "year"), species)), NA)
@@ -512,6 +619,7 @@ coverage_omitted_note <- function(ids, species) {
   prefit <- ids[grouped]
   div(
     class = "small text-body-secondary",
+    if (census) "The surveys are a census: survey biomass weighs each counted plant in the size sheet, so no size model is fitted.",
     if (length(no_effects) > 0) {
       sprintf(
         "%s %s no site or year effects, so every site-year uses the same estimate.",
@@ -531,7 +639,8 @@ coverage_legend <- function(cov, id) {
   })))
   states <- intersect(names(coverage_states), states)
   labels <- coverage_states
-  if (id == "cover") labels$data <- "Drone survey of the site"
+  if (id == "survey") labels$data <- "Surveyed"
+  if (id == "canopy") labels$data <- "Drone map of the site"
   div(
     class = "d-flex flex-wrap column-gap-3 row-gap-1 small",
     lapply(states, function(state) {
@@ -571,8 +680,8 @@ coverage_grid <- function(cov, id) {
   )
 }
 
-# Every site-year with a column per model marking whether it has data, and notes
-# on site names that differ across sheets and site-years without density data.
+# Every site-year with a column per sheet marking whether it has data, and notes
+# on site names that differ across sheets and site-years not surveyed.
 # Searchable, to find a site's rows across the sheets.
 coverage_list <- function(cov) {
   parts <- strsplit(cov$keys, "|", fixed = TRUE)
@@ -580,7 +689,7 @@ coverage_list <- function(cov) {
   for (id in cov$ids) data[[id]] <- cov$keys %in% cov$models[[id]]$keys
   data$note <- ifelse(
     cov$keys %in% cov$mismatched_keys, "Site name differs across sheets only in case or spacing",
-    ifelse(cov$keys %in% cov$no_density, "No density data: biomass not estimated", NA_character_)
+    ifelse(cov$keys %in% cov$unsurveyed, "Not surveyed: no survey biomass", NA_character_)
   )
   data <- data[order(match(data$site, cov$sites), match(data$year, cov$years)), ]
   warning_rows <- !is.na(data$note)
@@ -603,7 +712,7 @@ coverage_list <- function(cov) {
         year = reactable::colDef(name = "Year", minWidth = 70)
       ),
       lapply(stats::setNames(nm = cov$ids), function(id) {
-        reactable::colDef(name = label_of(id), align = "center", minWidth = 90, cell = presence, html = TRUE, sortable = FALSE)
+        reactable::colDef(name = sheet_label(id), align = "center", minWidth = 90, cell = presence, html = TRUE, sortable = FALSE)
       }),
       list(note = reactable::colDef(name = "Note", na = "", show = any(warning_rows), style = list(color = "var(--bs-secondary-color)"), minWidth = 240))
     )

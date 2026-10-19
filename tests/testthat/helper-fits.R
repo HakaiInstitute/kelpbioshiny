@@ -19,7 +19,7 @@ local_stub_fits <- function(env = parent.frame()) {
   stubs <- list()
   for (id in component_ids) {
     for (species in names(species_info)) {
-      stubs[[sprintf("kb_fit_%s_%s", model_name(id), species)]] <- stub(id, species)
+      if (has_model(id, species)) stubs[[sprintf("kb_fit_%s_%s", model_name(id), species)]] <- stub(id, species)
     }
   }
   testthat::local_mocked_bindings(!!!stubs, .env = env)

@@ -9,69 +9,77 @@
       A run moves through four steps in the navbar. A step's marker shows a check mark once the step is complete: data loaded, models ready, or estimates saved.
       1
       Data
-      Load the survey data, from a workbook or a CSV file per model.
-      The columns of each sheet. Every sheet is optional, and other columns are ignored.
+      Load the survey data, from a workbook or a CSV file per sheet.
+      The columns of each sheet. Every sheet is optional, and other columns are ignored. For Nereocystis, choose under Size data whether a sample of plants was measured or all of them. With all plants measured, a census, the size sheet holds every counted plant and the survey sheet has no plants column. Macrocystis surveys are always a census.
       Sheet
-      Model
+      One row per
       Columns
-      density
-      Density
-      Nereocystis luetkeana
-      :
-      site, year, stipes, area_m2
-      Macrocystis pyrifera
-      :
-      site, year, plants, area_m2
-      size
-      Size
-      Nereocystis luetkeana
-      :
-      site, year, diameter_mm
-      Macrocystis pyrifera
-      :
-      site, year, fronds
       weight
-      Weight
+      Harvested plant
       Nereocystis luetkeana
       :
-      site, year, diameter_mm, weight_kg
+      site, date, diameter_mm, weight_kg
       Macrocystis pyrifera
       :
-      site, year, fronds, weight_kg
+      site, date, fronds, weight_kg
+      size
+      Measured plant; in a census, every counted plant
+      Nereocystis luetkeana
+      :
+      site, plot_id, date, diameter_mm
+      Nereocystis luetkeana
+      ,
+      all plants measured
+      :
+      site, plot_id, date, diameter_mm, partial
+      Macrocystis pyrifera
+      :
+      site, plot_id, date, fronds, partial
+      survey
+      In situ survey of a plot
+      Nereocystis luetkeana
+      :
+      site, plot_id, date, survey_area_m2, plants, plot_area_m2, canopy_area_m2, tide_height_m
+      Nereocystis luetkeana
+      ,
+      all plants measured
+      :
+      site, plot_id, date, survey_area_m2, plot_area_m2, canopy_area_m2, tide_height_m
+      Macrocystis pyrifera
+      :
+      site, plot_id, date, survey_area_m2, plot_area_m2, canopy_area_m2, tide_height_m
+      canopy
+      Drone map of a site in a year
+      site, year, canopy_area_m2, tide_height_m, site_area_m2
       wetdry
-      Wet:dry
+      Tissue sample
       wet_mass_g, dry_mass_g
       carbon
-      Carbon
+      Dried tissue sample
       sample_mass_mg, carbon_mass_ug
-      cover
-      Cover biomass
-      site, year, tide_height_m, plot_canopy_area_m2, plot_boundary_area_m2, site_canopy_area_m2
       2
       Models
       Fit each model to your data or use a pre-fit model; open a model to adjust settings and view diagnostics.
-      Each model uses one source: your data, a pre-fit model, or none.
+      Each model uses one source: your data, a pre-fit model, or none. With all plants measured (a census) there is no size model.
       Model
       Sources
-      Density
-      Your data, Not used
-      Size
-      Your data, Pre-fit Hakai Institute, Not used
       Weight
       Your data, Pre-fit Coastwide, Pre-fit Hakai Institute
+      Size
+      Your data, Pre-fit Hakai Institute, Not used
       Wet:dry
       Your data, Pre-fit Hakai Institute, Not used
       Carbon
       Your data, Pre-fit Hakai Institute, Not used
-      Cover biomass
+      Cover calibration
       Your data, Not used
       3
       Estimates
-      Review the estimates from each model, and plot and total site biomass from the combined models.
+      Review the estimates from each model, and survey and canopy biomass from the combined models.
       4
       Export
       Save the estimates, or rerun the whole analysis in R.
-      The app can also predict the wet weight of each plant, without biomass. Load a size sheet, use the weight model (fitted to your data or pre-fit), and open Weight on the Estimates step with Group by set to Individual plant. The Size only example workbook shows this.
+      The app can also predict the wet weight of each plant, without biomass. Load a size sheet, use the weight model (fitted to your data or pre-fit), and open Weight on the Estimates step with Group by set to Individual plant.
       Warnings
       The warnings a model or sheet can show, and how to fix them.
       Convergence warning
@@ -126,18 +134,24 @@
       Site-years without data
       When a model has no data for a site-year, its estimate there uses the site's estimate from other years and the year's estimate from other sites. What is specific to that site-year is drawn from the variation the model estimated between site-years, so its compatibility interval is wider. With neither the site nor the year in the data, the estimate is for a typical site and year.
       Learn more (https://hakaiinstitute.github.io/kelpbio/articles/results.html)
-      Density in the weight model
-      Bull kelp plants of the same diameter weigh more or less depending on how crowded they are, so the weight model uses stipe density as a predictor: the stipes counted over the area surveyed in each site-year of the density data. Site-years without density data take the mean density.
+      Census
+      With a sample of plants measured, the surveys tally their plants and a size model is fitted to the plants measured. With all plants measured (a census), the size sheet holds the plants of each survey, joined to it by site, plot_id and date, and the survey sheet has no plants column. Survey biomass then sums the weights of the plants, and no size model is fitted. Macrocystis surveys are always a census.
+      Learn more (https://hakaiinstitute.github.io/kelpbio/articles/models.html)
+      Mean plant weight
+      The expected weight of a plant at a site-year: the weight model's curve averaged over the site-year's size distribution from the size model. Survey biomass is the plants counted in a survey times this weight.
+      Learn more (https://hakaiinstitute.github.io/kelpbio/articles/models.html)
+      Survey biomass
+      The biomass of the plants counted in an in situ survey, per square metre of the area searched. By site and year, the surveys of a site-year are pooled: their summed biomass over their summed area.
       Learn more (https://hakaiinstitute.github.io/kelpbio/articles/models.html)
       Canopy area
-      The area of kelp canopy the drone imagery delineated within a plot boundary, or mapped over a whole site, in square metres. A survey with no canopy has a canopy area of 0.
-      Learn more (https://hakaiinstitute.github.io/kelpbio/articles/total-biomass.html)
+      The area of kelp canopy the drone imagery delineated within a plot polygon, or mapped over a whole site, in square metres. A flight with no canopy has a canopy area of 0.
+      Learn more (https://hakaiinstitute.github.io/kelpbio/articles/canopy-biomass.html)
       Tide-corrected cover
-      Less of the canopy shows at the surface at higher tides, so the cover biomass model corrects the canopy area for the tide height at the survey. Cover is the corrected canopy area as a proportion of the plot boundary area, from 0 to 1.
-      Learn more (https://hakaiinstitute.github.io/kelpbio/articles/total-biomass.html)
-      Total site biomass
-      The cover biomass model relates the wet biomass of surveyed plots to their tide-corrected canopy cover. Total site biomass applies it to the canopy mapped over each site in a drone survey. The uncertainty in every model is carried through to the limits.
-      Learn more (https://hakaiinstitute.github.io/kelpbio/articles/total-biomass.html)
+      Less of the canopy shows at the surface at higher tides, so the cover calibration corrects the canopy area for the tide height at the flight. Cover is the corrected canopy area as a proportion of the plot area, from 0 to 1.
+      Learn more (https://hakaiinstitute.github.io/kelpbio/articles/canopy-biomass.html)
+      Canopy biomass
+      The cover calibration relates the wet biomass of each survey to the tide-corrected drone canopy cover of its plot. Canopy biomass applies it to the canopy mapped over each site in a drone map. The uncertainty in every model is carried through to the limits.
+      Learn more (https://hakaiinstitute.github.io/kelpbio/articles/canopy-biomass.html)
       Priors
       A prior states which parameter values are plausible before the data are seen. The defaults rule out implausible values but leave the data to decide the estimates, so most analyses keep them.
       Learn more (https://hakaiinstitute.github.io/kelpbio/articles/priors.html)

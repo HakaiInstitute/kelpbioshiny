@@ -66,11 +66,12 @@ step_item <- function(value, ..., small = TRUE) {
 }
 
 # A step page: the aside (choices and statuses) beside the main content on large
-# screens, and below it on small ones, so a phone shows the content first.
-step_layout <- function(aside, main) {
+# screens, and below it on small ones, so a phone shows the content first; a
+# setup aside (`aside_first`) stays above it.
+step_layout <- function(aside, main, aside_first = FALSE) {
   div(
     class = "row g-4",
-    div(class = "col-lg-3 order-last order-lg-first", div(class = "kb-aside", aside)),
+    div(class = paste("col-lg-3", if (!aside_first) "order-last order-lg-first"), div(class = "kb-aside", aside)),
     div(class = "col-lg-9", main)
   )
 }
@@ -152,6 +153,9 @@ status_label <- function(status) {
   }
   if (status$kind == "ready" && has_warning(status)) {
     return("Ready with warnings")
+  }
+  if (status$kind == "ready" && status$source == "census") {
+    return("Census")
   }
   switch(status$kind,
     "not-used" = "Not used",
@@ -244,7 +248,7 @@ fit_control <- function(fit_id, cancel_id, status, invalid, fit_label = "Fit", v
   )
 }
 
-# "density, size and weight"
+# "weight, size and survey"
 and_list <- function(x) {
   if (length(x) < 2) {
     return(x)
@@ -328,10 +332,10 @@ render_figure <- function(plot, output_id, aspect = 0.5, height = NULL, alt = NA
 }
 
 # One row per component: icon, label, a muted note on the right.
-status_list <- function(statuses, notes) {
+status_list <- function(statuses, notes, ids = component_ids) {
   tags$ul(
     class = "list-unstyled d-flex flex-column gap-2 small mb-0",
-    lapply(component_ids, function(id) {
+    lapply(ids, function(id) {
       tags$li(
         class = "d-flex align-items-center gap-2",
         status_icon(statuses[[id]]),
@@ -559,7 +563,7 @@ fit_columns <- function(data, columns = NULL) {
     def <- columns[[name]] %||% reactable::colDef()
     if (is.null(def$minWidth)) {
       values <- data[[name]]
-      if (is.numeric(values)) values <- signif(values, 3)
+      if (is.numeric(values)) values <- formatC(values, digits = 3, format = "fg")
       chars <- max(nchar(def$name %||% name), nchar(as.character(values)), na.rm = TRUE)
       def$minWidth <- min(8 * chars + 24, 160)
     }

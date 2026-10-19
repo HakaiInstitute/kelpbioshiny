@@ -1,8 +1,8 @@
 # Models step: a sub-navigation, the hub (sources, statuses, fit queue) and one
 # detail page per model (mod_model.R), switched with a hidden navset.
 
-source_choices <- function(id, has_sheet) {
-  options <- components[[id]]$sources
+source_choices <- function(id, has_sheet, census = FALSE) {
+  options <- model_sources(id, census)
   labels <- vapply(options, source_label, character(1))
   if (!has_sheet) labels[options == "user"] <- "Your data (no sheet)"
   stats::setNames(options, labels)
@@ -35,16 +35,20 @@ sync_source_select <- function(input, session, input_id, id, store) {
     }
   }, ignoreInit = TRUE)
   observe({
-    has_sheet <- !is.null(store$sheets()[[id]])
-    updateSelectInput(session, input_id, choices = source_choices(id, has_sheet), selected = store$sources()[[id]])
+    has_sheet <- !is.null(store$sheets()[[components[[id]]$sheet]])
+    updateSelectInput(session, input_id, choices = source_choices(id, has_sheet, store$census()), selected = store$sources()[[id]])
   })
 }
 
 mod_models_ui <- function(id) {
   ns <- NS(id)
 
+  # The size row shows only while the run is not a census (output.census), by
+  # the attribute conditionalPanel() uses, as a row cannot sit in its div.
   rows <- lapply(component_ids, function(cid) {
     tags$tr(
+      `data-display-if` = if (cid == "size") "!output.census",
+      `data-ns-prefix` = if (cid == "size") ns(""),
       tags$td(
         class = "ps-4",
         actionLink(ns(paste0("open_", cid)), label_of(cid), class = "fw-medium link-body-emphasis link-underline-opacity-0 link-underline-opacity-100-hover"),
@@ -65,12 +69,12 @@ mod_models_ui <- function(id) {
       )
     )
   })
-  # The cover model is optional and builds on the others, so it sits in its own group.
+  # The cover calibration is optional and builds on the others, so it sits in its own group.
   group_row <- tags$tr(tags$td(
     colspan = 4, class = "ps-4 py-2 bg-body-tertiary small text-body-secondary",
-    span(class = "fw-medium text-body", "Total site biomass"), " (optional): fitted after the models above"
+    span(class = "fw-medium text-body", "For canopy biomass"), " (optional): fitted once the weight and size models are ready"
   ))
-  rows <- append(rows, list(group_row), after = length(biomass_ids))
+  rows <- append(rows, list(group_row), after = length(component_ids) - 1)
   head_cell <- function(...) tags$th(class = "bg-body-tertiary text-body-secondary small", ...)
 
   hub <- tagList(
@@ -138,6 +142,8 @@ mod_models_server <- function(id, store) {
 
     output$has_data <- reactive(store$has_data())
     outputOptions(output, "has_data", suspendWhenHidden = FALSE)
+    output$census <- reactive(store$census())
+    outputOptions(output, "census", suspendWhenHidden = FALSE)
 
     observeEvent(input$hub, store$open("hub"))
     observeEvent(input$to_data, store$go_to("data"))
@@ -161,8 +167,13 @@ mod_models_server <- function(id, store) {
         tagList(status_badge(status), if (!is.null(step)) div(class = "small mt-1", actionLink(session$ns(paste0("next_", cid)), step$label)))
       })
       observeEvent(input[[paste0("next_", cid)]], {
-        step <- status_next(store$statuses()[[cid]])
-        if (identical(step$target, "data")) store$go_to("data") else store$open_tab(cid, step$target)
+        status <- store$statuses()[[cid]]
+        step <- status_next(status)
+        if (identical(step$target, "data")) {
+          if (status$kind == "data-error") store$view_sheet(components[[cid]]$sheet) else store$go_to("data")
+        } else {
+          store$open_tab(cid, step$target)
+        }
       })
       output[[paste0("fit_", cid)]] <- renderUI({
         fit_control(
@@ -232,7 +243,7 @@ mod_models_server <- function(id, store) {
         `aria-label` = "Models",
         subnav_link(session$ns("hub"), open == "hub", lucide("layout-list", "text-body-secondary"), "All models"),
         tags$hr(class = "my-1"),
-        lapply(component_ids, function(cid) {
+        lapply(store$shown_models(), function(cid) {
           tagList(
             if (cid == "cover") tags$hr(class = "my-1"),
             subnav_link(session$ns(paste0("nav_", cid)), open == cid, status_icon(statuses[[cid]]), label_of(cid), status_hidden(statuses[[cid]]))
@@ -252,7 +263,7 @@ status_next <- function(status) {
     return(list(label = "View warnings", target = "diagnostics"))
   }
   switch(status$kind,
-    "data-error" = ,
+    "data-error" = list(label = "View data", target = "data"),
     "no-data" = list(label = "Go to data", target = "data"),
     "failed" = list(label = "Details", target = "diagnostics"),
     NULL

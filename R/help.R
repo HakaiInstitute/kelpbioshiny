@@ -11,7 +11,7 @@ kelpbio_url <- "https://hakaiinstitute.github.io/kelpbio/"
 kelpbio_articles <- list(
   models = list(
     title = "The models",
-    summary = "What each model estimates, and how they combine into plot and site biomass.",
+    summary = "What each model estimates, and how they combine into survey and canopy biomass.",
     path = "articles/models.html"
   ),
   priors = list(
@@ -34,10 +34,10 @@ kelpbio_articles <- list(
     summary = "Overall and group predictions, and their compatibility intervals.",
     path = "articles/results.html"
   ),
-  total_biomass = list(
-    title = "Total site biomass",
-    summary = "Scaling plot biomass to whole sites from drone surveys of canopy area.",
-    path = "articles/total-biomass.html"
+  canopy_biomass = list(
+    title = "Canopy biomass",
+    summary = "Calibrating drone canopy cover on survey biomass, and scaling it to the canopy mapped over whole sites.",
+    path = "articles/canopy-biomass.html"
   )
 )
 
@@ -149,39 +149,55 @@ help_topics <- list(
     ),
     link = kelpbio_articles$results$path
   ),
-  weight_density = list(
-    title = "Density in the weight model",
+  census = list(
+    title = "Census",
     body = paste(
-      "Bull kelp plants of the same diameter weigh more or less depending on how crowded they are,",
-      "so the weight model uses stipe density as a predictor: the stipes counted over the area surveyed in each site-year of the density data.",
-      "Site-years without density data take the mean density."
+      "With a sample of plants measured, the surveys tally their plants and a size model is fitted to the plants measured.",
+      "With all plants measured (a census), the size sheet holds the plants of each survey, joined to it by site, plot_id and date, and the survey sheet has no plants column.",
+      "Survey biomass then sums the weights of the plants, and no size model is fitted. Macrocystis surveys are always a census."
+    ),
+    link = kelpbio_articles$models$path
+  ),
+  mean_weight = list(
+    title = "Mean plant weight",
+    body = paste(
+      "The expected weight of a plant at a site-year: the weight model's curve averaged over the site-year's size distribution from the size model.",
+      "Survey biomass is the plants counted in a survey times this weight."
+    ),
+    link = kelpbio_articles$models$path
+  ),
+  survey_biomass = list(
+    title = "Survey biomass",
+    body = paste(
+      "The biomass of the plants counted in an in situ survey, per square metre of the area searched.",
+      "By site and year, the surveys of a site-year are pooled: their summed biomass over their summed area."
     ),
     link = kelpbio_articles$models$path
   ),
   canopy_area = list(
     title = "Canopy area",
     body = paste(
-      "The area of kelp canopy the drone imagery delineated within a plot boundary, or mapped over a whole site, in square metres.",
-      "A survey with no canopy has a canopy area of 0."
+      "The area of kelp canopy the drone imagery delineated within a plot polygon, or mapped over a whole site, in square metres.",
+      "A flight with no canopy has a canopy area of 0."
     ),
-    link = kelpbio_articles$total_biomass$path
+    link = kelpbio_articles$canopy_biomass$path
   ),
   tide_cover = list(
     title = "Tide-corrected cover",
     body = paste(
-      "Less of the canopy shows at the surface at higher tides, so the cover biomass model corrects the canopy area for the tide height at the survey.",
-      "Cover is the corrected canopy area as a proportion of the plot boundary area, from 0 to 1."
+      "Less of the canopy shows at the surface at higher tides, so the cover calibration corrects the canopy area for the tide height at the flight.",
+      "Cover is the corrected canopy area as a proportion of the plot area, from 0 to 1."
     ),
-    link = kelpbio_articles$total_biomass$path
+    link = kelpbio_articles$canopy_biomass$path
   ),
-  total_biomass = list(
-    title = "Total site biomass",
+  canopy_biomass = list(
+    title = "Canopy biomass",
     body = paste(
-      "The cover biomass model relates the wet biomass of surveyed plots to their tide-corrected canopy cover.",
-      "Total site biomass applies it to the canopy mapped over each site in a drone survey.",
+      "The cover calibration relates the wet biomass of each survey to the tide-corrected drone canopy cover of its plot.",
+      "Canopy biomass applies it to the canopy mapped over each site in a drone map.",
       "The uncertainty in every model is carried through to the limits."
     ),
-    link = kelpbio_articles$total_biomass$path
+    link = kelpbio_articles$canopy_biomass$path
   ),
   priors = list(
     title = "Priors",

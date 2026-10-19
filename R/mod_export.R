@@ -1,30 +1,53 @@
 # Export step: downloads (simulated) and an R script that reproduces the run.
 
-export_script <- function(species, sources, sheets, workbook, priors, samplers) {
+export_script <- function(species, sources, sheets, workbook, priors, samplers, census = is_census(species)) {
   sp <- species_info[[species]]$suffix
   used <- component_ids[sources != "none"]
-  from_data <- Filter(function(id) sources[[id]] == "user" && !is.null(sheets[[id]]), used)
+  from_data <- Filter(function(id) sources[[id]] == "user" && !is.null(sheets[[components[[id]]$sheet]]), used)
+  valid <- function(id) !is.null(sheets[[id]]) && is.null(sheets[[id]]$error)
   # The weight of each plant in the size sheet, read even when the size model is
   # not fitted to it.
-  plants <- "weight" %in% used && !is.null(sheets$size) && is.null(sheets$size$error)
-  read_ids <- union(from_data, if (plants) "size")
+  plants <- "weight" %in% used && valid("size")
+  survey <- survey_possible(sources) && valid("survey") && (!census || valid("size"))
+  cover <- survey && "cover" %in% from_data && nrow(drone_surveys(sheets$survey$rows)) > 0
+  canopy <- cover && valid("canopy")
+  fitted <- setdiff(from_data, "cover")
+  read_ids <- intersect(sheet_ids, c(vapply(fitted, function(id) components[[id]]$sheet, ""), if (plants) "size", if (survey) "survey", if (canopy) "canopy"))
   from_csv <- Filter(function(id) endsWith(sheets[[id]]$file, ".csv"), read_ids)
   from_book <- setdiff(read_ids, from_csv)
-  biomass <- biomass_possible(sources)
-  cover <- biomass && "cover" %in% from_data
-  stipes <- sp == "nereo" && !is.null(sheets$density) && ("weight" %in% from_data || (plants && "density" %in% from_data))
 
-  # kelpbio takes site and year as text; spreadsheets store years as numbers.
-  as_text <- function(id) if ("year" %in% sheet_columns(id, species)) " |>\n  dplyr::mutate(year = as.character(year))" else ""
+  # kelpbio takes site, plot and year as text and dates as Dates; spreadsheets
+  # store years and plot numbers as numbers and dates as date-times.
+  keyed <- function(id) any(c("site", "plot_id", "year", "date") %in% sheet_columns(id, species))
+  read_call <- function(id, call) if (keyed(id)) sprintf("%s <- as_kelpbio(%s)", id, call) else sprintf("%s <- %s", id, call)
   read <- c(
+    if (any(vapply(read_ids, keyed, logical(1)))) {
+      c(
+        "as_kelpbio <- function(x) {",
+        "  dplyr::mutate(x, dplyr::across(dplyr::any_of(c(\"site\", \"plot_id\", \"year\")), as.character), dplyr::across(dplyr::any_of(\"date\"), as.Date))",
+        "}"
+      )
+    },
     # File names are the user's, so they are quoted as R strings.
     if (length(from_book) > 0) sprintf("path <- %s", encodeString(workbook %||% "kelp-survey.xlsx", quote = "\"")),
-    sprintf("%s <- readxl::read_excel(path, sheet = \"%s\")%s", from_book, vapply(from_book, function(id) components[[id]]$sheet, ""), vapply(from_book, as_text, "")),
-    sprintf("%s <- readr::read_csv(%s)%s", from_csv, vapply(from_csv, function(id) encodeString(sheets[[id]]$file, quote = "\""), ""), vapply(from_csv, as_text, ""))
+    vapply(from_book, function(id) read_call(id, sprintf("readxl::read_excel(path, sheet = \"%s\")", id)), ""),
+    vapply(from_csv, function(id) read_call(id, sprintf("readr::read_csv(%s)", encodeString(sheets[[id]]$file, quote = "\""))), ""),
+    if (survey && census && "plants" %in% names(sheets$survey$rows)) {
+      c("# A census: the counts come from the plant rows of the size sheet", "survey <- dplyr::select(survey, -plants)")
+    }
   )
 
-  fit_name <- function(ids) paste0("fit_", vapply(ids, model_name, ""))
-  fit_lines <- function(id, data = id) {
+  check <- function(id) {
+    switch(id,
+      size = if (census) sprintf("kb_check_data_plants_%s(size)", sp) else "kb_check_data_size_nereo(size)",
+      survey = if (census) "kb_check_data_survey(survey, size)" else "kb_check_data_survey(survey)",
+      canopy = "kb_check_data_canopy(canopy)",
+      sprintf("kb_check_data_%s_%s(%s)", id, sp, id)
+    )
+  }
+
+  fit_name <- function(id) paste0("fit_", model_name(id))
+  fit_lines <- function(id, data = components[[id]]$sheet) {
     model <- model_name(id)
     if (is_prefit(sources[[id]])) {
       reference <- prefit_reference(sources[[id]])
@@ -55,22 +78,23 @@ export_script <- function(species, sources, sheets, workbook, priors, samplers) 
     }
     c(prior_lines, sprintf("%s <- kb_fit_%s_%s(%s)", fit_name(id), model, sp, paste(args, collapse = ", ")))
   }
-  in_biomass <- setdiff(used, "cover")
-  plant_data <- if (stipes && "density" %in% from_data) "kb_add_stipes_m2(size, density)" else "size"
-  biomass_call <- function(measure, fits) {
-    sprintf(
-      "kb_predict_plot_biomass(%s%s)", paste(fit_name(fits), collapse = ", "),
-      if (measure == "wet") "" else sprintf(", measure = \"%s\"", measure)
+
+  measures <- names(output_info)[vapply(output_availability(sources), `[[`, logical(1), "available")]
+  prefix <- c(wet = "", dry = "dry_", carbon = "carbon_")
+  measure_args <- function(m) {
+    c(
+      if (m != "wet") "fit_wetdry", if (m == "carbon") "fit_carbon",
+      if (m != "wet") sprintf("measure = \"%s\"", m)
     )
   }
-  measures <- names(output_info)[vapply(output_availability(sources), `[[`, logical(1), "available")]
-  fits <- list(wet = c("weight", "size", "density"), dry = c("weight", "size", "density", "wetdry"))
-  fits$carbon <- c(fits$dry, "carbon")
-  prefix <- c(wet = "", dry = "dry_", carbon = "carbon_")
+  size_arg <- if (census) "size" else "fit_size"
+  survey_call <- function(m) paste(c("fit_weight", size_arg, "survey", measure_args(m)), collapse = ", ")
+  canopy_call <- function(m) paste(c("fit_cover_calibration", "canopy", measure_args(m)), collapse = ", ")
   planned <- c(
     if (any(vapply(sources[used], is_prefit, logical(1)))) "kb_prefit_*()",
-    if (stipes && ("weight" %in% from_data || "density" %in% from_data)) "kb_add_stipes_m2()"
+    if (canopy) "kb_check_data_canopy()"
   )
+  in_models <- setdiff(used, c("cover", if (census) "size"))
 
   paste(
     c(
@@ -83,48 +107,34 @@ export_script <- function(species, sources, sheets, workbook, priors, samplers) 
       "library(kelpbio)",
       "",
       read,
-      if ("cover" %in% from_data) {
-        c(
-          "",
-          "# The drone surveys of plots, and of whole sites, in kelpbio's columns",
-          "plots <- cover |>",
-          "  dplyr::filter(!is.na(plot_canopy_area_m2)) |>",
-          "  dplyr::select(site, year, canopy_area_m2 = plot_canopy_area_m2, plot_area_m2 = plot_boundary_area_m2, tide_height_m)",
-          "sites <- cover |>",
-          "  dplyr::filter(!is.na(site_canopy_area_m2)) |>",
-          "  dplyr::select(site, year, canopy_area_m2 = site_canopy_area_m2, tide_height_m) |>",
-          "  dplyr::distinct()"
-        )
-      },
       "",
-      sprintf("kb_check_data_%s_%s(%s)", vapply(from_data, model_name, ""), sp, ifelse(from_data == "cover", "plots", from_data)),
-      if ("weight" %in% from_data && stipes) {
-        c("", "# The observed stipe density of each site-year, for the weight model", "weight <- kb_add_stipes_m2(weight, density)")
-      },
+      vapply(read_ids, check, ""),
       "",
-      unlist(lapply(in_biomass, fit_lines)),
+      unlist(lapply(in_models, fit_lines)),
       if (plants) {
-        c("", "# The predicted weight of each plant in the size sheet", sprintf("plant_weights <- kb_predict_weight(fit_weight, new_data = %s)", plant_data))
+        c("", "# The predicted weight of each plant in the size sheet", "plant_weights <- kb_predict_weight(fit_weight, new_data = size)")
       },
-      if (biomass) {
+      if (survey) {
         c(
           "",
-          sprintf("%sbiomass <- %s", prefix[measures], vapply(measures, function(m) biomass_call(m, fits[[m]]), "")),
+          if (census) "# Survey biomass per m\u00b2 searched, weighing each counted plant" else "# Survey biomass per m\u00b2 searched",
+          sprintf("%sbiomass <- kb_predict_biomass_survey(%s)", prefix[measures], vapply(measures, survey_call, "")),
           "kb_plot_predictions(biomass)"
         )
       },
       if (cover) {
         c(
           "",
-          "# Total site biomass from the cover biomass model, fitted to the drone",
-          "# surveys of plots with the wet plot biomass of their site-years",
-          fit_lines("cover", c("plots", "biomass")),
-          sprintf(
-            "%stotals <- kb_predict_site_biomass(%s)", prefix[measures],
-            vapply(measures, function(m) {
-              paste(c("fit_cover_biomass", "sites", if (m != "wet") fit_name(setdiff(fits[[m]], fits$wet)), if (m != "wet") sprintf("measure = \"%s\"", m)), collapse = ", ")
-            }, "")
-          ),
+          "# The cover calibration, fitted to the wet survey biomass of the surveys",
+          "# with a drone flight",
+          fit_lines("cover", "biomass")
+        )
+      },
+      if (canopy) {
+        c(
+          "",
+          "# Biomass over the canopy mapped in each drone map of a site",
+          sprintf("%stotals <- kb_predict_biomass_canopy(%s)", prefix[measures], vapply(measures, canopy_call, "")),
           "kb_plot_predictions(totals)"
         )
       }
@@ -224,8 +234,12 @@ mod_export_server <- function(id, store) {
     output$run <- renderUI({
       sources <- store$sources()
       tagList(
-        div(class = "small text-body-secondary", em(species_info[[store$species()]]$latin)),
-        status_list(store$statuses(), as.list(source_labels(sources)))
+        div(
+          class = "small text-body-secondary",
+          em(species_info[[store$species()]]$latin),
+          if (store$census()) paste0(", ", tolower(size_data_info$census$label))
+        ),
+        status_list(store$statuses(), as.list(source_labels(sources)), store$shown_models())
       )
     })
 
@@ -235,7 +249,7 @@ mod_export_server <- function(id, store) {
       settings <- store$run_settings()
       code <- export_script(
         store$species(), store$sources(), store$sheets(), store$workbook(),
-        lapply(settings, `[[`, "priors"), lapply(settings, `[[`, "sampler")
+        lapply(settings, `[[`, "priors"), lapply(settings, `[[`, "sampler"), store$census()
       )
       tags$pre(id = session$ns("script"), class = "m-0 px-3 py-3 small bg-white border-0", .noWS = "inside", tags$code(.noWS = "inside", code))
     })

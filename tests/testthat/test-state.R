@@ -9,6 +9,12 @@ test_that("a model fitted to your data with no sheet needs data", {
   expect_match(as.character(status_badge(status)), "Needs data", fixed = TRUE)
 })
 
+test_that("a run is a census when chosen, and always for Macrocystis", {
+  expect_false(is_census("nereo", "sample"))
+  expect_true(is_census("nereo", "census"))
+  expect_true(is_census("macro", "sample"))
+})
+
 test_that("Fit all fits each model with its sheet data and sampler settings", {
   log <- local_stub_fits()
   shiny::testServer(store_app(), {
@@ -16,8 +22,8 @@ test_that("Fit all fits each model with its sheet data and sampler settings", {
     store$fit_all()
     finish_fits(session, runner)
 
-    expect_identical(fitted_models(log), c("density", "size", "cover"))
-    size <- log$calls[[2]]$args
+    expect_identical(fitted_models(log), c("size", "cover"))
+    size <- log$calls[[1]]$args
     expect_identical(size$data, store$sheets()$size$rows)
     expect_identical(size$nthin, 2)
     expect_identical(store$statuses()$size$kind, "ready")

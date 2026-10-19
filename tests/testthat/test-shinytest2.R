@@ -15,13 +15,13 @@ test_that("the app boots, loads the example and shows the Models step without Ja
   )
   withr::defer(app$stop())
 
-  app$click("data-example_density_size")
+  app$click("data-example_survey")
   app$wait_for_idle()
-  expect_true(app$get_js("!!document.querySelector('#data-sheets .list-unstyled')"))
+  expect_true(app$get_js("!!document.querySelector('#data-sheets .accordion-item')"))
 
   app$set_inputs(step = "models")
   app$wait_for_idle()
-  expect_match(app$get_text("#models-status_density"), "Not fitted")
+  expect_match(app$get_text("#models-status_size"), "Not fitted")
 
   logs <- app$get_logs()
   js_errors <- logs$message[logs$location == "chromote" & logs$level %in% c("error", "throw")]

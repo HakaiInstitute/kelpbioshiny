@@ -1,9 +1,9 @@
 # The Help tab: a user guide, a methods page and an about page, picked in the
 # sidebar as on the Models and Estimates steps. Help is not a step, so it carries no step marker
 # and takes no part in step completion. The guide is built
-# from the definitions the app already uses (app_steps, components, prefit_info,
-# warning_help, help_topics), so it changes when they do; only the connecting
-# sentences are written here.
+# from the definitions the app already uses (app_steps, sheet_info, components,
+# prefit_info, warning_help, help_topics), so it changes when they do; only the
+# connecting sentences are written here.
 
 source_url <- "https://github.com/HakaiInstitute/kelpbioshiny"
 
@@ -19,22 +19,26 @@ guide_table <- function(header, rows) {
   )
 }
 
-# A sheet's columns, by species where they differ.
+# A sheet's columns, by species and kind of size data where they differ.
 guide_columns <- function(id) {
-  columns <- lapply(names(species_info), function(sp) paste(sheet_columns(id, sp), collapse = ", "))
-  if (!is.list(components[[id]]$columns)) {
+  variants <- list(
+    list(label = em(species_info$nereo$latin), species = "nereo", census = FALSE),
+    list(label = tagList(em(species_info$nereo$latin), ", ", tolower(size_data_info$census$label)), species = "nereo", census = TRUE),
+    list(label = em(species_info$macro$latin), species = "macro", census = TRUE)
+  )
+  columns <- lapply(variants, function(v) paste(sheet_columns(id, v$species, v$census), collapse = ", "))
+  if (length(unique(columns)) == 1) {
     return(tags$code(columns[[1]]))
   }
-  lapply(seq_along(columns), function(i) div(em(species_info[[i]]$latin), ": ", tags$code(columns[[i]])))
+  # The Nereocystis census only where its columns differ.
+  shown <- if (identical(columns[[1]], columns[[2]])) c(1, 3) else 1:3
+  lapply(shown, function(i) div(variants[[i]]$label, ": ", tags$code(columns[[i]])))
 }
 
 guide_sheets <- function() {
   guide_table(
-    c("Sheet", "Model", "Columns"),
-    lapply(component_ids, function(id) {
-      def <- components[[id]]
-      list(tags$code(def$sheet), def$label, guide_columns(id))
-    })
+    c("Sheet", "One row per", "Columns"),
+    lapply(sheet_ids, function(id) list(tags$code(id), sheet_info[[id]]$row, guide_columns(id)))
   )
 }
 
@@ -51,13 +55,22 @@ guide_sources <- function() {
 guide_extras <- list(
   data = function() {
     tagList(
-      div(class = "small text-body-secondary", "The columns of each sheet. Every sheet is optional, and other columns are ignored."),
+      div(
+        class = "small text-body-secondary",
+        paste(
+          "The columns of each sheet. Every sheet is optional, and other columns are ignored.",
+          sprintf(
+            "For Nereocystis, choose under Size data whether a sample of plants was measured or all of them. With %s, a census, the size sheet holds every counted plant and the survey sheet has no plants column. Macrocystis surveys are always a census.",
+            tolower(size_data_info$census$label)
+          )
+        )
+      ),
       div(class = "table-responsive", guide_sheets())
     )
   },
   models = function() {
     tagList(
-      div(class = "small text-body-secondary", "Each model uses one source: your data, a pre-fit model, or none."),
+      div(class = "small text-body-secondary", "Each model uses one source: your data, a pre-fit model, or none. With all plants measured (a census) there is no size model."),
       div(class = "table-responsive", guide_sources())
     )
   }
@@ -98,8 +111,8 @@ guide_plant_weights <- function() {
   div(
     class = "small text-body-secondary",
     sprintf(
-      "The app can also predict the wet weight of each plant, without biomass. Load a %s sheet, use the %s model (fitted to your data or pre-fit), and open %s on the Estimates step with Group by set to %s. The %s example workbook shows this.",
-      components$size$sheet, lower_label("weight"), label_of("weight"), prediction_groupings[["plant"]], example_workbooks$size_only$label
+      "The app can also predict the wet weight of each plant, without biomass. Load a %s sheet, use the %s model (fitted to your data or pre-fit), and open %s on the Estimates step with Group by set to %s.",
+      components$size$sheet, lower_label("weight"), label_of("weight"), prediction_groupings[["plant"]]
     )
   )
 }
@@ -145,7 +158,17 @@ help_server <- function(input, output, session) {
             )
           }
         )
-      })
+      }),
+      # Not a page: GitHub's new issue form, in a new tab.
+      tags$hr(class = "my-1"),
+      tags$a(
+        href = paste0(source_url, "/issues/new"), target = "_blank", rel = "noopener", class = "nav-link py-2 px-2",
+        div(
+          class = "d-flex align-items-center gap-2",
+          lucide("github", "text-body-secondary"), span(class = "flex-grow-1", "Report an issue"),
+          lucide("external-link", "text-body-secondary")
+        )
+      )
     )
   })
   # Rendered while Help is hidden: opening Help from a link switches the step
@@ -306,17 +329,7 @@ help_about_ui <- function() {
         description = "To cite the app and the kelpbio package in publications, use:",
         citation_block("citation_kelpbioshiny", "kelpbioshiny", utils::citation("kelpbioshiny")),
         citation_block("citation_kelpbio", "kelpbio", kelpbio_citation())
-      ),
-      card(card_body(div(
-        class = "d-flex flex-wrap align-items-center gap-3",
-        div(class = "kb-tile-icon bg-primary-subtle text-primary-emphasis", lucide("github")),
-        div(
-          class = "flex-grow-1",
-          h2(class = "kb-card-title mb-0", "Report an issue"),
-          div(class = "small text-body-secondary mt-1", "A bug, a confusing step or a feature request: open an issue on GitHub.")
-        ),
-        about_link(paste0(source_url, "/issues"), "external-link", "Open an issue")
-      )))
+      )
     )
   )
 }

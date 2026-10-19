@@ -1,15 +1,16 @@
 # One model's detail page: a header (name, source, status, fit button and
-# progress) above tabs for data, settings, diagnostics and the model
-# description; its predictions are on the Estimates step. A single module,
-# instantiated per model. A pre-fit model has no data or settings of its own,
+# progress) above tabs for settings, diagnostics and the model description; its
+# data are on the Data step and its predictions on the Estimates step. A single
+# module, instantiated per model. A pre-fit model has no settings of its own,
 # so it shows only the diagnostics and description of the model as fitted in
-# advance.
+# advance; a census fits no model, so the size page shows only its notice.
 
 # The labels of each prior family's hyperparameter inputs (a, then b).
 prior_inputs <- list(normal = c("Mean", "SD"), lognormal = c("Mean (log)", "SD (log)"), exponential = "Rate")
 
-model_tabs <- c(data = "Data", settings = "Settings", diagnostics = "Diagnostics", description = "Description")
-own_fit_tabs <- c("data", "settings")
+model_tabs <- c(settings = "Settings", diagnostics = "Diagnostics", description = "Description")
+own_fit_tabs <- "settings"
+fit_tabs <- c("settings", "diagnostics", "description")
 
 mod_model_ui <- function(id, cid) {
   ns <- NS(id)
@@ -28,7 +29,6 @@ mod_model_ui <- function(id, cid) {
       def$label,
       tagList(
         def$detail,
-        if (cid == "weight") uiOutput(ns("density_note")),
         div(
           class = "d-flex flex-wrap align-items-center gap-2 mt-2",
           uiOutput(ns("status"), inline = TRUE),
@@ -57,11 +57,11 @@ mod_model_server <- function(id, store) {
     # status or fit changes, not when another model's does.
     status <- dedupe(reactive(store$statuses()[[cid]]))
     kind <- reactive(status()$kind)
-    sheet <- reactive(store$sheets()[[cid]])
+    sheet <- reactive(store$sheets()[[def$sheet]])
     page <- dedupe(reactive({
       source <- store$sources()[[cid]]
       sheet <- sheet()
-      mode <- if (is_prefit(source)) "prefit" else if (source == "none") "none" else if (is.null(sheet)) "no-sheet" else "user"
+      mode <- if (is_prefit(source)) "prefit" else if (source == "none") "none" else if (is.null(sheet)) "no-sheet" else source
       reference <- if (is_prefit(source)) prefit_reference(source)
       list(mode = mode, reference = reference, name = sheet$name, file = sheet$file, error = !is.null(sheet$error), warnings = sheet$warnings)
     }))
@@ -78,15 +78,15 @@ mod_model_server <- function(id, store) {
     influence <- reactive(req(store$influence[[cid]]()))
     errors <- reactive(store$setting_errors()[[cid]])
 
-    # A pre-fit model shows only its diagnostics and description; the page opens
-    # on the first tab shown.
-    prefit_mode <- dedupe(reactive(page()$mode == "prefit"))
-    observeEvent(prefit_mode(), {
-      prefit <- prefit_mode()
-      for (tab in own_fit_tabs) {
-        if (prefit) nav_hide("tab", tab, session = session) else nav_show("tab", tab, session = session)
+    # A pre-fit model shows only its diagnostics and description, and a census
+    # no tabs; the page opens on the first tab shown.
+    tab_mode <- dedupe(reactive(if (page()$mode %in% c("prefit", "census")) page()$mode else "fit"))
+    observeEvent(tab_mode(), {
+      hidden <- switch(tab_mode(), prefit = own_fit_tabs, census = fit_tabs, character())
+      for (tab in names(model_tabs)) {
+        if (tab %in% hidden) nav_hide("tab", tab, session = session) else nav_show("tab", tab, session = session)
       }
-      nav_select("tab", if (prefit) "diagnostics" else "data", session = session)
+      nav_select("tab", if (tab_mode() == "prefit") "diagnostics" else "settings", session = session)
     })
     # Once a fit to your data is ready, its page shows the diagnostics.
     ready <- dedupe(reactive(kind() == "ready"))
@@ -97,7 +97,8 @@ mod_model_server <- function(id, store) {
     sync_source_select(input, session, "source", cid, store)
 
     observeEvent(input$back, store$open("hub"))
-    observeEvent(input$to_data, store$go_to("data"))
+    # Opens the model's sheet on the Data step, or the step without a sheet.
+    observeEvent(input$to_data, if (is.null(sheet())) store$go_to("data") else store$view_sheet(def$sheet))
     observeEvent(input$fit, store$queue_fits(cid))
     observeEvent(input$cancel, store$cancel_fit(cid))
     observeEvent(input$view_estimates, store$open_estimate(cid))
@@ -107,12 +108,6 @@ mod_model_server <- function(id, store) {
     observeEvent(store$tab_request(), {
       request <- store$tab_request()
       if (identical(request$id, cid)) nav_select("tab", request$tab, session = session)
-    })
-
-    output$density_note <- renderUI({
-      if (store$species() == "nereo") {
-        div(class = "small text-body-secondary mt-1", with_help("Uses the stipe density in the density data", "weight_density"))
-      }
     })
 
     output$status <- renderUI(status_badge(status()))
@@ -151,28 +146,47 @@ mod_model_server <- function(id, store) {
           "layout-list", with_help(sprintf("Fitted in advance to %s", prefit_info[[page()$reference]]$data), "prefit"),
           "No fitting needed. The estimates use this model's saved results."
         )
+      } else if (mode == "census" && status$kind == "ready") {
+        notice(
+          "list-checks", with_help("Census of every counted plant", "census"),
+          if (store$species() == "macro") {
+            "Every counted Macrocystis plant has its fronds recorded, so the size sheet holds every plant of each survey. Survey biomass weighs each plant, and no size model is fitted."
+          } else {
+            sprintf(
+              "Size data is set to %s on the Data step, so the size sheet holds every counted plant of each survey. Survey biomass weighs each plant, and no size model is fitted. To fit a size model to a sample of the plants, choose %s there.",
+              size_data_info$census$label, size_data_info$sample$label
+            )
+          },
+          action = button(ns("to_data"), "View data", variant = "outline", size = "sm")
+        )
       } else if (mode == "none") {
         notice(
           "minus-circle", sprintf("%s is not used in this run", def$label),
           if (cid == "cover") {
-            "Add a cover sheet of drone surveys to estimate total site biomass."
+            "Add drone flights to the surveys and a canopy sheet of drone maps to estimate canopy biomass."
           } else {
             sprintf("Estimates that need %s are unavailable.", tolower(def$label))
           },
           tone = "muted"
         )
+      } else if (cid == "cover" && status$kind == "no-data" && mode == "user") {
+        notice(
+          "minus-circle", "No surveys with a drone flight",
+          "Add plot_area_m2, canopy_area_m2 and tide_height_m to the surveys flown by drone to fit the cover calibration.",
+          tone = "muted", action = button(ns("to_data"), "View data", variant = "outline", size = "sm")
+        )
       } else if (status$kind == "data-error") {
         notice(
           "x-circle", warning_help$data_check$title, status$message, warning_help$data_check$advice,
-          tone = "warning", action = button(ns("to_data"), "Go to data", variant = "outline", size = "sm")
+          tone = "warning", action = button(ns("to_data"), "View data", variant = "outline", size = "sm")
         )
       } else if (status$kind == "failed") {
         notice("x-circle", warning_help$failed$title, status$message, tone = "warning")
       } else if (status$kind == "not-fitted" && status$blocked) {
-        if (biomass_possible(store$sources())) {
-          notice("clock", "Fitted once plot biomass is ready", "Every other model in use must be ready first.", tone = "muted")
+        if (survey_possible(store$sources())) {
+          notice("clock", "Fitted once survey biomass is ready", "The weight and size models must be ready first.", tone = "muted")
         } else {
-          notice("minus-circle", "Needs plot biomass", "Plot biomass needs the density, size and weight models, each fitted to your data or pre-fit.", tone = "muted")
+          notice("minus-circle", "Needs survey biomass", "Survey biomass needs the weight and size models, each fitted to your data or pre-fit.", tone = "muted")
         }
       } else if (mode == "user" && status$kind == "ready") {
         tagList(
@@ -194,47 +208,6 @@ mod_model_server <- function(id, store) {
         div(class = "mt-2", button(ns("to_data"), "Go to data", variant = "outline"))
       )
     }
-
-    output$tab_data <- renderUI({
-      page <- page()
-      switch(page$mode,
-        user = panel(
-          tagList("Sheet ", tags$code(page$name)),
-          description = tagList(
-            paste0("From ", page$file, "."),
-            if (cid == "cover") {
-              span(
-                class = "d-inline-flex flex-wrap align-items-center gap-1 ms-1",
-                "One row per drone survey of a plot, a whole site or both, with each", with_help("canopy area", "canopy_area"),
-                "and the", with_help("tide height.", "tide_cover"),
-                "The model is fitted to the plot surveys with the wet plot biomass of their site-years; the figure shows the plot surveys."
-              )
-            }
-          ),
-          if (!is.null(page$warnings)) {
-            notice(
-              "alert-triangle", if (length(page$warnings) == 1) "The data check gave a warning" else sprintf("The data check gave %d warnings", length(page$warnings)),
-              lapply(page$warnings, div),
-              tone = "warning"
-            )
-          },
-          # A sheet that fails its check shows only its table, where the
-          # problem values are marked.
-          if (page$error) {
-            reactable::reactableOutput(ns("data"))
-          } else {
-            plot_table_nav(
-              ns("data_view"),
-              figure_plot(ns("data_plot"), data_plot_caption(cid, store$species())),
-              reactable::reactableOutput(ns("data"))
-            )
-          }
-        ),
-        "no-sheet" = no_sheet(sprintf("Add a %s sheet to the workbook, or upload a CSV, to fit this model.", def$sheet)),
-        none = not_used(),
-        NULL
-      )
-    })
 
     output$tab_settings <- renderUI({
       switch(page()$mode,
@@ -283,28 +256,6 @@ mod_model_server <- function(id, store) {
         "no-sheet" = no_sheet("The description appears once the model is fitted to your data."),
         none = not_used(),
         NULL
-      )
-    })
-
-    output$data_plot <- render_figure(
-      function() {
-        rows <- req(sheet())$rows
-        kelpbio_fn("plot_data", cid, store$species())(if (cid == "cover") plot_surveys(rows) else rows)
-      },
-      "data_plot",
-      aspect = data_plot_info[[cid]]$aspect,
-      alt = function() data_plot_caption(cid, store$species())
-    )
-
-    output$data <- reactable::renderReactable({
-      req(sheet())
-      app_table(
-        sheet()$rows,
-        page_size = 8,
-        defaultColDef = reactable::colDef(
-          na = "missing",
-          style = function(value, ...) if (is.na(value)) list(color = "var(--bs-warning-text-emphasis)")
-        )
       )
     })
 
