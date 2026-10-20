@@ -37,6 +37,19 @@ test_that("each download writes its file, and the fit bundle resumes the run", {
   })
 })
 
+test_that("the report renders to a PDF with Quarto", {
+  skip_on_cran()
+  skip_if_not(report_available(), "Quarto is not installed")
+  local_stub_fits()
+  shiny::testServer(store_app(mod_export_server, "export"), {
+    store$fit_all()
+    finish_fits(session, runner)
+
+    report <- output$`export-download_report`
+    expect_identical(readBin(report, "raw", 5), charToRaw("%PDF-"))
+  })
+})
+
 test_that("a file that is not a fit bundle is not resumed", {
   path <- withr::local_tempfile(fileext = ".rds")
   saveRDS(list(species = "nereo"), path)

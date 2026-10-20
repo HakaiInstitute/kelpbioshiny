@@ -1,5 +1,5 @@
-# Export step: downloads of the results, figures and fits, and an R script that
-# reproduces the run.
+# Export step: downloads of the results, figures, fits and report, and an R
+# script that reproduces the run.
 
 # `stand_ins` are the sites standing in for sites a model has no data for, by
 # model (store$stand_ins()).
@@ -141,11 +141,11 @@ export_script <- function(species, sources, sheets, workbook, priors, samplers, 
 }
 
 # Downloads ---------------------------------------------------------------------
-# The results workbook and the figures hold each estimate the run shows that is
-# available, at the choices made on its page on the Estimates step: each
-# model's predictions, and survey and canopy biomass in every measure
-# available. The fit bundle holds what the Data step needs to resume the run.
-# The report is not built yet.
+# The results workbook, the figures and the report hold each estimate the run
+# shows that is available, at the choices made on its page on the Estimates
+# step: each model's predictions, and survey and canopy biomass in every
+# measure available. The fit bundle holds what the Data step needs to resume
+# the run. The report (R/report.R) needs the Quarto command-line tool.
 
 download_items <- list(
   results = list(label = "Results workbook", detail = "Excel: every available estimate, with the settings and sources", file = "kelpbio-results-%s.xlsx", icon = "file-spreadsheet"),
@@ -294,17 +294,18 @@ write_figures <- function(estimates, path) {
   dir.create(dir)
   on.exit(unlink(dir, recursive = TRUE))
   figures <- unlist(lapply(Filter(function(x) is.null(x$error), estimates), `[[`, "figures"), recursive = FALSE)
-  files <- unlist(lapply(figures, function(figure) {
-    plot <- figure$plot + figure_theme()
-    vapply(c("png", "pdf"), function(ext) {
-      file <- file.path(dir, paste0(figure$name, ".", ext))
-      ggplot2::ggsave(file, plot, width = figure$width, height = figure$height, units = "in", dpi = 300)
-      file
-    }, "")
-  }))
+  files <- unlist(lapply(figures, function(figure) vapply(c("png", "pdf"), function(ext) save_figure(figure, dir, ext), "")))
   captions <- file.path(dir, "captions.txt")
   writeLines(sprintf("%s: %s", vapply(figures, `[[`, "", "name"), vapply(figures, `[[`, "", "caption")), captions)
   if (utils::zip(path, c(captions, files), flags = "-qj") != 0) stop("The figures could not be zipped.", call. = FALSE)
+}
+
+# An export_estimates() figure saved in `dir` in the app's figure theme, as a
+# PNG or PDF; returns its path.
+save_figure <- function(figure, dir, ext) {
+  file <- file.path(dir, paste0(figure$name, ".", ext))
+  ggplot2::ggsave(file, figure$plot + figure_theme(), width = figure$width, height = figure$height, units = "in", dpi = 300)
+  file
 }
 
 # A fit bundle: the run's data, sources, settings, fits to your data (with the
@@ -402,28 +403,28 @@ mod_export_server <- function(id, store) {
   moduleServer(id, function(input, output, session) {
     any_fitted <- reactive(any(record_status(store$records()) == "fitted"))
     suffix <- reactive(species_info[[store$species()]]$suffix)
-    enabled <- reactive(c(results = store$any_estimate(), figures = store$any_estimate(), bundle = any_fitted(), report = store$any_estimate()))
+    quarto <- report_available()
+    enabled <- reactive(c(results = store$any_estimate(), figures = store$any_estimate(), bundle = any_fitted(), report = store$any_estimate() && quarto))
 
-    # The estimates are computed once for the workbook and the figures.
+    # The estimates are computed once for the workbook, figures and report.
     estimates <- reactive(export_estimates(store))
     files <- list(
       results = cached_file(function(path) write_results(estimates(), settings_rows(store), path), ".xlsx"),
       figures = cached_file(function(path) write_figures(estimates(), path), ".zip"),
-      bundle = cached_file(function(path) saveRDS(run_bundle(store), path), ".rds")
+      bundle = cached_file(function(path) saveRDS(run_bundle(store), path), ".rds"),
+      report = cached_file(function(path) write_report(report_content(store), estimates(), path), ".pdf")
     )
 
-    # A download button while there is something to download; the report is
-    # not built yet, so its button shows a notice.
+    # A download button while there is something to download.
     lapply(names(download_items), function(key) {
       label <- paste("Download", tolower(download_items[[key]]$label))
       output[[paste0("button_", key)]] <- renderUI({
         if (!enabled()[[key]]) {
           return(tags$button(type = "button", class = "btn btn-light border btn-sm", disabled = NA, `aria-label` = label, lucide("download")))
         }
-        button(session$ns(paste0("download_", key)), NULL, "download", "outline", size = "sm", download = key != "report", `aria-label` = label)
+        button(session$ns(paste0("download_", key)), NULL, "download", "outline", size = "sm", download = TRUE, `aria-label` = label)
       })
     })
-    observeEvent(input$download_report, store$notify("Prototype: the report is not generated yet."))
 
     lapply(names(files), function(key) {
       item <- download_items[[key]]
@@ -450,7 +451,7 @@ mod_export_server <- function(id, store) {
 
     output$downloads_note <- renderText({
       if (store$any_estimate()) {
-        ""
+        if (quarto) "" else "The report needs Quarto installed where the app runs."
       } else {
         "Results, figures and the report become available once there is an estimate to save."
       }

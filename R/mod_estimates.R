@@ -181,17 +181,26 @@ mod_estimate_server <- function(id, store) {
       rows <- prediction_table(predictions_at(), plant)
       number <- function(name) reactable::colDef(name = name, cell = number_text, align = "right", class = "kb-tabular")
       app_table(rows, columns = Filter(Negate(is.null), list(
-        site = if ("site" %in% names(rows)) reactable::colDef(name = "Site"),
-        year = if ("year" %in% names(rows)) reactable::colDef(name = "Year"),
-        diameter_mm = if (plant && "diameter_mm" %in% names(rows)) reactable::colDef(name = "Sub-bulb diameter (mm)", align = "right", class = "kb-tabular"),
-        fronds = if (plant && "fronds" %in% names(rows)) reactable::colDef(name = "Fronds", align = "right", class = "kb-tabular"),
-        estimate = number("Estimate"),
-        lower = number("Lower"),
-        upper = number("Upper")
+        site = if ("site" %in% names(rows)) reactable::colDef(name = column_label("site")),
+        year = if ("year" %in% names(rows)) reactable::colDef(name = column_label("year")),
+        diameter_mm = if (plant && "diameter_mm" %in% names(rows)) reactable::colDef(name = column_label("diameter_mm"), align = "right", class = "kb-tabular"),
+        fronds = if (plant && "fronds" %in% names(rows)) reactable::colDef(name = column_label("fronds"), align = "right", class = "kb-tabular"),
+        estimate = number(column_label("estimate")),
+        lower = number(column_label("lower")),
+        upper = number(column_label("upper"))
       )))
     })
   })
 }
+
+# The heading of an estimates table column; another column, such as a grouping
+# column of the canopy sheet, is named in sentence case.
+column_labels <- c(
+  site = "Site", year = "Year", survey_id = "Survey", survey_area_m2 = "Area surveyed (m\u00b2)",
+  canopy_area_m2 = "Canopy area (m\u00b2)", plants = "Plants", diameter_mm = "Sub-bulb diameter (mm)",
+  fronds = "Fronds", estimate = "Estimate", lower = "Lower", upper = "Upper", flags = "Flags"
+)
+column_label <- function(name) if (name %in% names(column_labels)) column_labels[[name]] else sentence_case(name)
 
 # The predictions for a model's table: those of the figure unless the model
 # predicts along a predictor, where the table is at its reference value.
@@ -510,24 +519,23 @@ mod_derived_estimate_server <- function(id, store) {
       area <- function(name) {
         reactable::colDef(name = name, align = "right", class = "kb-tabular", format = reactable::colFormat(separators = TRUE, digits = 0))
       }
-      named <- c(site = "Site", year = "Year", survey_id = "Survey")
       columns <- lapply(stats::setNames(nm = setdiff(names(rows), c("estimate", "lower", "upper", "flags"))), function(name) {
         switch(name,
-          survey_area_m2 = area("Area surveyed (m\u00b2)"),
-          canopy_area_m2 = area("Canopy area (m\u00b2)"),
-          plants = reactable::colDef(name = "Plants", align = "right", class = "kb-tabular"),
-          reactable::colDef(name = if (name %in% names(named)) named[[name]] else sentence_case(name))
+          survey_area_m2 = ,
+          canopy_area_m2 = area(column_label(name)),
+          plants = reactable::colDef(name = column_label(name), align = "right", class = "kb-tabular"),
+          reactable::colDef(name = column_label(name))
         )
       })
       app_table(
         rows,
         row_style = function(index) if (flagged[index]) app_row_colour$info,
         columns = c(columns, list(
-          estimate = number("Estimate"),
-          lower = number("Lower"),
-          upper = number("Upper"),
+          estimate = number(column_label("estimate")),
+          lower = number(column_label("lower")),
+          upper = number(column_label("upper")),
           flags = reactable::colDef(
-            name = "Flags", minWidth = 220, sortable = FALSE, show = any(flagged),
+            name = column_label("flags"), minWidth = 220, sortable = FALSE, show = any(flagged),
             cell = function(value) {
               if (value == "") {
                 return(NULL)
