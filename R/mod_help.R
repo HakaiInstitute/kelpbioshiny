@@ -101,16 +101,28 @@ guide_glossary <- function() {
   )
 }
 
-# The warnings the app shows, each with what to do about it, from warning_help.
+# The warnings and notes the app shows, each with what to do about it, from
+# warning_help.
 guide_warnings <- function() {
-  tags$dl(
-    class = "row mb-0",
-    lapply(warning_help, function(warning) {
-      tagList(
-        tags$dt(class = "col-md-3 fw-medium", warning$title),
-        tags$dd(class = "col-md-9 text-body-secondary mb-3", warning$advice)
-      )
-    })
+  entries <- function(items) {
+    tags$dl(
+      class = "row mb-0",
+      lapply(items, function(warning) {
+        tagList(
+          tags$dt(class = "col-md-3 fw-medium", warning$title),
+          tags$dd(class = "col-md-9 text-body-secondary mb-3", warning$advice)
+        )
+      })
+    )
+  }
+  note <- vapply(warning_help, function(warning) isTRUE(warning$note), logical(1))
+  tagList(
+    h3(class = "fs-6 fw-semibold", "Warnings"),
+    p(class = "small text-body-secondary", "The fit or data cannot be relied on until they are fixed."),
+    entries(warning_help[!note]),
+    h3(class = "fs-6 fw-semibold mt-2", "Notes"),
+    p(class = "small text-body-secondary", "The fit is valid; check what is flagged."),
+    entries(warning_help[note])
   )
 }
 
@@ -126,7 +138,7 @@ guide_plant_weights <- function() {
 }
 
 # The guide's sections, by anchor id, as titled on the page and in its contents.
-guide_sections <- c(guide_steps = "Steps", guide_warnings = "Warnings", guide_glossary = "Glossary")
+guide_sections <- c(guide_steps = "Steps", guide_warnings = "Warnings and notes", guide_glossary = "Glossary")
 
 help_pages <- c(guide = "User guide", methods = "Methods", about = "About")
 help_page_icons <- c(guide = "book-open", methods = "sigma", about = "info")
@@ -204,7 +216,7 @@ help_guide_ui <- function() {
       panel(
         guide_sections[["guide_warnings"]],
         id = "guide_warnings", class = "kb-anchor",
-        description = "The warnings a model or sheet can show, and how to fix them.",
+        description = "The warnings and notes a model or sheet can show, and what to do about them.",
         guide_warnings()
       ),
       panel(

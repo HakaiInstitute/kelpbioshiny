@@ -471,9 +471,9 @@ mod_model_server <- function(id, store) {
         line(length(unconverged) == 0, if (length(unconverged) == 0) "All parameters converged" else sprintf("Not converged: %s", and_list(unconverged)), "diag_convergence"),
         if (divergent) line(FALSE, sprintf("Divergent transitions: %s%% of draws", format(fit_summary$perc_divergent)), "diag_convergence"),
         if (length(influencing) > 0) {
-          line(FALSE, sprintf("Prior influencing the estimate: %s", and_list(influencing)), "diag_sensitivity")
+          line(TRUE, sprintf("Prior influencing the estimate: %s", and_list(influencing)), "diag_sensitivity", tone = "info")
         } else if (length(weak_data) > 0) {
-          line(FALSE, sprintf("Not strongly informed by the data: %s", and_list(weak_data)), "diag_sensitivity")
+          line(TRUE, sprintf("Not strongly informed by the data: %s", and_list(weak_data)), "diag_sensitivity", tone = "info")
         } else {
           line(TRUE, "No prior sensitivity", "diag_sensitivity")
         },

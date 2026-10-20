@@ -84,16 +84,14 @@
       Export
       Save the estimates, or rerun the whole analysis in R.
       The app can also predict the wet weight of each plant, without biomass. Load a size sheet, use the weight model (fitted to your data or pre-fit), and open Weight on the Estimates step with Group by set to Individual plant.
+      Warnings and notes
+      The warnings and notes a model or sheet can show, and what to do about them.
       Warnings
-      The warnings a model or sheet can show, and how to fix them.
+      The fit or data cannot be relied on until they are fixed.
       Convergence warning
       Some parameters have not converged. Increase thinning (nthin) on the Settings tab, for example to 2, and refit.
       Divergent transitions
       The sampler could not explore part of the posterior. Raise adapt_delta on the Settings tab, for example to 0.99, and refit.
-      Prior sensitivity warning
-      If the flagged prior was not chosen on purpose, make it less informative on the Settings tab and refit.
-      Influential observations
-      Check the flagged observations, listed on the Diagnostics tab, for recording errors. Correct any error in the sheet, upload it again and refit; keep observations that check out.
       Settings changed since the fit
       The results and the R script use the settings the model was fitted with. Refit the model to use the new settings.
       The fit failed
@@ -102,6 +100,12 @@
       Correct the sheet and upload it again.
       Site names differ across sheets
       Rename the sites in the workbook so the names match exactly, then upload again.
+      Notes
+      The fit is valid; check what is flagged.
+      Prior sensitivity
+      If the flagged prior was not chosen on purpose, make it less informative on the Settings tab and refit.
+      Influential observations
+      Check the flagged observations, listed on the Diagnostics tab, for recording errors. Correct any error in the sheet, upload it again and refit; keep observations that check out.
       Glossary
       The terms behind the help icons in the app.
       R-hat

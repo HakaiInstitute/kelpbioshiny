@@ -357,7 +357,9 @@ status_list <- function(statuses, notes, ids = component_ids) {
 }
 
 # Each warning's title and what to do about it, read by the notices, the fit
-# messages and the User guide's warnings section.
+# messages and the User guide's warnings section. A note (`note`) flags
+# something to check in a valid fit; a warning, a fit or data that cannot be
+# relied on until it is fixed.
 warning_help <- list(
   convergence = list(
     title = "Convergence warning",
@@ -368,11 +370,11 @@ warning_help <- list(
     advice = "The sampler could not explore part of the posterior. Raise adapt_delta on the Settings tab, for example to 0.99, and refit."
   ),
   prior = list(
-    title = "Prior sensitivity warning",
+    title = "Prior sensitivity", note = TRUE,
     advice = "If the flagged prior was not chosen on purpose, make it less informative on the Settings tab and refit."
   ),
   influence = list(
-    title = "Influential observations",
+    title = "Influential observations", note = TRUE,
     advice = paste(
       "Check the flagged observations, listed on the Diagnostics tab, for recording errors.",
       "Correct any error in the sheet, upload it again and refit; keep observations that check out."
@@ -387,8 +389,8 @@ warning_help <- list(
   mismatch = list(title = "Site names differ across sheets", advice = mismatch_advice)
 )
 
-# The warnings of each model in `ids`, in words: "convergence", "divergent
-# transitions" and "prior sensitivity" for a ready model, "fit failed"
+# The warnings of each model in `ids`, in words: "convergence" and "divergent
+# transitions" for a ready model, "fit failed"
 # for a failed one.
 model_warnings <- function(statuses, ids = component_ids) {
   warnings <- lapply(ids, function(id) {
@@ -396,15 +398,14 @@ model_warnings <- function(statuses, ids = component_ids) {
     c(
       if (status$kind == "failed") "fit failed",
       if (isTRUE(status$convergence)) "convergence",
-      if (isTRUE(status$divergence)) "divergent transitions",
-      if (isTRUE(status$prior)) "prior sensitivity"
+      if (isTRUE(status$divergence)) "divergent transitions"
     )
   })
   Filter(length, stats::setNames(warnings, ids))
 }
 
 # A model's warnings as a phrase, for its own estimate page: "convergence and
-# prior sensitivity warnings", or "fit failed".
+# divergent transitions warnings", or "fit failed".
 warnings_phrase <- function(warnings) {
   if ("fit failed" %in% warnings) {
     return("fit failed")
@@ -491,7 +492,7 @@ convergence_notice <- function(settings_id, warning = "convergence") {
   )
 }
 
-# Prior sensitivity: a warning for parameters whose prior is influencing their
+# Prior sensitivity: a note for parameters whose prior is influencing their
 # estimate (sensitivity_flags()), its
 # advice linking to the Settings tab. priors is the fit's priors list, whose
 # entries the rows' term column names.
@@ -513,9 +514,9 @@ prior_notice <- function(rows, priors, settings_id) {
     sprintf("Unless it was chosen on purpose, %s on the Settings tab and refit.", advice)
   }
   notice(
-    "alert-triangle", warning_help$prior$title,
+    "info", warning_help$prior$title,
     settings_link(paste(prior_influence(flagged), action), settings_id),
-    tone = "warning"
+    tone = "info"
   )
 }
 
@@ -556,13 +557,13 @@ data_strength_notice <- function(rows) {
   }
   many <- length(weak_data) > 1
   notice(
-    "alert-triangle", sprintf("Not strongly informed by the data: %s", and_list(weak_data)),
+    "info", sprintf("Not strongly informed by the data: %s", and_list(weak_data)),
     sprintf(
       "%s largely on %s prior. Check that the %s reasonable; more data would narrow %s.",
       if (many) "Their estimates depend" else "Its estimate depends", if (many) "their" else "its",
       if (many) "priors are" else "prior is", if (many) "them" else "it"
     ),
-    tone = "warning"
+    tone = "info"
   )
 }
 
