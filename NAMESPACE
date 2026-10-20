@@ -9,8 +9,7 @@ importFrom(ggplot2,
   expand_limits,
   facet_wrap,
   ggplot,
-  labs,
-  theme_bw
+  labs
 )
 importFrom(kelpbio,
   kb_check_data_canopy,

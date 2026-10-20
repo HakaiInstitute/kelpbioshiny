@@ -160,3 +160,21 @@ app_row_colour <- list(
   warning = list(background = "var(--bs-warning-bg-subtle)"),
   info = list(background = "var(--bs-info-bg-subtle)")
 )
+
+# The theme of every figure, added by render_figure(): kelpbio's figures use
+# the active ggplot2 theme, so the app styles them all here, from the palette.
+figure_theme <- function() {
+  col <- app_palette
+  ggplot2::theme_bw(base_size = 11) +
+    ggplot2::theme(
+      text = ggplot2::element_text(colour = col$fg),
+      axis.text = ggplot2::element_text(colour = col$muted_fg),
+      axis.ticks = ggplot2::element_line(colour = col$border),
+      panel.border = ggplot2::element_rect(colour = col$border, fill = NA),
+      panel.grid.major = ggplot2::element_line(colour = col$muted),
+      panel.grid.minor = ggplot2::element_blank(),
+      strip.background = ggplot2::element_rect(fill = col$muted, colour = col$border),
+      strip.text = ggplot2::element_text(colour = col$fg),
+      legend.key = ggplot2::element_blank()
+    )
+}

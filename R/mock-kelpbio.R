@@ -8,7 +8,7 @@
 # `@importFrom kelpbio <fun>` to R/namespace.R. Everything with a leading dot
 # is mock plumbing and goes with the file, as do the ggplot2 imports below.
 
-#' @importFrom ggplot2 ggplot aes facet_wrap expand_limits labs theme_bw
+#' @importFrom ggplot2 ggplot aes facet_wrap expand_limits labs
 #' @noRd
 NULL
 
@@ -65,7 +65,7 @@ NULL
     canopy = ggplot(data, aes(.data$year, .data$canopy_area_m2)) + points() + labs(x = "Year", y = "Canopy area (m²)")
   )
   if (!is.null(facet)) p <- p + facet_wrap(facet)
-  p + expand_limits(y = 0) + theme_bw()
+  p + expand_limits(y = 0)
 }
 
 # Planned (see .mock_plot_data()).

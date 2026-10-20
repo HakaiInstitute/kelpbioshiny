@@ -312,21 +312,31 @@ figure_plot <- function(output_id, caption = NULL, class = NULL) {
   )
 }
 
-# Renders plot() at the figure's width, with a height in pixels or as a share
-# of the width (aspect); either can be a function, to follow other inputs.
+# Renders plot() in the app's figure theme (figure_theme()) at the figure's
+# width, with a height in pixels or as a share of the width (aspect); either
+# can be a function, to follow other inputs.
 render_figure <- function(plot, output_id, aspect = 0.5, height = NULL, alt = NA,
                           session = getDefaultReactiveDomain()) {
   value <- function(x) if (is.function(x)) x() else x
+  width <- function() session$clientData[[paste0("output_", session$ns(output_id), "_width")]]
   renderPlot(
-    plot(),
+    {
+      figure <- plot()
+      if (inherits(figure, "ggplot")) figure + figure_theme() else figure
+    },
     res = figure_res,
     alt = alt,
+    # A figure in a panel that is still opening has no width to draw at; it
+    # is drawn once the panel is open.
+    width = function() {
+      req(isTRUE(width() > 0))
+      width()
+    },
     height = function() {
       if (!is.null(height)) {
         return(value(height))
       }
-      width <- session$clientData[[paste0("output_", session$ns(output_id), "_width")]]
-      if (is.null(width) || width == 0) 400 else round(width * value(aspect))
+      if (isTRUE(width() > 0)) round(width() * value(aspect)) else 400
     }
   )
 }
