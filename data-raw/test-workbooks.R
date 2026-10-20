@@ -10,7 +10,7 @@
 # 2-prefit: size, survey and canopy sheets but no harvests or tissue samples,
 #   so weight, wet:dry and carbon are pre-fit.
 # 3-census (Nereocystis only): every counted plant measured, each survey's
-#   plants drawn from the measured sample of its site-year, and a twentieth
+#   plants drawn from the measured sample of its site-year (census_rows()), and a twentieth
 #   of them partial. Choose "All plants measured" under Size data before
 #   uploading.
 # 4-bad-data: every sheet, with a weight sheet missing two years (a data
@@ -27,11 +27,14 @@ write_workbook <- function(sheets, name, species) {
 }
 
 # A census of the surveys of a measured sample: each survey's plants drawn
-# from the diameters measured in its site-year.
+# from the diameters measured in its site-year or, where none were measured,
+# at its site in other years, or else anywhere.
 census_rows <- function(survey, size) {
   plants <- lapply(seq_len(nrow(survey)), function(i) {
     pool <- size$diameter_mm[size$site == survey$site[i] & size$year == survey$year[i]]
-    diameter <- if (length(pool) > 0) pool[sample.int(length(pool), survey$plants[i], replace = TRUE)] else numeric()
+    if (length(pool) == 0) pool <- size$diameter_mm[size$site == survey$site[i]]
+    if (length(pool) == 0) pool <- size$diameter_mm
+    diameter <- pool[sample.int(length(pool), survey$plants[i], replace = TRUE)]
     data.frame(survey_id = rep(survey$survey_id[i], length(diameter)), diameter_mm = diameter)
   })
   plants <- do.call(rbind, plants)
