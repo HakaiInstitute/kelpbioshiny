@@ -146,10 +146,9 @@ mod_estimate_server <- function(id, store) {
     })
 
     grouping <- reactive({
-      choices <- prediction_choices(cid, page()$prefit, page()$species, page()$plants)
-      chosen <- input$grouping
-      if (is.null(chosen) || !chosen %in% names(choices)) default_grouping(choices) else chosen
+      chosen_grouping(input$grouping, prediction_choices(cid, page()$prefit, page()$species, page()$plants))
     })
+    observeEvent(input$grouping, store$set_estimate_choice(cid, "grouping", input$grouping))
 
     # Titled and captioned as the biomass figures are.
     output$figure <- renderUI({
@@ -161,34 +160,12 @@ mod_estimate_server <- function(id, store) {
       )
     })
 
-    # The predictions for the figure, and for the table: the same call unless the
-    # model predicts along a predictor, where the table is at its reference value.
+    # The predictions for the figure, and for the table.
     predictions <- reactive(model_predictions(cid, req(fit()), grouping(), page()$species, plants = plants()))
-    predictions_at <- reactive({
-      if (is.null(prediction_info[[cid]]$along) || grouping() == "plant") {
-        predictions()
-      } else {
-        model_predictions(cid, req(fit()), grouping(), page()$species, at = TRUE)
-      }
-    })
+    predictions_at <- reactive(table_predictions(cid, req(fit()), grouping(), page()$species, predictions()))
 
-    # An overall prediction of a model without a predictor has no column for the
-    # x-axis, so it gets one naming what it is for. Each plant's weight is shown
-    # in one panel: faceted by site and year it would split into a panel per
-    # site-year, so every site-year is kept (max_facets) and the facets dropped.
     output$plot <- render_figure(
-      function() {
-        grouping <- grouping()
-        predictions <- predictions()
-        if (grouping == "plant") {
-          kb_plot_predictions(predictions, x = attr(predictions, "kb_predictor"), max_facets = Inf) + ggplot2::facet_null()
-        } else if (grouping == "population" && is.null(prediction_info[[cid]]$along)) {
-          predictions$group <- population_label(cid, page()$species)
-          kb_plot_predictions(predictions, x = "group") + ggplot2::labs(x = NULL)
-        } else {
-          kb_plot_predictions(predictions)
-        }
-      },
+      function() prediction_figure(cid, predictions(), grouping(), page()$species),
       "plot",
       aspect = function() prediction_aspect(cid, grouping()),
       alt = function() sprintf("Predicted %s for the %s model", prediction_info[[cid]]$response, lower_label(cid))
@@ -200,11 +177,10 @@ mod_estimate_server <- function(id, store) {
     })
 
     output$table <- reactable::renderReactable({
-      rows <- predictions_at()
       plant <- grouping() == "plant"
+      rows <- prediction_table(predictions_at(), plant)
       number <- function(name) reactable::colDef(name = name, cell = number_text, align = "right", class = "kb-tabular")
-      columns <- c("site", "year", if (plant) intersect(c("diameter_mm", "fronds"), names(rows)), "estimate", "lower", "upper")
-      app_table(rows[intersect(columns, names(rows))], columns = Filter(Negate(is.null), list(
+      app_table(rows, columns = Filter(Negate(is.null), list(
         site = if ("site" %in% names(rows)) reactable::colDef(name = "Site"),
         year = if ("year" %in% names(rows)) reactable::colDef(name = "Year"),
         diameter_mm = if (plant && "diameter_mm" %in% names(rows)) reactable::colDef(name = "Sub-bulb diameter (mm)", align = "right", class = "kb-tabular"),
@@ -215,6 +191,37 @@ mod_estimate_server <- function(id, store) {
       )))
     })
   })
+}
+
+# The predictions for a model's table: those of the figure unless the model
+# predicts along a predictor, where the table is at its reference value.
+table_predictions <- function(cid, fit, grouping, species, predictions) {
+  if (is.null(prediction_info[[cid]]$along) || grouping == "plant") {
+    return(predictions)
+  }
+  model_predictions(cid, fit, grouping, species, at = TRUE)
+}
+
+# The columns of a model's predictions table.
+prediction_table <- function(rows, plant = FALSE) {
+  columns <- c("site", "year", if (plant) c("diameter_mm", "fronds"), "estimate", "lower", "upper")
+  as.data.frame(rows)[intersect(columns, names(rows))]
+}
+
+# A model's predictions figure. An overall prediction of a model without a
+# predictor has no column for the x-axis, so it gets one naming what it is for.
+# Each plant's weight is shown in one panel: faceted by site and year it would
+# split into a panel per site-year, so every site-year is kept (max_facets) and
+# the facets dropped.
+prediction_figure <- function(cid, predictions, grouping, species) {
+  if (grouping == "plant") {
+    return(kb_plot_predictions(predictions, x = attr(predictions, "kb_predictor"), max_facets = Inf) + ggplot2::facet_null())
+  }
+  if (grouping == "population" && is.null(prediction_info[[cid]]$along)) {
+    predictions$group <- population_label(cid, species)
+    return(kb_plot_predictions(predictions, x = "group") + ggplot2::labs(x = NULL))
+  }
+  kb_plot_predictions(predictions)
 }
 
 # What an overall prediction is for: "All sites and years", "All sites" or,
@@ -236,6 +243,12 @@ default_grouping <- function(choices) {
     }
   }
   "population"
+}
+
+# The grouping chosen on a model's page, or the default where none is chosen or
+# the choice is no longer offered.
+chosen_grouping <- function(chosen, choices) {
+  if (is.null(chosen) || !chosen %in% names(choices)) default_grouping(choices) else chosen
 }
 
 predictions_panel <- function(ns, cid, prefit, species, plants) {
@@ -326,24 +339,12 @@ mod_derived_estimate_server <- function(id, store) {
     output_key <- reactive(if (store$outputs()[[chosen()]]$available) chosen() else "wet")
     available <- dedupe(reactive(store$estimates()[[eid]]))
     sums <- dedupe(reactive(derived_sums(eid, store$sheets())))
-    # Survey biomass is per m\u00b2 surveyed unless chosen otherwise, or in
-    # total in a census, where the area surveyed is often the whole site.
-    per_area <- reactive({
-      if (is.null(info$scales)) {
-        return(info$per_area)
-      }
-      scale <- input$scale %||% if (store$census()) "total" else "area"
-      scale == "area"
-    })
-    sum_key <- reactive({
-      choices <- sums()
-      if (is.null(choices)) {
-        return(NULL)
-      }
-      if (!is.null(input$sum) && input$sum %in% names(choices)) input$sum else names(choices)[1]
-    })
+    per_area <- reactive(chosen_per_area(eid, input$scale, store$census()))
+    sum_key <- reactive(chosen_sum(input$sum, sums()))
 
     observeEvent(input$output, chosen(input$output))
+    observeEvent(input$scale, store$set_estimate_choice(eid, "scale", input$scale))
+    observeEvent(input$sum, store$set_estimate_choice(eid, "sum", input$sum))
     observeEvent(input$change_sources, store$go_to("models"))
     observeEvent(input$to_models, store$go_to("models"))
     observe_warning_links(input, store)
@@ -495,34 +496,10 @@ mod_derived_estimate_server <- function(id, store) {
     })
     estimated <- reactive(if (!inherits(estimates(), "error")) estimates() else req(FALSE))
 
-    # By site and year, one facet per site, so the figure grows with the rows of
-    # facets (kb_plot_predictions() uses facet_wrap()'s default layout). Summed
-    # over every row, the one estimate gets a label on the x-axis.
     output$figure <- render_figure(
-      function() {
-        predictions <- estimated()
-        if (by_survey()) {
-          predictions <- predictions[predictions$site == site(), ]
-          return(kb_plot_predictions(predictions, x = "survey_id", max_facets = Inf) + ggplot2::facet_wrap(~year, scales = "free_x") + ggplot2::labs(x = "Survey"))
-        }
-        if (length(attr(predictions, "kb_group_vars")) == 0) {
-          predictions$group <- "All"
-          return(kb_plot_predictions(predictions, x = "group") + ggplot2::labs(x = NULL))
-        }
-        kb_plot_predictions(predictions)
-      },
+      function() derived_figure(estimated(), if (by_survey()) site()),
       "figure",
-      height = function() {
-        predictions <- estimated()
-        if (by_survey()) {
-          years <- unique(predictions$year[predictions$site == site()])
-          return(figure_px(60 + 170 * ggplot2::wrap_dims(length(years))[1]))
-        }
-        if (!all(c("site", "year") %in% attr(predictions, "kb_group_vars"))) {
-          return(figure_px(360))
-        }
-        figure_px(60 + 170 * ggplot2::wrap_dims(length(unique(predictions$site)))[1])
-      },
+      height = function() figure_px(derived_height(estimated(), if (by_survey()) site())),
       alt = function() sprintf("Estimated %s", tolower(labels()$label))
     )
 
@@ -566,15 +543,62 @@ mod_derived_estimate_server <- function(id, store) {
   })
 }
 
+# A derived estimate's figure: by site and year, one facet per site, so the
+# figure grows with the rows of facets (kb_plot_predictions() uses
+# facet_wrap()'s default layout); summed over every row, the one estimate gets
+# a label on the x-axis. With `site`, each survey of that site, by year.
+derived_figure <- function(predictions, site = NULL) {
+  if (!is.null(site)) {
+    predictions <- predictions[predictions$site == site, ]
+    return(kb_plot_predictions(predictions, x = "survey_id", max_facets = Inf) + ggplot2::facet_wrap(~year, scales = "free_x") + ggplot2::labs(x = "Survey"))
+  }
+  if (length(attr(predictions, "kb_group_vars")) == 0) {
+    predictions$group <- "All"
+    return(kb_plot_predictions(predictions, x = "group") + ggplot2::labs(x = NULL))
+  }
+  kb_plot_predictions(predictions)
+}
+
+# The height of derived_figure() in pixels at 96 dpi.
+derived_height <- function(predictions, site = NULL) {
+  if (!is.null(site)) {
+    years <- unique(predictions$year[predictions$site == site])
+    return(60 + 170 * ggplot2::wrap_dims(length(years))[1])
+  }
+  if (!all(c("site", "year") %in% attr(predictions, "kb_group_vars"))) {
+    return(360)
+  }
+  60 + 170 * ggplot2::wrap_dims(length(unique(predictions$site)))[1]
+}
+
+# The scale chosen for a derived estimate: survey biomass is per m\u00b2
+# surveyed unless chosen otherwise, or in total in a census, where the area
+# surveyed is often the whole site; canopy biomass is in total.
+chosen_per_area <- function(eid, chosen, census) {
+  if (is.null(derived_info[[eid]]$scales)) {
+    return(derived_info[[eid]]$per_area)
+  }
+  (chosen %||% if (census) "total" else "area") == "area"
+}
+
+# The rows chosen for a derived estimate (a derived_sums() name), or the first.
+chosen_sum <- function(chosen, choices) {
+  if (is.null(choices)) {
+    return(NULL)
+  }
+  if (!is.null(chosen) && chosen %in% names(choices)) chosen else names(choices)[1]
+}
+
 # A derived estimate's label and unit, for the chosen measure and scale.
 derived_labels <- function(eid, key, per_area) {
   info <- output_info[[key]]
   list(label = info$label, unit = info$unit[[if (per_area) "area" else "total"]])
 }
 
-derived_caption <- function(eid, labels, sum_key) {
+# With `site`, the caption of the figure of that site's surveys.
+derived_caption <- function(eid, labels, sum_key, site = NULL) {
   by <- switch(sum_key,
-    survey = " of each survey at the chosen site, faceted by year",
+    survey = sprintf(" of each survey at %s, faceted by year", if (is.null(site)) "the chosen site" else site),
     site_year = if (eid == "canopy") " of each drone map of a site by year, faceted by site" else " of each site-year by year, faceted by site",
     year = " summed over sites by year",
     sprintf(" summed by %s and year, faceted by %s", sum_key, sum_key)

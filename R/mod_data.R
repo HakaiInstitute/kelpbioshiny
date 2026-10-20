@@ -179,7 +179,7 @@ mod_data_ui <- function(id) {
     div(
       class = "d-flex flex-column gap-2",
       div(class = "kb-eyebrow text-body-secondary", "Resume a run"),
-      # TODO: read a fit bundle (the fits, sources and settings of a run) and restore the run from it.
+      # A fit bundle from the Export step: the data, fits, sources and settings of a run.
       fileInput(ns("bundle"), NULL, accept = ".rds", buttonLabel = "Fit bundle (.rds)", placeholder = "No file", width = "100%") |>
         tagAppendAttributes(class = "mb-0") |>
         file_names("Upload a fit bundle", "Chosen fit bundle")
@@ -302,8 +302,10 @@ mod_data_server <- function(id, store) {
       content = function(file) writexl::write_xlsx(template_sheets(store$species(), store$census()), file)
     )
     observeEvent(input$guide, store$open_help("guide"))
-    # TODO: replace the notice with the fit bundle once it is built.
-    observeEvent(input$bundle, store$notify("Prototype: resuming from a fit bundle is not simulated."))
+    observeEvent(input$bundle, {
+      upload <- input$bundle
+      replace_data(function() store$resume(upload$name, upload$datapath))
+    })
     observeEvent(input$workbook, {
       upload <- input$workbook
       replace_data(function() store$load_workbook(upload$name, upload$datapath))
