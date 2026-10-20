@@ -839,6 +839,31 @@ example_rows <- function(species) {
   })
 }
 
+# Stand-in sites ------------------------------------------------------------------
+# A site that a model has no data for takes the effect of a new site (kelpbio's
+# new_levels) unless sites in the model's data stand in for it (kelpbio's
+# representative_site; several are averaged). Survey biomass takes stand-ins for
+# the weight and size fits, canopy biomass for the cover calibration, each from
+# the rows it predicts.
+stand_in_ids <- list(survey = survey_ids, canopy = "cover")
+stand_in_rows <- c(survey = "survey", canopy = "canopy")
+
+# The sites of a fit, from kb_new_data().
+fit_sites <- function(fit) unique(as.character(kb_new_data(fit, by = "site")$site))
+
+# The sites of `rows` that a fit has no data for.
+new_sites <- function(fit, rows) setdiff(unique(as.character(rows$site)), fit_sites(fit))
+
+# The chosen stand-ins (`chosen`, by model) that are sites of each fit in use,
+# leaving out the models with none: kelpbio's representative_site, as a list
+# by fit.
+stand_in_sites <- function(chosen, fits) {
+  sites <- lapply(stats::setNames(nm = names(chosen)), function(id) {
+    if (!is.null(fits[[id]])) intersect(chosen[[id]], fit_sites(fits[[id]]))
+  })
+  Filter(length, sites)
+}
+
 # The arguments of kb_predict_biomass_survey() for the run: the weight fit, the
 # size fit or, in a census, the size sheet's plants, and the surveys.
 survey_biomass_args <- function(weight, size, sheets, census) {

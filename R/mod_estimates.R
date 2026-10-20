@@ -400,8 +400,44 @@ mod_derived_estimate_server <- function(id, store) {
           },
           if (!is.null(choices)) div(class = "small text-body-secondary w-100", textOutput(ns("sum_detail"), inline = TRUE))
         ),
+        uiOutput(ns("stand_ins")),
         plot_table_nav(ns("view"), uiOutput(ns("plot_panel")), uiOutput(ns("table_panel")), selected = isolate(input$view))
       )
+    })
+
+    # Stand-in sites: for each fit that has no data for some of the sites
+    # predicted, the sites of its data that stand in for them.
+    stand_in_models <- dedupe(reactive({
+      rows <- store$sheets()[[stand_in_rows[[eid]]]]$rows
+      models <- lapply(stats::setNames(nm = stand_in_ids[[eid]]), function(id) {
+        fit <- store$fit_of(id)
+        if (!is.null(fit) && !is.null(rows)) list(sites = fit_sites(fit), new = new_sites(fit, rows))
+      })
+      Filter(function(model) length(model$new) > 0, models)
+    }))
+    output$stand_ins <- renderUI({
+      models <- stand_in_models()
+      if (length(models) == 0) {
+        return(NULL)
+      }
+      chosen <- isolate(store$stand_ins_chosen())
+      what <- if (eid == "survey") "surveyed" else "mapped"
+      div(
+        class = "border rounded-3 p-3 mb-3",
+        div(class = "small fw-medium mb-1", with_help("Sites without model data", "stand_ins")),
+        div(class = "d-flex flex-wrap column-gap-4 row-gap-2", lapply(names(models), function(id) {
+          n <- length(models[[id]]$new)
+          selectizeInput(
+            ns(paste0("stand_in_", id)),
+            sprintf("%s: %d %s %s without data", label_of(id), n, what, if (n == 1) "site" else "sites"),
+            choices = models[[id]]$sites, selected = intersect(chosen[[id]], models[[id]]$sites), multiple = TRUE,
+            width = "18rem", options = list(placeholder = "A new site (default)")
+          )
+        }))
+      )
+    })
+    lapply(stand_in_ids[[eid]], function(id) {
+      observeEvent(input[[paste0("stand_in_", id)]], store$set_stand_ins(id, input[[paste0("stand_in_", id)]] %||% character()), ignoreNULL = FALSE, ignoreInit = TRUE)
     })
 
     # A note only where the rows are not obvious from their label.
@@ -491,7 +527,7 @@ mod_derived_estimate_server <- function(id, store) {
     )
 
     output$table <- reactable::renderReactable({
-      rows <- biomass_table(estimated())
+      rows <- biomass_table(estimated(), store$stand_ins())
       flagged <- rows$flags != ""
       number <- function(name) reactable::colDef(name = name, cell = number_text, align = "right", class = "kb-tabular")
       area <- function(name) {
@@ -548,13 +584,16 @@ derived_caption <- function(eid, labels, sum_key) {
 
 # The estimates table: the rows of a derived prediction without their draws,
 # with a flags column naming the models without data for each row's site-year,
-# from the *_support columns, which give what each model's data hold for it.
-# The sources, pre-fit or not, are the same for every row and are listed on the
-# Models step.
-biomass_table <- function(rows) {
+# from the *_support columns, which give what each model's data hold for it,
+# and the sites standing in where a model has no data for the site
+# (`stand_ins`, by model). The sources, pre-fit or not, are the same for every
+# row and are listed on the Models step.
+biomass_table <- function(rows, stand_ins = list()) {
   supports <- intersect(names(support_info), names(rows))
   flags <- vapply(seq_len(nrow(rows)), function(i) {
-    paste(unlist(lapply(supports, function(column) support_flag(column, rows[[column]][i]))), collapse = "|")
+    paste(unlist(lapply(supports, function(column) {
+      support_flag(column, rows[[column]][i], stand_ins[[support_info[[column]]$id]])
+    })), collapse = "|")
   }, character(1))
   keys <- c("survey_id", attr(rows, "kb_group_vars"), "survey_area_m2", "plants", "canopy_area_m2")
   columns <- intersect(c(unique(keys), "estimate", "lower", "upper"), names(rows))
@@ -570,13 +609,21 @@ support_info <- list(
 )
 
 # "No size data: uses its site and year", or NULL where the model has data for
-# the site-year.
-support_flag <- function(column, support) {
+# the site-year. A site without data takes the effects of the stand-in sites
+# (`stand_ins`), if any.
+support_flag <- function(column, support, stand_ins = NULL) {
   info <- support_info[[column]]
   if (support == info$full) {
     return(NULL)
   }
   model <- lower_label(info$id)
+  if (length(stand_ins) > 0 && support %in% c("year", "none")) {
+    uses <- and_list(stand_ins)
+    return(switch(support,
+      year = sprintf("No %s data at its site: uses its year, with %s for its site", model, uses),
+      sprintf("No %s data for its site or year: uses %s for its site", model, uses)
+    ))
+  }
   switch(support,
     "site, year" = sprintf("No %s data: uses its site and year", model),
     site = sprintf("No %s data: uses its site", model),

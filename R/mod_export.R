@@ -1,6 +1,9 @@
 # Export step: downloads (simulated) and an R script that reproduces the run.
 
-export_script <- function(species, sources, sheets, workbook, priors, samplers, census = is_census(species)) {
+# `stand_ins` are the sites standing in for sites a model has no data for, by
+# model (store$stand_ins()).
+export_script <- function(species, sources, sheets, workbook, priors, samplers, census = is_census(species),
+                          stand_ins = list()) {
   sp <- species_info[[species]]$suffix
   used <- component_ids[sources != "none"]
   from_data <- Filter(function(id) sources[[id]] == "user" && !is.null(sheets[[components[[id]]$sheet]]), used)
@@ -77,8 +80,16 @@ export_script <- function(species, sources, sheets, workbook, priors, samplers, 
     )
   }
   size_arg <- if (census) "size" else "fit_size"
-  survey_call <- function(m) paste(c("fit_weight", size_arg, "survey", measure_args(m)), collapse = ", ")
-  canopy_call <- function(m) paste(c("fit_cover_calibration", "canopy", measure_args(m)), collapse = ", ")
+  # Site names are the user's, so they are quoted as R strings.
+  quoted <- function(sites) paste(encodeString(sites, quote = "\""), collapse = ", ")
+  vector_code <- function(sites) if (length(sites) == 1) quoted(sites) else sprintf("c(%s)", quoted(sites))
+  survey_stand_ins <- stand_ins[intersect(survey_ids, names(stand_ins))]
+  survey_site <- if (length(survey_stand_ins) > 0) {
+    sprintf("representative_site = list(%s)", paste(sprintf("%s = %s", names(survey_stand_ins), vapply(survey_stand_ins, vector_code, "")), collapse = ", "))
+  }
+  canopy_site <- if (length(stand_ins$cover) > 0) sprintf("representative_site = %s", vector_code(stand_ins$cover))
+  survey_call <- function(m) paste(c("fit_weight", size_arg, "survey", measure_args(m), survey_site), collapse = ", ")
+  canopy_call <- function(m) paste(c("fit_cover_calibration", "canopy", measure_args(m), canopy_site), collapse = ", ")
   in_models <- setdiff(used, c("cover", if (census) "size"))
 
   paste(
@@ -110,7 +121,9 @@ export_script <- function(species, sources, sheets, workbook, priors, samplers, 
           "",
           "# The cover calibration, fitted to the wet survey biomass of the surveys",
           "# with a drone flight",
-          fit_lines("cover", "biomass")
+          # The app fits it to survey biomass without stand-in sites.
+          if (!is.null(survey_site)) sprintf("calibration_biomass <- kb_predict_biomass_survey(fit_weight, %s, survey)", size_arg),
+          fit_lines("cover", if (is.null(survey_site)) "biomass" else "calibration_biomass")
         )
       },
       if (canopy) {
@@ -232,7 +245,7 @@ mod_export_server <- function(id, store) {
       settings <- store$run_settings()
       code <- export_script(
         store$species(), store$sources(), store$sheets(), store$workbook(),
-        lapply(settings, `[[`, "priors"), lapply(settings, `[[`, "sampler"), store$census()
+        lapply(settings, `[[`, "priors"), lapply(settings, `[[`, "sampler"), store$census(), store$stand_ins()
       )
       tags$pre(id = session$ns("script"), class = "m-0 px-3 py-3 small bg-white border-0", .noWS = "inside", tags$code(.noWS = "inside", code))
     })

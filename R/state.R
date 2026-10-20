@@ -548,16 +548,42 @@ new_store <- function(session, run_fit = mirai_fit_runner) {
     f <- fits()
     list(fit = f$cover, canopy = s$sheets()$canopy$rows, wetdry = f$wetdry, carbon = f$carbon)
   }))
+  # The sites chosen to stand in for sites a model has no data for, by model
+  # (stand_in_sites()), and those of them that are sites of the fits in use.
+  s$stand_ins_chosen <- reactiveVal(list())
+  s$stand_ins <- dedupe(reactive(stand_in_sites(s$stand_ins_chosen(), fits())))
+  s$set_stand_ins <- function(id, sites) {
+    chosen <- isolate(s$stand_ins_chosen())
+    if (identical(chosen[[id]], sites)) {
+      return()
+    }
+    chosen[[id]] <- sites
+    s$stand_ins_chosen(chosen)
+  }
+  # kelpbio's representative_site for a derived estimate: a list by fit for
+  # survey biomass, the cover calibration's sites for canopy biomass, or NULL.
+  s$representative_site <- function(eid) {
+    sites <- s$stand_ins()[intersect(stand_in_ids[[eid]], names(s$stand_ins()))]
+    if (length(sites) == 0) {
+      return(NULL)
+    }
+    if (eid == "canopy") sites$cover else sites
+  }
+
   s$survey_biomass <- function(measure, per_area, pool_by) {
     a <- survey_inputs()
     kb_predict_biomass_survey(
       a$weight, a$size, a$survey, a$wetdry, a$carbon,
-      measure = measure, per_area = per_area, pool_by = pool_by, progress = "none"
+      measure = measure, per_area = per_area, pool_by = pool_by,
+      representative_site = s$representative_site("survey"), progress = "none"
     )
   }
   s$canopy_biomass <- function(measure, pool_by) {
     a <- canopy_inputs()
-    kb_predict_biomass_canopy(a$fit, a$canopy, a$wetdry, a$carbon, measure = measure, pool_by = pool_by)
+    kb_predict_biomass_canopy(
+      a$fit, a$canopy, a$wetdry, a$carbon,
+      measure = measure, pool_by = pool_by, representative_site = s$representative_site("canopy")
+    )
   }
 
   # Invalid prior and sampler settings, by model: list(priors, sampler), each a
@@ -679,6 +705,7 @@ new_store <- function(session, run_fit = mirai_fit_runner) {
   apply_sheets <- function(sheets, file) {
     update_records(function(records) idle_records())
     s$estimate(NULL)
+    s$stand_ins_chosen(list())
     s$sheets(sheets)
     s$workbook(file)
     census <- isolate(s$census())
