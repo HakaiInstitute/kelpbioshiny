@@ -1,8 +1,9 @@
-# Fitting in tests: kb_fit_*() stubs that record their calls and return a fake
-# fit at once, and a fit runner that runs each call in the session when told to.
+# Fitting in tests: kb_fit_*() stubs that record their calls and return a fit at
+# once, and a fit runner that runs each call in the session when told to.
 
 # Stubs every kb_fit_<model>_<species>() for the calling test. Each records its
-# arguments and returns the mock's fake fit. Returns an environment whose `calls`
+# arguments and returns kelpbio's fit of the model to its simulated data
+# (fit_weight_sim_nereo), so no MCMC runs. Returns an environment whose `calls`
 # lists list(model, species, args) in order, `model` being the app's model id.
 local_stub_fits <- function(env = parent.frame()) {
   log <- new.env()
@@ -13,7 +14,7 @@ local_stub_fits <- function(env = parent.frame()) {
     function(...) {
       args <- list(...)
       log$calls <- c(log$calls, list(list(model = model, species = species, args = args)))
-      .mock_new_fit(model_name(model), species, args$data, args$priors, args$chains, args$niters, args$nthin)
+      getExportedValue("kelpbio", sprintf("fit_%s_sim_%s", model_name(model), species))
     }
   }
   stubs <- list()

@@ -115,11 +115,12 @@ fitting_id <- function(records) {
 # a pre-fit source, the pre-fit model (list(fit, error)). Kinds: "not-used",
 # "no-data", "data-error", "not-fitted", "queued", "fitting", "ready" (pre-fit,
 # a census whose size sheet passes its check, or fitted) and "failed". A fitted
-# model carries three warnings: `convergence` when the fit did not converge,
-# `prior` (prior_warning, from its prior sensitivity) when a prior is
-# influencing an estimate, and `influence` (influence_warning, from
-# kb_influence()) when observations strongly influence the fit; and `outdated`
-# when its current `settings` differ from those it was fitted with.
+# model carries four warnings: `convergence` when parameters did not converge
+# and `divergence` when the sampler had too many divergent transitions (both
+# from fit_convergence()), `prior` (prior_warning, from its prior sensitivity)
+# when a prior is influencing an estimate, and `influence` (influence_warning,
+# from kb_influence()) when observations strongly influence the fit; and
+# `outdated` when its current `settings` differ from those it was fitted with.
 component_status <- function(source, sheet, record, prefit = NULL, cover_blocked = FALSE, prior_warning = FALSE,
                              influence_warning = FALSE, settings = NULL) {
   if (source == "none") {
@@ -140,11 +141,15 @@ component_status <- function(source, sheet, record, prefit = NULL, cover_blocked
   if (source == "census") {
     return(list(kind = "ready", source = source))
   }
+  if (record$status == "fitted") {
+    convergence <- fit_convergence(record$fit)
+  }
   switch(record$status,
     queued = list(kind = "queued", source = source),
     fitting = list(kind = "fitting", source = source),
     fitted = list(
-      kind = "ready", source = source, convergence = !kb_converged(record$fit), prior = prior_warning,
+      kind = "ready", source = source, convergence = convergence$convergence,
+      divergence = convergence$divergence, prior = prior_warning,
       influence = influence_warning,
       outdated = !is.null(record$settings) && !is.null(settings) && settings_changed(record$settings, settings)
     ),
@@ -155,7 +160,23 @@ component_status <- function(source, sheet, record, prefit = NULL, cover_blocked
 
 is_ready_status <- function(status) status$kind %in% c("ready", "not-used")
 is_pending_status <- function(status) status$kind %in% c("queued", "fitting")
-has_warning <- function(status) isTRUE(status$convergence) || isTRUE(status$prior) || isTRUE(status$influence)
+has_warning <- function(status) {
+  isTRUE(status$convergence) || isTRUE(status$divergence) || isTRUE(status$prior) || isTRUE(status$influence)
+}
+
+# Why a fit did not converge, by kelpbio's kb_converged() verdict:
+# `divergence` when its divergent transitions exceed kelpbio's limit, which a
+# higher adapt_delta fixes, and `convergence` when it fails for another reason,
+# such as a parameter whose R-hat or ESS is flagged, which more thinning fixes.
+fit_convergence <- function(fit) {
+  fit_summary <- summary(fit)
+  divergence <- fit_summary$perc_divergent > default_arg(kb_converged, "max_perc_divergent")
+  unconverged <- !all(fit_summary$coefficients$converged)
+  list(
+    convergence = !fit_summary$converged && (unconverged || !divergence),
+    divergence = !fit_summary$converged && divergence
+  )
+}
 
 # kb_sensitivity() rows flag a prior warning when any prior is not weak.
 prior_flagged <- function(rows) !is.null(rows) && !all(rows$weak_prior)
@@ -340,8 +361,8 @@ output_availability <- function(sources) {
 # models in use (`fits`) and the surveys (fit_cover_calibration()).
 fit_call <- function(id, species, sheets, priors, sampler, progress_dir, fits = list(), census = FALSE) {
   settings <- list(
-    priors = prior_list(priors), chains = sampler$chains, niters = sampler$niters, nthin = sampler$nthin,
-    progress = "none", progress_dir = progress_dir
+    priors = prior_list(priors), chains = fit_draws$chains, niters = fit_draws$niters, nthin = sampler$nthin,
+    control = list(adapt_delta = sampler$adapt_delta), progress = "none", progress_dir = progress_dir
   )
   if (id == "cover") {
     return(list(fn = fit_cover_calibration, args = c(list(species = species), survey_biomass_args(fits$weight, fits$size, sheets, census), settings)))
@@ -385,8 +406,8 @@ mirai_fit_runner <- function() {
   task <- ExtendedTask$new(function(fn, args) {
     start_daemons()
     current <<- mirai::mirai(
-      tryCatch(list(fit = do.call(fn, args)), error = function(e) list(error = conditionMessage(e))),
-      .args = list(fn = fn, args = args)
+      tryCatch(list(fit = do.call(fn, args)), error = function(e) list(error = condition_text(e))),
+      .args = list(fn = fn, args = args, condition_text = condition_text)
     )
     current
   })
@@ -438,8 +459,8 @@ new_store <- function(session, run_fit = mirai_fit_runner) {
     key <- paste(id, s$species(), source)
     if (is.null(prefits[[key]])) {
       prefits[[key]] <- tryCatch(
-        list(fit = kelpbio_fn("prefit", id, s$species())(reference = prefit_reference(source))),
-        error = function(e) list(error = conditionMessage(e))
+        list(fit = prefit_fit(id, s$species(), prefit_reference(source))),
+        error = function(e) list(error = condition_text(e))
       )
     }
     prefits[[key]]
@@ -512,16 +533,16 @@ new_store <- function(session, run_fit = mirai_fit_runner) {
     f <- fits()
     list(fit = f$cover, canopy = s$sheets()$canopy$rows, wetdry = f$wetdry, carbon = f$carbon)
   }))
-  s$survey_biomass <- function(measure, per_area, sum_by) {
+  s$survey_biomass <- function(measure, per_area, pool_by) {
     a <- survey_inputs()
     kb_predict_biomass_survey(
       a$weight, a$size, a$survey, a$wetdry, a$carbon,
-      measure = measure, per_area = per_area, sum_by = sum_by, progress = "none"
+      measure = measure, per_area = per_area, pool_by = pool_by, progress = "none"
     )
   }
-  s$canopy_biomass <- function(measure, per_area, sum_by) {
+  s$canopy_biomass <- function(measure, pool_by) {
     a <- canopy_inputs()
-    kb_predict_biomass_canopy(a$fit, a$canopy, a$wetdry, a$carbon, measure = measure, per_area = per_area, sum_by = sum_by)
+    kb_predict_biomass_canopy(a$fit, a$canopy, a$wetdry, a$carbon, measure = measure, pool_by = pool_by)
   }
 
   # Invalid prior and sampler settings, by model: list(priors, sampler), each a
@@ -646,7 +667,8 @@ new_store <- function(session, run_fit = mirai_fit_runner) {
     s$sheets(sheets)
     s$workbook(file)
     census <- isolate(s$census())
-    s$sources(census_sources(default_sources(sheets, census), census, sheets))
+    species <- isolate(s$species())
+    s$sources(valid_sources(default_sources(sheets, census, species), census, sheets, species))
   }
 
   # Every sheet of `rows` from the one file, checked.
@@ -659,16 +681,15 @@ new_store <- function(session, run_fit = mirai_fit_runner) {
     sheets <- isolate(s$sheets())
     sheets <- check_sheets(lapply(sheets, `[[`, "rows"), lapply(sheets, `[[`, "file"), isolate(s$species()), isolate(s$census()))
     s$sheets(sheets)
-    s$sources(census_sources(isolate(s$sources()), isolate(s$census()), sheets))
+    s$sources(valid_sources(isolate(s$sources()), isolate(s$census()), sheets, isolate(s$species())))
   }
 
-  # An example workbook of kb_example_data(), by default the one with every
-  # sheet; the census example holds a census, the others a measured sample.
-  s$load_example <- function(example = "full") {
-    s$size_data(if (example == "census") "census" else "sample")
+  # The example workbook of the species (example_rows()), with every sheet.
+  s$load_example <- function() {
+    s$size_data("sample")
     species <- isolate(s$species())
-    file <- sprintf("example-%s-%s.xlsx", gsub("_", "-", example), species)
-    apply_sheets(checked_sheets(kb_example_data(species, example), file), file)
+    file <- sprintf("example-%s.xlsx", species)
+    apply_sheets(checked_sheets(example_rows(species), file), file)
   }
 
   # A workbook that cannot be read, or has no sheet named after a model, leaves
@@ -676,7 +697,7 @@ new_store <- function(session, run_fit = mirai_fit_runner) {
   s$load_workbook <- function(file, path) {
     rows <- tryCatch(read_workbook(path), error = function(e) e)
     if (inherits(rows, "error")) {
-      s$notify(conditionMessage(rows), type = "error", title = sprintf("%s could not be read", file), duration = 10)
+      s$notify(condition_text(rows), type = "error", title = sprintf("%s could not be read", file), duration = 10)
       return()
     }
     if (length(rows) == 0) {
@@ -695,7 +716,7 @@ new_store <- function(session, run_fit = mirai_fit_runner) {
   s$load_csv <- function(id, file, path) {
     rows <- tryCatch(read_csv_rows(path), error = function(e) e)
     if (inherits(rows, "error")) {
-      s$notify(conditionMessage(rows), type = "error", title = sprintf("%s could not be read", file), duration = 10)
+      s$notify(condition_text(rows), type = "error", title = sprintf("%s could not be read", file), duration = 10)
       return()
     }
     cid <- sheet_component(id)
@@ -709,7 +730,7 @@ new_store <- function(session, run_fit = mirai_fit_runner) {
     s$sheets(sheets)
     sources <- isolate(s$sources())
     if (!is.null(cid) && "user" %in% components[[cid]]$sources && model_has_data(cid, sheets)) sources[[cid]] <- "user"
-    s$sources(census_sources(sources, isolate(s$census()), sheets))
+    s$sources(valid_sources(sources, isolate(s$census()), sheets, isolate(s$species())))
   }
 
   s$clear_data <- function() apply_sheets(list(), NULL)
@@ -890,7 +911,7 @@ new_store <- function(session, run_fit = mirai_fit_runner) {
     set_records(start_record(s$records(), id, s$settings()[[id]]))
     if (inherits(call, "error")) {
       unlink(progress_dir, recursive = TRUE)
-      fit_failed(id, conditionMessage(call))
+      fit_failed(id, condition_text(call))
       return()
     }
     running <<- list(id = id, dir = progress_dir)
@@ -926,7 +947,7 @@ new_store <- function(session, run_fit = mirai_fit_runner) {
     }
     isolate({
       id <- running$id
-      result <- tryCatch(runner$result(), error = function(e) list(error = conditionMessage(e)))
+      result <- tryCatch(runner$result(), error = function(e) list(error = condition_text(e)))
       stop_running()
       if (is.null(result$error)) fit_done(id, result$fit) else fit_failed(id, result$error)
     })

@@ -32,7 +32,7 @@ coverage <- function(sheets, sources, species) {
     rows <- sheets[[id]]$rows
     list(
       effects = if (id %in% survey_ids) c("site", "year", "site_year")[has_effect(id, c("site", "year", "site_year"), species)],
-      sites = unique(rows$site), years = unique(row_years(rows)), keys = site_years(rows)
+      sites = unique(rows$site), years = unique(as.character(rows$year)), keys = site_years(rows)
     )
   })
   keys <- unique(unlist(lapply(models, `[[`, "keys"), use.names = FALSE))
@@ -53,7 +53,7 @@ coverage <- function(sheets, sources, species) {
   # The sites and years of the surveys flown by drone, which the cover
   # calibration is fitted to: its site and year effects.
   flown <- if (!is.null(sheets$survey)) drone_surveys(sheets$survey$rows)
-  calibration <- list(sites = unique(flown$site), years = if (!is.null(flown) && nrow(flown) > 0) unique(row_years(flown)) else character())
+  calibration <- list(sites = unique(flown$site), years = if (!is.null(flown) && nrow(flown) > 0) unique(as.character(flown$year)) else character())
   model_keys <- unique(unlist(lapply(models[borrowing], `[[`, "keys"), use.names = FALSE))
   mismatched <- site_mismatches(sheets)
   list(
@@ -331,8 +331,8 @@ mod_data_server <- function(id, store) {
       output[[paste0("plot_", sid)]] <- render_figure(
         function() {
           size <- store$sheets()$size
-          plants <- if (store$census() && !is.null(size) && is.null(size$error)) size$rows
-          sheet_plot(sid, sheet()$rows, store$species(), facet(), plants)
+          size_census <- if (store$census() && !is.null(size) && is.null(size$error)) size$rows
+          sheet_plot(sid, sheet()$rows, store$species(), facet(), size_census)
         },
         paste0("plot_", sid),
         height = function() {
@@ -341,7 +341,7 @@ mod_data_server <- function(id, store) {
             width <- session$clientData[[paste0("output_", session$ns(paste0("plot_", sid)), "_width")]]
             return(if (is.null(width) || width == 0) 400 else round(width * data_plot_info[[sid]]$aspect))
           }
-          levels <- if (facet() == "site") unique(rows$site) else unique(row_years(rows))
+          levels <- if (facet() == "site") unique(rows$site) else unique(as.character(rows$year))
           figure_px(60 + 170 * ggplot2::wrap_dims(length(levels))[1])
         },
         alt = function() data_plot_caption(sid, store$species())

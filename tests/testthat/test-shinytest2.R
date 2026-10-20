@@ -1,6 +1,6 @@
 # Browser test: shinytest2 drives the installed app (system.file("app")) in a
-# headless browser, so install the package first. Never click Fit: with kelpbio
-# in place of the mocks it would run real MCMC.
+# headless browser, so install the package first. Never click Fit: it would run
+# real MCMC.
 
 test_that("the app boots, loads the example and shows the Models step without JavaScript errors", {
   skip_on_cran()

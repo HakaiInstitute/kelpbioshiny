@@ -1,8 +1,8 @@
 # Models step: a sub-navigation, the hub (sources, statuses, fit queue) and one
 # detail page per model (mod_model.R), switched with a hidden navset.
 
-source_choices <- function(id, has_sheet, census = FALSE) {
-  options <- model_sources(id, census)
+source_choices <- function(id, has_sheet, census = FALSE, species = "nereo") {
+  options <- model_sources(id, census, species)
   labels <- vapply(options, source_label, character(1))
   if (!has_sheet) labels[options == "user"] <- "Your data (no sheet)"
   stats::setNames(options, labels)
@@ -36,7 +36,7 @@ sync_source_select <- function(input, session, input_id, id, store) {
   }, ignoreInit = TRUE)
   observe({
     has_sheet <- !is.null(store$sheets()[[components[[id]]$sheet]])
-    updateSelectInput(session, input_id, choices = source_choices(id, has_sheet, store$census()), selected = store$sources()[[id]])
+    updateSelectInput(session, input_id, choices = source_choices(id, has_sheet, store$census(), store$species()), selected = store$sources()[[id]])
   })
 }
 

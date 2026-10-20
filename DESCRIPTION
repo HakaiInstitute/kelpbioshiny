@@ -15,21 +15,20 @@ BugReports: https://github.com/HakaiInstitute/kelpbioshiny/issues
 Depends:
     R (>= 4.2.0)
 Imports:
-    bayesplot,
     bslib,
     chk,
     generics,
     ggplot2,
     htmltools,
-    jsonlite,
+    kelpbio,
     mirai,
+    posterior,
+    priorsense,
     reactable,
     readxl,
     rlang,
-    scales,
     shiny,
     stats,
-    tibble,
     utils,
     withr,
     writexl
@@ -38,6 +37,8 @@ Suggests:
     pkgload,
     shinytest2,
     testthat (>= 3.0.0)
+Remotes:
+    HakaiInstitute/kelpbio@app-api-additions
 Encoding: UTF-8
 Roxygen: list(markdown = TRUE)
 Config/roxygen2/version: 8.1.0.9000

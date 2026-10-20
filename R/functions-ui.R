@@ -353,6 +353,10 @@ warning_help <- list(
     title = "Convergence warning",
     advice = "Some parameters have not converged. Increase thinning (nthin) on the Settings tab, for example to 2, and refit."
   ),
+  divergence = list(
+    title = "Divergent transitions",
+    advice = "The sampler could not explore part of the posterior. Raise adapt_delta on the Settings tab, for example to 0.99, and refit."
+  ),
   prior = list(
     title = "Prior sensitivity warning",
     advice = "If the flagged prior was not chosen on purpose, make it less informative on the Settings tab and refit."
@@ -373,8 +377,9 @@ warning_help <- list(
   mismatch = list(title = "Site names differ across sheets", advice = mismatch_advice)
 )
 
-# The warnings of each model in `ids`, in words: "convergence", "prior
-# sensitivity" and "influential observations" for a ready model, "fit failed"
+# The warnings of each model in `ids`, in words: "convergence", "divergent
+# transitions", "prior sensitivity" and "influential observations" for a ready
+# model, "fit failed"
 # for a failed one.
 model_warnings <- function(statuses, ids = component_ids) {
   warnings <- lapply(ids, function(id) {
@@ -382,6 +387,7 @@ model_warnings <- function(statuses, ids = component_ids) {
     c(
       if (status$kind == "failed") "fit failed",
       if (isTRUE(status$convergence)) "convergence",
+      if (isTRUE(status$divergence)) "divergent transitions",
       if (isTRUE(status$prior)) "prior sensitivity",
       if (isTRUE(status$influence)) "influential observations"
     )
@@ -467,11 +473,12 @@ settings_link <- function(text, settings_id) {
   HTML(paste0(htmltools::htmlEscape(parts[[1]]), as.character(link), htmltools::htmlEscape(parts[[2]])))
 }
 
-# A convergence warning, its advice linking to the Settings tab.
-convergence_notice <- function(settings_id) {
+# A convergence or divergence warning (`warning`), its advice linking to the
+# Settings tab.
+convergence_notice <- function(settings_id, warning = "convergence") {
   notice(
-    "alert-triangle", warning_help$convergence$title,
-    settings_link(warning_help$convergence$advice, settings_id),
+    "alert-triangle", warning_help[[warning]]$title,
+    settings_link(warning_help[[warning]]$advice, settings_id),
     tone = "warning"
   )
 }

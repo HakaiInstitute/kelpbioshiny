@@ -42,11 +42,19 @@ guide_sheets <- function() {
   )
 }
 
+# Each model's sources, naming the species of a pre-fit model only one has.
 guide_sources <- function() {
   guide_table(
     c("Model", "Sources"),
     lapply(component_ids, function(id) {
-      list(label_of(id), paste(vapply(components[[id]]$sources, source_label, ""), collapse = ", "))
+      by_species <- lapply(names(species_info), function(species) model_sources(id, species = species))
+      sources <- unique(unlist(by_species))
+      labels <- vapply(sources, function(source) {
+        species <- names(species_info)[vapply(by_species, function(x) source %in% x, logical(1))]
+        label <- htmltools::htmlEscape(source_label(source))
+        if (length(species) == 1) sprintf("%s (<em>%s</em> only)", label, species_info[[species]]$latin) else label
+      }, "")
+      list(label_of(id), HTML(paste(labels, collapse = ", ")))
     })
   )
 }

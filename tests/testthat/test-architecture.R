@@ -1,13 +1,13 @@
 # Architecture test: codetools walks the installed namespace (so it also runs
 # under R CMD check) to check the app's own functions (everything but the mocks,
-# whose names start with kb_ or .mock, and the mocks' kb_fit methods) call no
-# statistics and use only kelpbio functions that exist.
+# whose names start with kb_ or .mock) call no statistics and use only kelpbio
+# functions that exist.
 
 app_functions <- function() {
   ns <- asNamespace("kelpbioshiny")
   names <- ls(ns, all.names = TRUE)
   names <- names[vapply(names, function(name) is.function(get(name, envir = ns)), logical(1))]
-  mocks <- startsWith(names, "kb_") | startsWith(names, ".mock") | endsWith(names, ".kb_fit")
+  mocks <- startsWith(names, "kb_") | startsWith(names, ".mock")
   lapply(stats::setNames(nm = names[!mocks]), get, envir = ns)
 }
 

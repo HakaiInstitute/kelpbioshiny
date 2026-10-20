@@ -104,6 +104,7 @@ mod_model_server <- function(id, store) {
     observeEvent(input$cancel, store$cancel_fit(cid))
     observeEvent(input$view_estimates, store$open_estimate(cid))
     observeEvent(input$settings_convergence, nav_select("tab", "settings", session = session))
+    observeEvent(input$settings_divergence, nav_select("tab", "settings", session = session))
     observeEvent(input$settings_prior, {
       nav_select("tab", "settings", session = session)
       accordion_panel_open("priors_open", "priors", session = session)
@@ -193,7 +194,8 @@ mod_model_server <- function(id, store) {
         tagList(
           if (isTRUE(status$outdated)) notice("refresh-cw", warning_help$outdated$title, warning_help$outdated$advice, tone = "warning"),
           if (isTRUE(status$convergence)) convergence_notice(ns("settings_convergence")),
-          prior_notice(store$sensitivity[[cid]](), fit()$meta$priors, ns("settings_prior")),
+          if (isTRUE(status$divergence)) convergence_notice(ns("settings_divergence"), "divergence"),
+          prior_notice(store$sensitivity[[cid]](), prior_summary(fit()), ns("settings_prior")),
           influence_notice(store$influence[[cid]](), ns("diagnostics_influence"))
         )
       }
@@ -215,6 +217,10 @@ mod_model_server <- function(id, store) {
         user = tagList(
           panel(
             "Sampler settings",
+            description = sprintf(
+              "Each fit keeps %s draws from each of %s chains, as the pre-fit models do, so that their estimates can be combined.",
+              format(fit_draws$niters, big.mark = ","), fit_draws$chains
+            ),
             uiOutput(ns("sampler"))
           ),
           # Priors are an advanced setting, so they are collapsed unless the
@@ -380,11 +386,10 @@ mod_model_server <- function(id, store) {
     })
 
     sampler_labels <- list(
-      chains = with_help("Chains", "chains"),
-      niters = with_help("Iterations (niters)", "niters"),
-      nthin = with_help("Thinning (nthin)", "nthin")
+      nthin = with_help("Thinning (nthin)", "nthin"),
+      adapt_delta = with_help("Target acceptance (adapt_delta)", "adapt_delta")
     )
-    sampler_steps <- c(chains = 1, niters = 100, nthin = 1)
+    sampler_steps <- c(nthin = 1, adapt_delta = 0.01)
 
     output$sampler <- renderUI({
       current <- isolate(store$samplers()[[cid]])
@@ -411,7 +416,7 @@ mod_model_server <- function(id, store) {
     # Diagnostics -----------------------------------------------------------------
 
     output$convergence <- reactable::renderReactable({
-      rows <- kb_convergence(fitted_fit())[c("term", "rhat", "ess_bulk", "ess_tail", "converged")]
+      rows <- summary(fitted_fit())$coefficients[c("term", "rhat", "ess_bulk", "ess_tail", "converged")]
       app_table(
         rows,
         pagination = FALSE,
@@ -435,12 +440,12 @@ mod_model_server <- function(id, store) {
       alt = sprintf("Trace plots of the %s model parameters by chain", lower_label(cid))
     )
     output$ppc_dens <- render_figure(
-      function() kb_ppc_dens(fitted_fit()), "ppc_dens",
+      function() pp_check(fitted_fit(), type = "response"), "ppc_dens",
       aspect = 4 / 8,
       alt = sprintf("Density of the observed data over densities of simulated data for the %s model", lower_label(cid))
     )
     output$ppc_resid <- render_figure(
-      function() kb_ppc_resid(fitted_fit()), "ppc_resid",
+      function() pp_check(fitted_fit(), type = "residual"), "ppc_resid",
       aspect = 4 / 8,
       alt = sprintf("Density of the observed deviance residuals over those of simulated data for the %s model", lower_label(cid))
     )
@@ -454,8 +459,9 @@ mod_model_server <- function(id, store) {
         icon <- switch(tone, ok = lucide("check-circle-2", "text-success"), warning = lucide("alert-triangle", "text-warning"), info = lucide("info", "text-body-secondary"))
         tags$li(class = "d-flex align-items-center gap-2", icon, tags$a(href = paste0("#", ns(target)), class = "link-body-emphasis", text))
       }
-      convergence <- kb_convergence(fitted_fit())
-      unconverged <- convergence$term[!convergence$converged]
+      fit_summary <- summary(fitted_fit())
+      unconverged <- fit_summary$coefficients$term[!fit_summary$coefficients$converged]
+      divergent <- fit_convergence(fitted_fit())$divergence
       rows <- sensitivity()
       influencing <- rows$term[!rows$weak_prior]
       weak_data <- rows$term[rows$weak_prior & !rows$strong_data]
@@ -463,6 +469,7 @@ mod_model_server <- function(id, store) {
       tags$ul(
         class = "list-unstyled d-flex flex-column gap-2 mb-0 small",
         line(length(unconverged) == 0, if (length(unconverged) == 0) "All parameters converged" else sprintf("Not converged: %s", and_list(unconverged)), "diag_convergence"),
+        if (divergent) line(FALSE, sprintf("Divergent transitions: %s%% of draws", format(fit_summary$perc_divergent)), "diag_convergence"),
         if (length(influencing) > 0) {
           line(FALSE, sprintf("Prior influencing the estimate: %s", and_list(influencing)), "diag_sensitivity")
         } else if (length(weak_data) > 0) {
@@ -550,7 +557,7 @@ influence_panel <- function(ns) {
   panel(
     with_help("Influential observations", "influence"),
     id = ns("diag_influence"),
-    description = sprintf("Pareto k above %s: check these for recording errors.", default_arg(kb_influence, "threshold")),
+    description = "Observations with a high Pareto k: check these for recording errors.",
     uiOutput(ns("influence_note")),
     reactable::reactableOutput(ns("influence"))
   )

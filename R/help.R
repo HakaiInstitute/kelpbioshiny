@@ -88,7 +88,7 @@ help_topics <- list(
     body = function() {
       paste(
         "Pareto k measures how much the fit changes when an observation is left out.",
-        sprintf("Above %s, the observation strongly influences the estimates.", default_arg(kb_influence, "threshold")),
+        "Above a threshold that loo sets from the number of draws, the observation strongly influences the estimates.",
         "That can be a recording error, or a valid observation in a site-year with few others."
       )
     },
@@ -102,21 +102,20 @@ help_topics <- list(
     ),
     link = kelpbio_articles$results$path
   ),
-  chains = list(
-    title = "Chains",
-    body = "Independent runs of the sampler. Comparing the chains with each other shows whether the sampler has converged.",
-    link = kelpbio_articles$diagnostics$path
-  ),
-  niters = list(
-    title = "Iterations (niters)",
-    body = "The number of draws kept from each chain. More draws give more reliable estimates, but fitting takes longer.",
-    link = kelpbio_articles$diagnostics$path
-  ),
+
   nthin = list(
     title = "Thinning (nthin)",
     body = paste(
       "Keeps every nth draw from each chain. The sampler runs n times as many iterations to keep the same number of draws,",
       "so the kept draws are less alike and ESS goes up. Fitting takes about n times as long."
+    ),
+    link = kelpbio_articles$diagnostics$path
+  ),
+  adapt_delta = list(
+    title = "Target acceptance (adapt_delta)",
+    body = paste(
+      "The acceptance rate the sampler tunes its step size to. A higher value takes smaller steps,",
+      "which removes divergent transitions but makes fitting slower."
     ),
     link = kelpbio_articles$diagnostics$path
   ),
@@ -153,7 +152,7 @@ help_topics <- list(
     title = "Census",
     body = paste(
       "With a sample of plants measured, the surveys tally their plants and a size model is fitted to the plants measured.",
-      "With all plants measured (a census), the size sheet holds the plants of each survey, joined to it by site, plot_id and date, and the survey sheet has no plants column.",
+      "With all plants measured (a census), the size sheet holds the plants of each survey, joined to it by survey_id, and the survey sheet has no plants column.",
       "Survey biomass then sums the weights of the plants, and no size model is fitted. Macrocystis surveys are always a census."
     ),
     link = kelpbio_articles$models$path

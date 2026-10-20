@@ -356,7 +356,7 @@ mod_derived_estimate_server <- function(id, store) {
       result <- estimates()
       estimate_notices(ns, store, unique(c(derived_components[[eid]], output_components[[key]])), extra = c(
         lapply(unavailable, function(reason) notice("minus-circle", reason, tone = "muted")),
-        if (inherits(result, "error")) list(notice("x-circle", sprintf("%s could not be estimated", estimate_label(eid)), conditionMessage(result), tone = "warning"))
+        if (inherits(result, "error")) list(notice("x-circle", sprintf("%s could not be estimated", estimate_label(eid)), condition_text(result), tone = "warning"))
       ))
     })
 
@@ -451,8 +451,8 @@ mod_derived_estimate_server <- function(id, store) {
       key <- output_key()
       tryCatch(
         switch(eid,
-          survey = store$survey_biomass(key, per_area(), sums()[[sum_key()]]$sum_by),
-          canopy = store$canopy_biomass(key, per_area(), sums()[[sum_key()]]$sum_by)
+          survey = store$survey_biomass(key, per_area(), sums()[[sum_key()]]$pool_by),
+          canopy = store$canopy_biomass(key, sums()[[sum_key()]]$pool_by)
         ),
         error = function(e) e
       )
@@ -467,7 +467,7 @@ mod_derived_estimate_server <- function(id, store) {
         predictions <- estimated()
         if (by_survey()) {
           predictions <- predictions[predictions$site == site(), ]
-          return(kb_plot_predictions(predictions, x = "plot_id", max_facets = Inf) + ggplot2::facet_wrap(~year) + ggplot2::labs(x = "Plot"))
+          return(kb_plot_predictions(predictions, x = "survey_id", max_facets = Inf) + ggplot2::facet_wrap(~year, scales = "free_x") + ggplot2::labs(x = "Survey"))
         }
         if (length(attr(predictions, "kb_group_vars")) == 0) {
           predictions$group <- "All"
@@ -497,7 +497,7 @@ mod_derived_estimate_server <- function(id, store) {
       area <- function(name) {
         reactable::colDef(name = name, align = "right", class = "kb-tabular", format = reactable::colFormat(separators = TRUE, digits = 0))
       }
-      named <- c(site = "Site", year = "Year", plot_id = "Plot", date = "Date")
+      named <- c(site = "Site", year = "Year", survey_id = "Survey")
       columns <- lapply(stats::setNames(nm = setdiff(names(rows), c("estimate", "lower", "upper", "flags"))), function(name) {
         switch(name,
           survey_area_m2 = area("Area surveyed (m\u00b2)"),
@@ -538,7 +538,7 @@ derived_labels <- function(eid, key, per_area) {
 
 derived_caption <- function(eid, labels, sum_key) {
   by <- switch(sum_key,
-    survey = " of each survey at the chosen site by plot, faceted by year",
+    survey = " of each survey at the chosen site, faceted by year",
     site_year = if (eid == "canopy") " of each drone map of a site by year, faceted by site" else " of each site-year by year, faceted by site",
     year = " summed over sites by year",
     sprintf(" summed by %s and year, faceted by %s", sum_key, sum_key)
@@ -556,7 +556,7 @@ biomass_table <- function(rows) {
   flags <- vapply(seq_len(nrow(rows)), function(i) {
     paste(unlist(lapply(supports, function(column) support_flag(column, rows[[column]][i]))), collapse = "|")
   }, character(1))
-  keys <- c(attr(rows, "kb_group_vars"), "plot_id", "date", "survey_area_m2", "plants", "canopy_area_m2")
+  keys <- c("survey_id", attr(rows, "kb_group_vars"), "survey_area_m2", "plants", "canopy_area_m2")
   columns <- intersect(c(unique(keys), "estimate", "lower", "upper"), names(rows))
   data.frame(as.data.frame(summary_columns(rows))[columns], flags = flags)
 }

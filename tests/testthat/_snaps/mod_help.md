@@ -18,39 +18,39 @@
       Harvested plant
       Nereocystis luetkeana
       :
-      site, date, diameter_mm, weight_kg
+      site, year, diameter_mm, weight_kg
       Macrocystis pyrifera
       :
-      site, date, fronds, weight_kg
+      site, year, fronds, weight_kg
       size
       Measured plant; in a census, every counted plant
       Nereocystis luetkeana
       :
-      site, plot_id, date, diameter_mm
+      site, year, diameter_mm
       Nereocystis luetkeana
       ,
       all plants measured
       :
-      site, plot_id, date, diameter_mm, partial
+      survey_id, diameter_mm, partial
       Macrocystis pyrifera
       :
-      site, plot_id, date, fronds, partial
+      survey_id, fronds, partial
       survey
-      In situ survey of a plot
+      In situ survey
       Nereocystis luetkeana
       :
-      site, plot_id, date, survey_area_m2, plants, plot_area_m2, canopy_area_m2, tide_height_m
+      survey_id, site, year, survey_area_m2, plants, plot_area_m2, canopy_area_m2, tide_height_m
       Nereocystis luetkeana
       ,
       all plants measured
       :
-      site, plot_id, date, survey_area_m2, plot_area_m2, canopy_area_m2, tide_height_m
+      survey_id, site, year, survey_area_m2, plot_area_m2, canopy_area_m2, tide_height_m
       Macrocystis pyrifera
       :
-      site, plot_id, date, survey_area_m2, plot_area_m2, canopy_area_m2, tide_height_m
+      survey_id, site, year, survey_area_m2, plot_area_m2, canopy_area_m2, tide_height_m
       canopy
-      Drone map of a site in a year
-      site, year, canopy_area_m2, tide_height_m, site_area_m2
+      Drone map of a site
+      site, year, canopy_area_m2, tide_height_m, classified_area_m2
       wetdry
       Tissue sample
       wet_mass_g, dry_mass_g
@@ -64,9 +64,13 @@
       Model
       Sources
       Weight
-      Your data, Pre-fit Coastwide, Pre-fit Hakai Institute
+      Your data, Pre-fit Coastwide (
+      Nereocystis luetkeana
+      only), Pre-fit Hakai Institute
       Size
-      Your data, Pre-fit Hakai Institute, Not used
+      Your data, Pre-fit Hakai Institute (
+      Nereocystis luetkeana
+      only), Not used
       Wet:dry
       Your data, Pre-fit Hakai Institute, Not used
       Carbon
@@ -84,6 +88,8 @@
       The warnings a model or sheet can show, and how to fix them.
       Convergence warning
       Some parameters have not converged. Increase thinning (nthin) on the Settings tab, for example to 2, and refit.
+      Divergent transitions
+      The sampler could not explore part of the posterior. Raise adapt_delta on the Settings tab, for example to 0.99, and refit.
       Prior sensitivity warning
       If the flagged prior was not chosen on purpose, make it less informative on the Settings tab and refit.
       Influential observations
@@ -111,19 +117,16 @@
       Prior sensitivity measures how far each estimate moves when the priors, and then the data, are given slightly more or less weight. A weak prior means the priors are not driving the estimate, and strong data means the data are informative about it. A parameter without both depends on the priors as much as on the data.
       Learn more (https://hakaiinstitute.github.io/kelpbio/articles/diagnostics.html)
       Influential observations
-      Pareto k measures how much the fit changes when an observation is left out. Above 0.7, the observation strongly influences the estimates. That can be a recording error, or a valid observation in a site-year with few others.
+      Pareto k measures how much the fit changes when an observation is left out. Above a threshold that loo sets from the number of draws, the observation strongly influences the estimates. That can be a recording error, or a valid observation in a site-year with few others.
       Learn more (https://hakaiinstitute.github.io/kelpbio/articles/diagnostics.html)
       Overall and group predictions
       Overall predictions are for a typical site in a typical year. They leave out the differences between sites and between years, so they suit sites and years that were not sampled. Predictions by site or by year add the estimated difference for each sampled site or year, so they describe those sites and years. Predictions by site and year include both.
       Learn more (https://hakaiinstitute.github.io/kelpbio/articles/results.html)
-      Chains
-      Independent runs of the sampler. Comparing the chains with each other shows whether the sampler has converged.
-      Learn more (https://hakaiinstitute.github.io/kelpbio/articles/diagnostics.html)
-      Iterations (niters)
-      The number of draws kept from each chain. More draws give more reliable estimates, but fitting takes longer.
-      Learn more (https://hakaiinstitute.github.io/kelpbio/articles/diagnostics.html)
       Thinning (nthin)
       Keeps every nth draw from each chain. The sampler runs n times as many iterations to keep the same number of draws, so the kept draws are less alike and ESS goes up. Fitting takes about n times as long.
+      Learn more (https://hakaiinstitute.github.io/kelpbio/articles/diagnostics.html)
+      Target acceptance (adapt_delta)
+      The acceptance rate the sampler tunes its step size to. A higher value takes smaller steps, which removes divergent transitions but makes fitting slower.
       Learn more (https://hakaiinstitute.github.io/kelpbio/articles/diagnostics.html)
       Estimates and limits
       Each estimate is the median of the posterior distribution. The lower and upper limits bound the 95% compatibility interval: the range of values most compatible with the data and the model.
@@ -135,7 +138,7 @@
       The models are hierarchical, so a site-year without data still gets an estimate. It uses the site's estimate from other years and the year's estimate from other sites, with a wider compatibility interval. With neither the site nor the year in the data, the estimate is for a typical site and year.
       Learn more (https://hakaiinstitute.github.io/kelpbio/articles/results.html)
       Census
-      With a sample of plants measured, the surveys tally their plants and a size model is fitted to the plants measured. With all plants measured (a census), the size sheet holds the plants of each survey, joined to it by site, plot_id and date, and the survey sheet has no plants column. Survey biomass then sums the weights of the plants, and no size model is fitted. Macrocystis surveys are always a census.
+      With a sample of plants measured, the surveys tally their plants and a size model is fitted to the plants measured. With all plants measured (a census), the size sheet holds the plants of each survey, joined to it by survey_id, and the survey sheet has no plants column. Survey biomass then sums the weights of the plants, and no size model is fitted. Macrocystis surveys are always a census.
       Learn more (https://hakaiinstitute.github.io/kelpbio/articles/models.html)
       Survey biomass
       The biomass of the plants counted in an in situ survey, per square metre of the area surveyed or in total over it. By site and year, the surveys of a site-year are pooled: their summed biomass, divided by their summed area for biomass per square metre.

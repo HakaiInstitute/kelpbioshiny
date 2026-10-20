@@ -19,6 +19,7 @@ test_that("Fit all fits each model with its sheet data and sampler settings", {
   log <- local_stub_fits()
   shiny::testServer(store_app(), {
     store$update_sampler("size", "nthin", 2)
+    store$update_sampler("size", "adapt_delta", 0.99)
     store$fit_all()
     finish_fits(session, runner)
 
@@ -26,6 +27,8 @@ test_that("Fit all fits each model with its sheet data and sampler settings", {
     size <- log$calls[[2]]$args
     expect_identical(size$data, store$sheets()$size$rows)
     expect_identical(size$nthin, 2)
+    expect_identical(size$control, list(adapt_delta = 0.99))
+    expect_identical(c(size$chains, size$niters), c(4L, 1000L))
     expect_identical(store$statuses()$size$kind, "ready")
   })
 })
