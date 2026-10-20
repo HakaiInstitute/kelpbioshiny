@@ -330,7 +330,7 @@ mod_model_server <- function(id, store) {
       current <- isolate(store$priors()[[cid]])
       # After a fit, mark the priors the sensitivity check found influential.
       rows <- if (kind() == "ready") isolate(store$sensitivity[[cid]]())
-      influential <- if (!is.null(rows)) rows$term[!rows$weak_prior]
+      influential <- if (!is.null(rows)) sensitivity_flags(rows)$influencing
       tags$fieldset(
         disabled = if (pending()) NA,
         div(
@@ -463,8 +463,8 @@ mod_model_server <- function(id, store) {
       unconverged <- fit_summary$coefficients$term[!fit_summary$coefficients$converged]
       divergent <- fit_convergence(fitted_fit())$divergence
       rows <- sensitivity()
-      influencing <- rows$term[!rows$weak_prior]
-      weak_data <- rows$term[rows$weak_prior & !rows$strong_data]
+      influencing <- sensitivity_flags(rows)$influencing
+      weak_data <- sensitivity_flags(rows)$weak_data
       influential <- if (page()$mode == "user") sum(influence()$influential)
       tags$ul(
         class = "list-unstyled d-flex flex-column gap-2 mb-0 small",
@@ -485,15 +485,25 @@ mod_model_server <- function(id, store) {
     })
 
     output$sensitivity <- reactable::renderReactable({
-      rows <- sensitivity()[c("term", "weak_prior", "strong_data")]
-      flag <- function(value) if (value) "Yes" else warning_badge("No", NULL)
+      rows <- sensitivity()[c("term", "weak_prior", "strong_data", "informative_prior")]
+      # A prior informative by design is not flagged.
+      flag <- function(value, index) {
+        if (value) {
+          return("Yes")
+        }
+        if (rows$informative_prior[index]) "No" else warning_badge("No", NULL)
+      }
       app_table(
         rows,
         pagination = FALSE,
         columns = list(
           term = reactable::colDef(name = "Parameter", style = list(fontFamily = "var(--bs-font-monospace)")),
           weak_prior = reactable::colDef(name = "Weak prior", cell = flag),
-          strong_data = reactable::colDef(name = "Strong data", cell = flag)
+          strong_data = reactable::colDef(name = "Strong data", cell = flag),
+          informative_prior = reactable::colDef(
+            name = "Note", minWidth = 160, show = any(rows$informative_prior),
+            cell = function(value) if (value) "Informative by design"
+          )
         )
       )
     })

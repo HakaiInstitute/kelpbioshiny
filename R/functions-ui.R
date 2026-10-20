@@ -491,14 +491,15 @@ convergence_notice <- function(settings_id, warning = "convergence") {
   )
 }
 
-# Prior sensitivity: a warning for parameters whose prior is not weak, its
+# Prior sensitivity: a warning for parameters whose prior is influencing their
+# estimate (sensitivity_flags()), its
 # advice linking to the Settings tab. priors is the fit's priors list, whose
 # entries the rows' term column names.
 prior_notice <- function(rows, priors, settings_id) {
   if (!prior_flagged(rows)) {
     return(NULL)
   }
-  flagged <- rows[!rows$weak_prior, ]
+  flagged <- rows[rows$term %in% sensitivity_flags(rows)$influencing, ]
   many <- nrow(flagged) > 1
   advice <- vapply(seq_len(nrow(flagged)), function(i) {
     prior_advice(priors[[flagged$term[i]]], if (many) flagged$term[i])
@@ -545,8 +546,9 @@ influence_notice <- function(rows, diagnostics_id) {
 # prior that the data do not strongly inform, whose estimates then rest
 # largely on the prior. The prior warning itself is in the model page header.
 data_strength_notice <- function(rows) {
-  weak_data <- rows$term[rows$weak_prior & !rows$strong_data]
-  if (all(rows$weak_prior) && length(weak_data) == 0) {
+  flags <- sensitivity_flags(rows)
+  weak_data <- flags$weak_data
+  if (length(flags$influencing) == 0 && length(weak_data) == 0) {
     return(notice("check-circle-2", "No prior sensitivity", tone = "muted"))
   }
   if (length(weak_data) == 0) {

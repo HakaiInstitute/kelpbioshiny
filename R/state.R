@@ -180,8 +180,21 @@ fit_convergence <- function(fit) {
   )
 }
 
-# kb_sensitivity() rows flag a prior warning when any prior is not weak.
-prior_flagged <- function(rows) !is.null(rows) && !all(rows$weak_prior)
+# The parameters kb_sensitivity() rows flag: `influencing`, whose prior is not
+# weak, and `weak_data`, whose prior is weak and data not strong. A prior
+# kelpbio marks as informative by design (informative_prior), such as the cover
+# calibration's tide height slope, is flagged by neither.
+sensitivity_flags <- function(rows) {
+  checked <- !rows$informative_prior
+  list(
+    influencing = rows$term[checked & !rows$weak_prior],
+    weak_data = rows$term[checked & rows$weak_prior & !rows$strong_data]
+  )
+}
+
+# kb_sensitivity() rows flag a prior warning when a prior is influencing an
+# estimate.
+prior_flagged <- function(rows) !is.null(rows) && length(sensitivity_flags(rows)$influencing) > 0
 
 # kb_influence() rows flag an influence warning when any observation is influential.
 influence_flagged <- function(rows) !is.null(rows) && any(rows$influential)
