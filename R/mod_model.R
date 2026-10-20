@@ -427,8 +427,8 @@ mod_model_server <- function(id, store) {
           ess_bulk = reactable::colDef(name = "Bulk ESS", class = "kb-tabular"),
           ess_tail = reactable::colDef(name = "Tail ESS", class = "kb-tabular"),
           converged = reactable::colDef(
-            name = "Status", minWidth = 130,
-            cell = function(value) if (value) "Converged" else warning_badge("Not converged", NULL)
+            name = "Converged", minWidth = 110,
+            cell = function(value) if (value) "Yes" else warning_badge("No", NULL)
           )
         )
       )
@@ -478,7 +478,7 @@ mod_model_server <- function(id, store) {
           line(TRUE, "No prior sensitivity", "diag_sensitivity")
         },
         if (!is.null(influential)) {
-          line(influential == 0, if (influential == 0) "No influential observations" else sprintf("%d influential observations to check", influential), "diag_influence")
+          line(TRUE, if (influential == 0) "No influential observations" else sprintf("%d influential observations to check", influential), "diag_influence", tone = if (influential == 0) "ok" else "info")
         },
         line(TRUE, "Posterior predictive check: compare the data with the simulated datasets", "diag_ppc", tone = "info")
       )
@@ -508,11 +508,16 @@ mod_model_server <- function(id, store) {
       req(influence_flagged(rows))
       rows <- rows[rows$influential, setdiff(names(rows), c("elpd_loo", "influential"))]
       rows <- rows[order(rows$pareto_k, decreasing = TRUE), ]
-      app_table(
-        rows,
-        page_size = 8,
-        columns = list(pareto_k = reactable::colDef(name = "Pareto k", class = "kb-tabular"))
-      )
+      # The fit's data and Pareto k as kelpbio gives them, shown to 3
+      # significant figures.
+      numeric <- names(rows)[vapply(rows, is.numeric, logical(1))]
+      columns <- lapply(stats::setNames(nm = numeric), function(name) {
+        reactable::colDef(
+          name = if (name == "pareto_k") "Pareto k" else name, align = "right", class = "kb-tabular",
+          cell = function(value) format(value, digits = 3)
+        )
+      })
+      app_table(rows, page_size = 8, columns = columns)
     })
   })
 }

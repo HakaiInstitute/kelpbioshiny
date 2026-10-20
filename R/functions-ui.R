@@ -378,8 +378,7 @@ warning_help <- list(
 )
 
 # The warnings of each model in `ids`, in words: "convergence", "divergent
-# transitions", "prior sensitivity" and "influential observations" for a ready
-# model, "fit failed"
+# transitions" and "prior sensitivity" for a ready model, "fit failed"
 # for a failed one.
 model_warnings <- function(statuses, ids = component_ids) {
   warnings <- lapply(ids, function(id) {
@@ -388,8 +387,7 @@ model_warnings <- function(statuses, ids = component_ids) {
       if (status$kind == "failed") "fit failed",
       if (isTRUE(status$convergence)) "convergence",
       if (isTRUE(status$divergence)) "divergent transitions",
-      if (isTRUE(status$prior)) "prior sensitivity",
-      if (isTRUE(status$influence)) "influential observations"
+      if (isTRUE(status$prior)) "prior sensitivity"
     )
   })
   Filter(length, stats::setNames(warnings, ids))
@@ -510,7 +508,7 @@ prior_notice <- function(rows, priors, settings_id) {
   )
 }
 
-# Influential observations: a warning naming how many observations strongly
+# Influential observations: a note naming how many observations strongly
 # influence the fit, from kb_influence() rows, with a button to the Diagnostics
 # tab (diagnostics_id) that lists them.
 influence_notice <- function(rows, diagnostics_id) {
@@ -519,7 +517,7 @@ influence_notice <- function(rows, diagnostics_id) {
   }
   n <- sum(rows$influential)
   notice(
-    "alert-triangle", warning_help$influence$title,
+    "info", warning_help$influence$title,
     paste(
       sprintf(
         "%s strongly %s the fit.",
@@ -527,7 +525,7 @@ influence_notice <- function(rows, diagnostics_id) {
       ),
       warning_help$influence$advice
     ),
-    tone = "warning",
+    tone = "info",
     action = button(diagnostics_id, "View observations", variant = "outline", size = "sm")
   )
 }

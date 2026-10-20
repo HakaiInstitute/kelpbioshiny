@@ -115,12 +115,13 @@ fitting_id <- function(records) {
 # a pre-fit source, the pre-fit model (list(fit, error)). Kinds: "not-used",
 # "no-data", "data-error", "not-fitted", "queued", "fitting", "ready" (pre-fit,
 # a census whose size sheet passes its check, or fitted) and "failed". A fitted
-# model carries four warnings: `convergence` when parameters did not converge
+# model carries three warnings: `convergence` when parameters did not converge
 # and `divergence` when the sampler had too many divergent transitions (both
-# from fit_convergence()), `prior` (prior_warning, from its prior sensitivity)
-# when a prior is influencing an estimate, and `influence` (influence_warning,
-# from kb_influence()) when observations strongly influence the fit; and
-# `outdated` when its current `settings` differ from those it was fitted with.
+# from fit_convergence()), and `prior` (prior_warning, from its prior
+# sensitivity) when a prior is influencing an estimate; a note, `influence`
+# (influence_warning, from kb_influence()), when observations strongly
+# influence the fit; and `outdated` when its current `settings` differ from
+# those it was fitted with.
 component_status <- function(source, sheet, record, prefit = NULL, cover_blocked = FALSE, prior_warning = FALSE,
                              influence_warning = FALSE, settings = NULL) {
   if (source == "none") {
@@ -160,8 +161,9 @@ component_status <- function(source, sheet, record, prefit = NULL, cover_blocked
 
 is_ready_status <- function(status) status$kind %in% c("ready", "not-used")
 is_pending_status <- function(status) status$kind %in% c("queued", "fitting")
+# Influential observations are a note to check the data, not a warning.
 has_warning <- function(status) {
-  isTRUE(status$convergence) || isTRUE(status$divergence) || isTRUE(status$prior) || isTRUE(status$influence)
+  isTRUE(status$convergence) || isTRUE(status$divergence) || isTRUE(status$prior)
 }
 
 # Why a fit did not converge, by kelpbio's kb_converged() verdict:
