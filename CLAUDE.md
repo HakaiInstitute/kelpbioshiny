@@ -2,7 +2,22 @@
 
 R package holding the Shiny app for kelpbio (Bayesian kelp biomass estimation). The one export is `run_app()`. The app walks a run through four steps: Data, Models, Estimates, Export. Why a Shiny app, and its scope: `~/Code/HakaiInstitute/kelpbio/decisions/webapp-decision.md`.
 
-Follow the kelpbio `CLAUDE.md` (`~/Code/HakaiInstitute/kelpbio/CLAUDE.md`) for writing, code style, documentation and testing conventions; this file lists only what differs or is specific to the app.
+Every text the app shows, and the README, follows `STYLE.md`. Follow the kelpbio `CLAUDE.md` (`~/Code/HakaiInstitute/kelpbio/CLAUDE.md`) for code style and testing conventions; this file lists only what differs or is specific to the app.
+
+## Repositories and issues
+
+- Development (branches, commits, pull requests) happens in the HakaiInstitute repo (`HakaiInstitute/kelpbioshiny`), never in the poissonconsulting fork.
+- GitHub issues go in the poissonconsulting fork (`poissonconsulting/kelpbioshiny`), not the HakaiInstitute repo, to keep them out of the client's repo. The fork is public, so its issues are still publicly visible: write nothing in them that should stay internal.
+- The fork does not track the HakaiInstitute repo: sync it only once in a while, as it mostly holds the issues.
+
+## Development workflow
+
+- New work goes on a new branch in the main checkout (`~/Code/HakaiInstitute/kelpbioshiny`), not a worktree unless asked: the user reviews diffs and accepts snapshots there. Other sessions may share the checkout, so stage only the files this session changed and list any others instead of committing them.
+- Branches are stacked by default. Branch from the tip of the open PR stack (the open PR's branch that no other PR targets, from `gh pr list`) and confirm the tip before branching. When a change could stand apart from the stack, ask whether to stack it or base it on `main`; never pick `main` unasked. Each PR targets the branch below it, and only the bottom PR of a stack targets `main`. Merge in stack order, retargeting each PR as its base merges.
+- Commit and push only when asked, to `origin`; a request to push includes the build and `jarl check .` below. Never amend a pushed commit. After a push, show the stack (PR, branch, base, CI) and update the title and description of every PR whose contents changed.
+- Before pushing, run `Rscript scripts/build.R` and `jarl check .`. CI runs R CMD check and jarl on every push to a PR, and lint is what fails most often: CI installs the latest jarl, so keep the local one current (`jarl --version`), and never assign inside a call (`out <- expect_no_warning(f())`, not `expect_no_warning(out <- f())`).
+- Planned work goes in an issue on `poissonconsulting/kelpbioshiny`, not session memory, so the next session can find it.
+- Before opening or pushing a PR, scan the open issues (`gh issue list --repo poissonconsulting/kelpbioshiny`, and the other two repos' forks for cross-repo work) for any the PR resolves, and list each in the PR description as `Closes poissonconsulting/kelpbioshiny#<n>`. GitHub closes them only when the PR merges into the default branch, so a stacked PR's issues close once the stack reaches `main`; close any left open by hand after merging.
 
 ## Common Commands
 
@@ -13,34 +28,39 @@ Follow the kelpbio `CLAUDE.md` (`~/Code/HakaiInstitute/kelpbio/CLAUDE.md`) for w
 | Run all tests | `devtools::test()` |
 | Run the app from source | `pkgload::load_all(); run_app()` |
 
-The build runs are also Positron/VS Code tasks ("kelpbioshiny: build", "kelpbioshiny: build + check"). Linting runs in CI via jarl (`jarl.toml`).
+The build runs are also Positron/VS Code tasks ("kelpbioshiny: build", "kelpbioshiny: build + check").
+
+## Tests, installs and example workbooks
+
+- Any change: `Rscript scripts/build.R` installs the app and runs the tests. The tests stub every fit with kelpbio's simulated fits, so no MCMC runs, and the app stores no fits of its own to rebuild.
+- The app, its tests and its mirai daemons use the installed kelpbio and kelpbiodata, not their checkouts (`load_all()` loads only kelpbioshiny from source). After either changes, reinstall it from the branch `Remotes:` pins (`remotes::install_github()`, never by switching branches in its checkout, which other sessions use) before testing or saying a change is visible.
+- When kelpbio's simulated data change, rebuild the example workbooks (`Rscript data-raw/test-workbooks.R`), check each still shows what its header says, and commit them. Workbook 6 needs real fits over several seeds to check: confirm before running them.
 
 ## Layout
 
 | Path | Contents |
 |------|----------|
-| `R/run-app.R` | `run_app()`: `shinyAppDir()` on `inst/app` |
-| `R/app-ui.R`, `R/app-server.R` | `app_ui()` (navbar, steps, footer) and `app_server()` (wires the modules to one store) |
 | `R/mod_<step>.R` | One module per step: `mod_<step>_ui(id)` / `mod_<step>_server(id, store)` (`data`, `models`, `estimates`, `export`); `mod_model.R` is the per-model detail page (fit, settings, diagnostics, parameter estimates, description), and `mod_estimates.R` holds each model's predictions and the derived estimates (survey biomass, canopy biomass) |
 | `R/mod_help.R` | The Help tab: `help_ui()` and `help_server()` (its sidebar) hold three pages, `help_guide_ui()` (User guide, built from the app's definitions), `help_methods_ui()` (a tile per kelpbio article, from `kelpbio_articles`) and `help_about_ui()` (with the citations) |
 | `R/report.R` | The report download: Quarto markdown written from the run (`report_markdown()`), rendered to PDF with Typst; needs the Quarto CLI (on the PATH or at `QUARTO_PATH`) |
 | `R/steps.R` | `app_purpose` and `app_steps`: the app's one-line purpose, and the step names and one-line descriptions |
 | `R/state.R` | `new_store()`: the per-session store of reactive state and actions, the fit queue and its runner, plus the pure fit-record transitions and status logic |
 | `R/data.R` | Sheet and model definitions (`sheet_info`, `components`), the census rule, labels, sheet checks, prior and sampler settings |
-| `R/theme.R` | The Hakai `bs_theme()` and the reactable theme |
 | `R/functions-ui.R`, `R/help.R`, `R/icons.R`, `R/kelp-art.R` | UI building blocks, help popovers, Lucide icons, the navbar's kelp drawings |
 | `R/mock-kelpbio.R` | Mocks of the kelpbio data figures the app calls, not yet in kelpbio (see below) |
-| `R/namespace.R` | `@import` / `@importFrom` directives |
 | `inst/app/` | `ui.R`, `server.R` (call the internals), `global.R` (stops the mirai daemons with the app) and `www/` (CSS, logo, favicon) |
 | `data-raw/` | `test-workbooks.R` and the test workbooks it writes (`workbooks/`), one per kind of user; build-ignored |
-| `inst/CITATION` | The app's citation, shown on the About page |
 | `app.R` | Deployment entry point (`load_all()` + `run_app()`), build-ignored |
 
 ## Key Rules
 
+- **Pre-release** (version `0.0.0.9000`): no NEWS entries, version bumps, deprecations or backward compatibility; rename freely. From the first release, follow the tidyverse release process: a NEWS bullet for each user-facing change, semantic versions set with `usethis::use_version()`, and lifecycle for deprecations.
+- **Check kelpbio before stating anything about it.** A model's effects, a diagnostic's meaning, or a kelpbio function, argument, dataset or sheet name: read kelpbio's source and `git log` on the pinned branch first, never answer from memory.
+- **Real sites and protocols** are in the analysis project `~/Analyses/poissonconsulting/hakai-kelp-biomass-25/` (read-only): check it before naming a real site or describing how a survey or drone map is made, as when checking an example workbook's sites.
+- **Before removing a function or UI element**, grep every caller (mocks and daemon calls included) and list the removals in the summary.
 - **The app computes no numbers and draws no custom figures.** Every estimate, table and figure comes from an unqualified `kb_*()` call or a kelpbio generic (`tidy()`, `glance()`, `summary()`, `converged()`); the app only labels, arranges and formats. `test-architecture.R` scans the installed namespace with codetools to check that app code calls no summary or distribution functions.
 - **Fits run in the background.** Each `kb_fit_*()` call runs on a mirai daemon through one `ExtendedTask` per session; the store polls `kb_progress()` while it runs. The cover calibration's job (`fit_cover_calibration()`) predicts the survey biomass it is fitted to in the same daemon call. `start_daemons()` starts the daemons with the first fit (one per R process, or the option `kelpbioshiny.daemons`) and, under `load_all()`, loads the package from source on them. The runner is injectable (`new_store(session, run_fit =)`), so tests run fits in the session.
-- **kelpbio and kelpbiodata are in Imports** (`Remotes:` pins their branches until they are merged); its functions are imported in `R/namespace.R`. The only mocks are the data figures, `kb_plot_data_*()`, in `R/mock-kelpbio.R`, each marked Planned; app code calls no mock internals. To switch one to kelpbio: delete its mock and add `@importFrom kelpbio <fun>` to `R/namespace.R`. kelpbio's derived predictions carry their response as an `rvar` column of draws, which the app drops from tables with `summary_columns()`.
+- **kelpbio and kelpbiodata are in Imports** (`Remotes:` pins their branches until they are merged; when the app needs a newer kelpbio or kelpbiodata, move the pin to the branch that has it in the same PR, then reinstall); its functions are imported in `R/namespace.R`. The only mocks are the data figures, `kb_plot_data_*()`, in `R/mock-kelpbio.R`, each marked Planned; app code calls no mock internals. To switch one to kelpbio: delete its mock and add `@importFrom kelpbio <fun>` to `R/namespace.R`. kelpbio's derived predictions carry their response as an `rvar` column of draws, which the app drops from tables with `summary_columns()`.
 - **Pre-fit models come from kelpbiodata, examples from kelpbio.** A pre-fit source is a kelpbiodata reference fit (`prefit_fit()`: `fit_<model>_<reference>_<species>`), the references by species in `components[[id]]$prefit`; a model offers only those the installed kelpbiodata holds (`reference_fits()`). A pre-fit cover calibration gives canopy biomass from a canopy sheet alone. The example workbook is kelpbio's simulated data (`example_rows()`: `data_<sheet>_sim_<species>`); `data-raw/test-workbooks.R` builds the other example workbooks (four use cases, a data error and a fit that needs a refit) and lists what each shows.
 - **Every fit keeps 4 chains of 1,000 draws** (`fit_draws`), as the reference fits do, since the derived estimates need fits with the same number of draws. Only `nthin` and `adapt_delta` (passed in `control`) can be changed. A convergence warning advises more thinning; a divergence warning (`fit_convergence()`) a higher `adapt_delta`.
 - **Styling** comes from the Hakai theme: Bootstrap Sass variables in `bs_theme()` and bslib components. Custom CSS (`inst/app/www/styles.css`) targets only `.kb-*` classes and reads colours from `var(--bs-*)`; it never targets Bootstrap, bslib, Shiny or reactable internals, except one rule that stops Shiny's busy indicators growing empty HTML outputs. No custom JavaScript files; the one script is the inline `onclick` of `copy_button()` (`R/functions-ui.R`), shared by every Copy button.
@@ -62,14 +82,12 @@ The derived estimates offer only what a report uses (`survey_sums`, `canopy_sums
 - kelpbio owns the statistics: model forms, priors, diagnostics theory, interpretation and any long-form explanation live in kelpbio's roxygen docs and vignettes/articles. kelpbioshiny never restates them; it links to the relevant kelpbio article or section (`kelpbio_url` and `kelpbio_articles` in `R/help.R`, each article's title, summary and path, which the Methods page lists).
 - kelpbioshiny documents only how to use the app: what each step is for, what to click, which sheets and columns to provide, and what to do about a warning.
 - One fact, one home inside the app: step names and descriptions (`app_steps`), sheet and column lists and model sources (`components`, `prefit_info`), and glossary text (`help_topics`) are each defined once in R and reused by the UI, the welcome card, the help popovers and the User guide. Never duplicate them as hand-written prose.
-- Help popovers: one to three plain-language sentences, then a "Learn more" link to kelpbio. Short text that points elsewhere is preferred over long explanations.
-- No screenshots in the guide (if ever needed, generate them with shinytest2).
+- Wording of labels, notices, popovers and the guide: `STYLE.md`. Screenshots, if the guide ever needs them, are generated with shinytest2.
 - Definition of done: any change to steps, sheets, sources, warnings or help topics updates the guide in the same PR; the guide snapshot test (`test-mod_help.R`) shows the change for review. Statistical content changes go to kelpbio, not here.
-- Writing follows the kelpbio `CLAUDE.md` writing rules (cold-start reader, no session context, no em-dashes).
 
 ## Testing
 
-The suite is deliberately minimal for the prototype: one example of each test type, as the pattern to follow. A full suite replaces it once the app moves past the prototype.
+The suite is deliberately minimal while the app is in development: one example of each test type, as the pattern to follow. Add no tests during development; keep the existing ones passing. The full suite is written in one pass once development finishes.
 
 | Type | File |
 |------|------|
