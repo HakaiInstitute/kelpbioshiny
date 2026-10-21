@@ -62,13 +62,14 @@ export_script <- function(species, sources, sheets, workbook, priors, samplers, 
     )
     prior_lines <- if (nrow(changed) > 0) {
       constructor <- c(normal = "kb_prior_normal(%s, %s)", lognormal = "kb_prior_lognormal(%s, %s)", exponential = "kb_prior_exponential(%s)")
+      # One prior at a time, as an exponential prior takes one argument.
+      calls <- vapply(seq_len(nrow(changed)), function(i) {
+        family <- changed$family[i]
+        if (family == "exponential") sprintf(constructor[[family]], changed$a[i]) else sprintf(constructor[[family]], changed$a[i], changed$b[i])
+      }, "")
       c(
         sprintf("priors_%s <- kb_priors_%s_%s()", model, model, sp),
-        sprintf("priors_%s$%s <- %s", model, changed$name, ifelse(
-          changed$family == "exponential",
-          sprintf(constructor[changed$family], changed$a),
-          sprintf(constructor[changed$family], changed$a, changed$b)
-        ))
+        sprintf("priors_%s$%s <- %s", model, changed$name, calls)
       )
     }
     c(prior_lines, sprintf("%s <- kb_fit_%s_%s(%s)", fit_name(id), model, sp, paste(args, collapse = ", ")))
