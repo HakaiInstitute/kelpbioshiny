@@ -11,10 +11,11 @@
 #   biomass. Nereocystis has a measured sample of plants, Macrocystis a census.
 # 2-prefit: size, survey and canopy sheets but no harvests or tissue samples,
 #   so weight, wet:dry and carbon are pre-fit.
-# 3-census (Nereocystis only): every counted plant measured, each survey's
-#   plants drawn from the measured sample of its site-year (census_rows()), and
-#   a twentieth of them partial. Choose "All plants measured" under Size data
-#   before uploading.
+# 3-census (Nereocystis only): weight, size, survey and canopy sheets, with
+#   every counted plant measured, each survey's plants drawn from the measured
+#   sample of its site-year (census_rows()), and a twentieth of them partial;
+#   wet:dry and carbon are pre-fit. Choose "All plants measured" under Size
+#   data, before or after uploading.
 # 4-canopy-prefit: a canopy sheet alone, with drone maps of the sites of the
 #   pre-fit Hakai Institute cover calibration flown again in a year after its
 #   data, so canopy biomass takes each site's effect but treats the year as new.
@@ -89,7 +90,7 @@ for (species in names(species_info)) {
   write_workbook(full, "1-full", species)
   write_workbook(full[c("size", "survey", "canopy")], "2-prefit", species)
   if (species == "nereo") {
-    census <- full
+    census <- full[c("weight", "size", "survey", "canopy")]
     census$size <- census_rows(full$survey, full$size)
     census$survey$plants <- NULL
     write_workbook(census, "3-census", species)
