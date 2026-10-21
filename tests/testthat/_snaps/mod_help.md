@@ -83,7 +83,7 @@
       4
       Export
       Save the estimates, or rerun the whole analysis in R.
-      The results workbook, the figures and the report hold every available estimate, at the choices made on its page on the Estimates step (such as Group by, Scale and Show), in each measure available. To resume a run later, download its fit bundle and add it under Resume a run on the Data step.
+      The results workbook and the figures hold every available estimate, at the choices made on its page on the Estimates step (such as Group by, Scale and Show), in each measure available. To resume a run later, download its fit bundle and add it under Resume a run on the Data step.
       Results workbook (Excel: every available estimate, with the settings and sources)
       Figures (ZIP of PNG and PDF figures)
       Fit bundle (RDS: add it on the Data step to resume this run)
