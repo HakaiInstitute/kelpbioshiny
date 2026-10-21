@@ -81,6 +81,12 @@ guide_extras <- list(
       div(class = "small text-body-secondary", "Each model uses one source: your data, a pre-fit model, or none. With all plants measured (a census) there is no size model."),
       div(class = "table-responsive", guide_sources())
     )
+  },
+  export = function() {
+    tagList(
+      div(class = "small text-body-secondary", "The results workbook, the figures and the report hold every available estimate, at the choices made on its page on the Estimates step (such as Group by, Scale and Show), in each measure available. To resume a run later, download its fit bundle and add it under Resume a run on the Data step."),
+      tags$ul(class = "small text-body-secondary mb-0", lapply(download_items, function(item) tags$li(sprintf("%s (%s)", item$label, item$detail))))
+    )
   }
 )
 

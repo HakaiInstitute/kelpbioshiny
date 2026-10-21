@@ -776,6 +776,33 @@ new_store <- function(session, run_fit = mirai_fit_runner) {
 
   s$clear_data <- function() apply_sheets(list(), NULL)
 
+  # Restores a run from a fit bundle (run_bundle()): its data, sources,
+  # settings, fits and stand-in sites. A file that is not a fit bundle leaves
+  # the run as it was.
+  s$resume <- function(file, path) {
+    bundle <- tryCatch(read_bundle(path), error = function(e) e)
+    if (inherits(bundle, "error")) {
+      s$notify(condition_text(bundle), type = "error", title = sprintf("%s could not be resumed", file), duration = 10)
+      return()
+    }
+    s$species(bundle$species)
+    s$size_data(bundle$size_data)
+    census <- isolate(s$census())
+    sheets <- check_sheets(lapply(bundle$sheets, `[[`, "rows"), lapply(bundle$sheets, `[[`, "file"), bundle$species, census)
+    s$sheets(sheets)
+    s$workbook(bundle$workbook)
+    s$sources(valid_sources(bundle$sources, census, sheets, bundle$species))
+    s$priors(bundle$priors)
+    s$samplers(bundle$samplers)
+    records <- idle_records()
+    for (id in names(bundle$fits)) records[[id]] <- new_record("fitted", fit = bundle$fits[[id]]$fit, settings = bundle$fits[[id]]$settings)
+    update_records(function(old) records)
+    s$stand_ins_chosen(bundle$stand_ins)
+    s$estimate_choices(bundle$estimate_choices)
+    s$estimate(NULL)
+    s$notify(sprintf("Resumed the run saved in %s.", file))
+  }
+
   # The data checks depend on the species, so a species change checks the sheets again.
   s$set_species <- function(value) {
     if (identical(value, isolate(s$species()))) {
@@ -869,6 +896,19 @@ new_store <- function(session, run_fit = mirai_fit_runner) {
   s$open_estimate <- function(id) {
     s$estimate(id)
     s$go_to("estimates")
+  }
+
+  # The choices made on each estimate's page, by estimate id: a model's
+  # `grouping`, a derived estimate's `scale` and `sum`. The Export step's
+  # downloads use them; a choice no longer offered falls back to the default.
+  s$estimate_choices <- reactiveVal(list())
+  s$set_estimate_choice <- function(id, name, value) {
+    choices <- isolate(s$estimate_choices())
+    if (identical(choices[[id]][[name]], value)) {
+      return()
+    }
+    choices[[id]][[name]] <- value
+    s$estimate_choices(choices)
   }
 
   # Opens a sheet's panel on the Data step, with its figure and table.
