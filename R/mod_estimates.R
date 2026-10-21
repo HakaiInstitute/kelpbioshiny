@@ -142,13 +142,18 @@ mod_estimate_server <- function(id, store) {
       if (!page$available$available) {
         return(estimate_unavailable(ns, page$available$reason))
       }
-      predictions_panel(ns, cid, page$prefit, page$species, page$plants)
+      predictions_panel(ns, cid, page$prefit, page$species, page$plants, isolate(grouping()))
     })
 
+    # The store holds the choice, so a resumed run shows the grouping it was
+    # saved with, and the Export step uses the grouping shown here.
     grouping <- reactive({
-      chosen_grouping(input$grouping, prediction_choices(cid, page()$prefit, page()$species, page()$plants))
+      chosen_grouping(store$estimate_choices()[[cid]]$grouping, prediction_choices(cid, page()$prefit, page()$species, page()$plants))
     })
     observeEvent(input$grouping, store$set_estimate_choice(cid, "grouping", input$grouping))
+    observeEvent(grouping(), {
+      if (!is.null(input$grouping) && !identical(input$grouping, grouping())) updateSelectInput(session, "grouping", selected = grouping())
+    })
 
     # Titled and captioned as the biomass figures are.
     output$figure <- renderUI({
@@ -260,7 +265,7 @@ chosen_grouping <- function(chosen, choices) {
   if (is.null(chosen) || !chosen %in% names(choices)) default_grouping(choices) else chosen
 }
 
-predictions_panel <- function(ns, cid, prefit, species, plants) {
+predictions_panel <- function(ns, cid, prefit, species, plants, selected = NULL) {
   choices <- prediction_choices(cid, prefit, species, plants)
   note <- if (prefit) {
     "A pre-fit model was fitted to other sites and years, so its predictions here are for a typical site and year."
@@ -280,7 +285,7 @@ predictions_panel <- function(ns, cid, prefit, species, plants) {
           span(class = "small fw-medium", with_help(span(id = ns("grouping_title"), "Group by"), "prediction_groups")),
           selectInput(
             ns("grouping"), NULL,
-            choices = stats::setNames(names(choices), choices), selected = default_grouping(choices),
+            choices = stats::setNames(names(choices), choices), selected = chosen_grouping(selected, choices),
             selectize = FALSE, width = "16rem"
           ) |>
             tagAppendAttributes(class = "mb-0", `aria-labelledby` = ns("grouping_title"))
@@ -348,12 +353,22 @@ mod_derived_estimate_server <- function(id, store) {
     output_key <- reactive(if (store$outputs()[[chosen()]]$available) chosen() else "wet")
     available <- dedupe(reactive(store$estimates()[[eid]]))
     sums <- dedupe(reactive(derived_sums(eid, store$sheets())))
-    per_area <- reactive(chosen_per_area(eid, input$scale, store$census()))
-    sum_key <- reactive(chosen_sum(input$sum, sums()))
+    # The store holds the scale and sum chosen, so a resumed run shows those it
+    # was saved with, and the Export step uses those shown here.
+    choice <- reactive(store$estimate_choices()[[eid]])
+    per_area <- reactive(chosen_per_area(eid, choice()$scale, store$census()))
+    sum_key <- reactive(chosen_sum(choice()$sum, sums()))
 
     observeEvent(input$output, chosen(input$output))
     observeEvent(input$scale, store$set_estimate_choice(eid, "scale", input$scale))
     observeEvent(input$sum, store$set_estimate_choice(eid, "sum", input$sum))
+    observeEvent(per_area(), {
+      scale <- if (per_area()) "area" else "total"
+      if (!is.null(input$scale) && !identical(input$scale, scale)) updateSelectInput(session, "scale", selected = scale)
+    })
+    observeEvent(sum_key(), {
+      if (!is.null(input$sum) && !identical(input$sum, sum_key())) updateSelectInput(session, "sum", selected = sum_key())
+    })
     observeEvent(input$change_sources, store$go_to("models"))
     observeEvent(input$to_models, store$go_to("models"))
     observe_warning_links(input, store)

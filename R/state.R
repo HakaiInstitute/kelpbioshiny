@@ -398,13 +398,17 @@ fit_call <- function(id, species, sheets, priors, sampler, progress_dir, fits = 
 # The daemons start with the first fit, so a session that never fits costs no
 # daemon. They are per R process and shared by its sessions; each session fits
 # one model at a time, so one daemon serves one user without waiting. The
-# option kelpbioshiny.daemons sets their number for a deployment.
+# option kelpbioshiny.daemons sets their number for a deployment. They run in
+# their own compute profile, so the app neither uses nor stops daemons the user
+# has set in the same R session.
+compute_profile <- "kelpbioshiny"
+
 start_daemons <- function() {
-  if (mirai::daemons_set()) {
+  if (mirai::daemons_set(.compute = compute_profile)) {
     return(invisible())
   }
   n <- getOption("kelpbioshiny.daemons", 1L)
-  mirai::daemons(n)
+  mirai::daemons(n, .compute = compute_profile)
   # A fit's function is sent as a reference to its namespace, which a daemon
   # loads: from source when the app was loaded with load_all() (as app.R does),
   # so the daemons run the same code as the app; otherwise installed.
@@ -414,8 +418,15 @@ start_daemons <- function() {
   mirai::everywhere(
     if (is.null(source_path)) loadNamespace("kelpbioshiny") else pkgload::load_all(source_path, quiet = TRUE),
     source_path = source_path,
-    .min = n
+    .min = n,
+    .compute = compute_profile
   )
+  invisible()
+}
+
+# jarl-ignore unused_function: called from inst/app/global.R.
+stop_daemons <- function() {
+  if (mirai::daemons_set(.compute = compute_profile)) mirai::daemons(0, .compute = compute_profile)
   invisible()
 }
 
@@ -425,7 +436,8 @@ mirai_fit_runner <- function() {
     start_daemons()
     current <<- mirai::mirai(
       tryCatch(list(fit = do.call(fn, args)), error = function(e) list(error = condition_text(e))),
-      .args = list(fn = fn, args = args, condition_text = condition_text)
+      .args = list(fn = fn, args = args, condition_text = condition_text),
+      .compute = compute_profile
     )
     current
   })

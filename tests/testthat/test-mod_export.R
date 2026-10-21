@@ -50,8 +50,17 @@ test_that("the report renders to a PDF with Quarto", {
   })
 })
 
-test_that("a file that is not a fit bundle is not resumed", {
+test_that("a file that is not a fit bundle, or a damaged one, is not resumed", {
   path <- withr::local_tempfile(fileext = ".rds")
   saveRDS(list(species = "nereo"), path)
   expect_error(read_bundle(path), "not a fit bundle")
+
+  shiny::testServer(store_app(), {
+    bundle <- run_bundle(store)
+    bundle$sources <- bundle$sources[setdiff(names(bundle$sources), "cover")]
+    saveRDS(bundle, path)
+    expect_error(read_bundle(path), "damaged or from another version")
+    store$resume("damaged.rds", path)
+    expect_named(store$sheets(), c("weight", "size", "survey", "canopy", "wetdry", "carbon"))
+  })
 })

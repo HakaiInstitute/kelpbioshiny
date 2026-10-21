@@ -331,19 +331,68 @@ run_bundle <- function(store) {
   )
 }
 
-# A fit bundle read from `path`, checked to be one: it errors otherwise.
+# A fit bundle read from `path`, checked to be one: it errors otherwise. Every
+# field the Data step restores is checked, so a damaged bundle, or one from a
+# version of the app with other models, settings or priors, is refused before
+# any of it reaches the run.
 read_bundle <- function(path) {
   bundle <- tryCatch(readRDS(path), error = function(e) NULL)
   if (!inherits(bundle, "kelpbioshiny_bundle")) {
     stop("The file is not a fit bundle. Download one from the Export step.", call. = FALSE)
   }
-  fits <- lapply(bundle$fits, `[[`, "fit")
-  valid <- isTRUE(bundle$species %in% names(species_info)) &&
-    all(names(bundle$fits) %in% component_ids) &&
-    all(vapply(fits, inherits, logical(1), "kb_fit")) &&
-    all(names(bundle$sheets) %in% sheet_ids)
-  if (!valid) stop("The fit bundle is damaged or from another version of the app.", call. = FALSE)
+  if (!valid_bundle(bundle)) {
+    version <- format(utils::packageVersion("kelpbioshiny"))
+    saved <- if (is_string(bundle$kelpbioshiny)) bundle$kelpbioshiny else "an unknown version"
+    stop(paste0(
+      "The fit bundle is damaged or from another version of the app",
+      if (!identical(saved, version)) sprintf(" (saved with kelpbioshiny %s, this is %s)", saved, version), "."
+    ), call. = FALSE)
+  }
   bundle
+}
+
+is_string <- function(x) is.character(x) && length(x) == 1 && !is.na(x)
+
+# Whether `x` is a list with a value for each of `ids` (all of them, or only
+# some with `all = FALSE`), each passing `check`.
+valid_by_id <- function(x, ids, check, all = TRUE) {
+  is.list(x) && (length(x) == 0 || !is.null(names(x))) &&
+    all(names(x) %in% ids) && (!all || all(ids %in% names(x))) &&
+    all(vapply(names(x), function(id) isTRUE(check(x[[id]], id)), logical(1)))
+}
+
+# A model's priors as the prior editor holds them: the rows of
+# default_priors() for the species, with the same names and families.
+valid_priors <- function(priors, id, species) {
+  defaults <- default_priors(id, species)
+  is.data.frame(priors) && all(names(defaults) %in% names(priors)) &&
+    identical(priors$name, defaults$name) && identical(priors$family, defaults$family) &&
+    is.numeric(priors$a) && is.numeric(priors$b)
+}
+
+valid_sampler <- function(sampler) {
+  is.list(sampler) && setequal(names(sampler), names(default_sampler())) &&
+    all(vapply(sampler, function(x) is.numeric(x) && length(x) == 1, logical(1)))
+}
+
+valid_bundle <- function(bundle) {
+  species <- bundle$species
+  if (!is_string(species) || !species %in% names(species_info)) {
+    return(FALSE)
+  }
+  is_string(bundle$size_data) && bundle$size_data %in% names(size_data_info) &&
+    (is.null(bundle$workbook) || is_string(bundle$workbook)) &&
+    valid_by_id(bundle$sheets, sheet_ids, function(sheet, id) is.data.frame(sheet$rows) && is_string(sheet$file), all = FALSE) &&
+    is.character(bundle$sources) && setequal(names(bundle$sources), component_ids) &&
+    valid_by_id(bundle$priors, component_ids, function(priors, id) valid_priors(priors, id, species)) &&
+    valid_by_id(bundle$samplers, component_ids, function(sampler, id) valid_sampler(sampler)) &&
+    valid_by_id(bundle$fits, component_ids, function(fit, id) {
+      inherits(fit$fit, "kb_fit") && valid_priors(fit$settings$priors, id, species) && valid_sampler(fit$settings$sampler)
+    }, all = FALSE) &&
+    valid_by_id(bundle$stand_ins, component_ids, function(sites, id) is.character(sites), all = FALSE) &&
+    valid_by_id(bundle$estimate_choices, estimate_ids, function(choices, id) {
+      is.list(choices) && all(vapply(choices, is_string, logical(1)))
+    }, all = FALSE)
 }
 
 # A download's file, built on its first download by `write(path)`, which reads
