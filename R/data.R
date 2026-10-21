@@ -140,10 +140,11 @@ components <- list(
   ),
   # Optional: scales survey biomass up to the canopy mapped by drone. It is
   # fitted to the survey biomass of the surveys with a drone flight, once the
-  # weight and size models are ready.
+  # weight and size models are ready; a pre-fit calibration needs neither.
   cover = list(
     label = "Cover calibration", detail = "Survey biomass by drone canopy cover",
-    sheet = "survey", sources = c("user", "none"), model = "cover_calibration"
+    sheet = "survey", sources = c("user", "prefit", "none"), prefit = list(nereo = "hakai", macro = "hakai"),
+    model = "cover_calibration"
   )
 )
 
@@ -194,9 +195,9 @@ model_sources <- function(id, census = FALSE, species = "nereo") {
   if (id == "size" && census) {
     return("census")
   }
-  sources <- as.list(components[[id]]$sources)
   references <- components[[id]]$prefit[[species]]
   references <- references[prefit_name(id, species, references) %in% reference_fits()]
+  sources <- as.list(components[[id]]$sources)
   sources[sources == "prefit"] <- list(prefit_source(references))
   unlist(sources)
 }

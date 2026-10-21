@@ -76,7 +76,7 @@
       Carbon
       Your data, Pre-fit Hakai Institute, Not used
       Cover calibration
-      Your data, Not used
+      Your data, Pre-fit Hakai Institute, Not used
       3
       Estimates
       Review biomass and model estimates.

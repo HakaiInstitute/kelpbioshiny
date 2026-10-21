@@ -220,7 +220,7 @@ component_statuses <- function(sources, sheets, records, prefits = list(), prior
   ready <- all(vapply(statuses[survey_ids], is_ready_status, logical(1))) && survey_possible(sources)
   survey <- sheets$survey
   flown <- if (!is.null(survey) && is.null(survey$error) && nrow(drone_surveys(survey$rows)) == 0) NULL else survey
-  c(statuses, list(cover = status("cover", flown, cover_blocked = !ready)))
+  c(statuses, list(cover = status("cover", flown, prefit = prefits$cover, cover_blocked = !ready)))
 }
 
 # A model fitted to your data can be fitted now: it has checked data and, for the
@@ -287,7 +287,7 @@ estimate_availability <- function(id, statuses, sources, sheets, mismatches) {
     } else if (!is.null(canopy$error)) {
       "The canopy sheet failed its data check."
     } else if (cover$kind == "not-used") {
-      "Canopy biomass needs the cover calibration. Choose Your data for it on the Models step."
+      "Canopy biomass needs the cover calibration. Choose a source for it on the Models step."
     } else if (cover$kind != "ready") {
       "Canopy biomass is available once the cover calibration is fitted."
     }
@@ -335,17 +335,21 @@ data_estimable <- function(sheets, sources, census, mismatches = character()) {
   } else if (length(mismatches) > 0) {
     "site names differ across sheets"
   }
-  canopy <- if (!is.null(survey)) {
+  # A pre-fit cover calibration needs only the canopy sheet; one fitted to your
+  # data needs survey biomass and drone flights on the surveys.
+  canopy <- if (!valid("canopy")) {
+    if (is.null(sheets$canopy)) "needs a canopy sheet of drone maps" else "the canopy sheet fails its check"
+  } else if (is_prefit(sources[["cover"]])) {
+    NULL
+  } else if (!is.null(survey)) {
     "needs survey biomass"
   } else if (sources[["cover"]] == "none" || nrow(drone_surveys(sheets$survey$rows)) == 0) {
     "needs drone flights on the surveys"
-  } else if (!valid("canopy")) {
-    if (is.null(sheets$canopy)) "needs a canopy sheet of drone maps" else "the canopy sheet fails its check"
   }
   dry <- if (!usable("wetdry")) "needs a wetdry sheet or a pre-fit wet:dry model"
   carbon <- dry %||% if (!usable("carbon")) "needs a carbon sheet or a pre-fit carbon model"
   list(
-    survey = result(survey, survey_ids), canopy = result(canopy, survey_ids),
+    survey = result(survey, survey_ids), canopy = result(canopy, if (is_prefit(sources[["cover"]])) "cover" else survey_ids),
     dry = result(dry, "wetdry"), carbon = result(carbon, c("wetdry", "carbon"))
   )
 }

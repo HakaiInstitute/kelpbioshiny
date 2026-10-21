@@ -14,7 +14,9 @@ export_script <- function(species, sources, sheets, workbook, priors, samplers, 
   plants <- "weight" %in% used && valid("size")
   survey <- survey_possible(sources) && valid("survey") && (!census || valid("size"))
   cover <- survey && "cover" %in% from_data && nrow(drone_surveys(sheets$survey$rows)) > 0
-  canopy <- cover && valid("canopy")
+  # A pre-fit cover calibration gives canopy biomass from the canopy sheet alone.
+  cover_prefit <- is_prefit(sources[["cover"]])
+  canopy <- (cover || cover_prefit) && valid("canopy")
   fitted <- setdiff(from_data, "cover")
   read_ids <- intersect(sheet_ids, c(vapply(fitted, function(id) components[[id]]$sheet, ""), if (plants) "size", if (survey) "survey", if (canopy) "canopy"))
   from_csv <- Filter(function(id) endsWith(sheets[[id]]$file, ".csv"), read_ids)
@@ -91,7 +93,8 @@ export_script <- function(species, sources, sheets, workbook, priors, samplers, 
   canopy_site <- if (length(stand_ins$cover) > 0) sprintf("representative_site = %s", vector_code(stand_ins$cover))
   survey_call <- function(m) paste(c("fit_weight", size_arg, "survey", measure_args(m), survey_site), collapse = ", ")
   canopy_call <- function(m) paste(c("fit_cover_calibration", "canopy", measure_args(m), canopy_site), collapse = ", ")
-  in_models <- setdiff(used, c("cover", if (census) "size"))
+  # The weight and size models are read only for survey biomass or plant weights.
+  in_models <- setdiff(used, c("cover", if (census) "size", if (!survey && !plants) survey_ids))
 
   paste(
     c(
@@ -130,6 +133,7 @@ export_script <- function(species, sources, sheets, workbook, priors, samplers, 
       if (canopy) {
         c(
           "",
+          if (cover_prefit) c(fit_lines("cover"), ""),
           "# Biomass over the canopy mapped in each drone map of a site",
           sprintf("%stotals <- kb_predict_biomass_canopy(%s)", prefix[measures], vapply(measures, canopy_call, "")),
           "kb_plot_predictions(totals)"
