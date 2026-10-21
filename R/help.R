@@ -11,7 +11,7 @@ kelpbio_url <- "https://hakaiinstitute.github.io/kelpbio/"
 kelpbio_articles <- list(
   models = list(
     title = "The models",
-    summary = "What each model estimates, and how they combine into plot and site biomass.",
+    summary = "What each model estimates, and how they combine into survey and canopy biomass.",
     path = "articles/models.html"
   ),
   priors = list(
@@ -34,10 +34,10 @@ kelpbio_articles <- list(
     summary = "Overall and group predictions, and their compatibility intervals.",
     path = "articles/results.html"
   ),
-  total_biomass = list(
-    title = "Total site biomass",
-    summary = "Scaling plot biomass to whole sites from drone surveys of canopy area.",
-    path = "articles/total-biomass.html"
+  canopy_biomass = list(
+    title = "Canopy biomass",
+    summary = "Calibrating drone canopy cover on survey biomass, and scaling it to the canopy mapped over whole sites.",
+    path = "articles/canopy-biomass.html"
   )
 )
 
@@ -88,7 +88,7 @@ help_topics <- list(
     body = function() {
       paste(
         "Pareto k measures how much the fit changes when an observation is left out.",
-        sprintf("Above %s, the observation strongly influences the estimates.", default_arg(kb_influence, "threshold")),
+        "Above a threshold that loo sets from the number of draws, the observation strongly influences the estimates.",
         "That can be a recording error, or a valid observation in a site-year with few others."
       )
     },
@@ -102,21 +102,20 @@ help_topics <- list(
     ),
     link = kelpbio_articles$results$path
   ),
-  chains = list(
-    title = "Chains",
-    body = "Independent runs of the sampler. Comparing the chains with each other shows whether the sampler has converged.",
-    link = kelpbio_articles$diagnostics$path
-  ),
-  niters = list(
-    title = "Iterations (niters)",
-    body = "The number of draws kept from each chain. More draws give more reliable estimates, but fitting takes longer.",
-    link = kelpbio_articles$diagnostics$path
-  ),
+
   nthin = list(
     title = "Thinning (nthin)",
     body = paste(
       "Keeps every nth draw from each chain. The sampler runs n times as many iterations to keep the same number of draws,",
       "so the kept draws are less alike and ESS goes up. Fitting takes about n times as long."
+    ),
+    link = kelpbio_articles$diagnostics$path
+  ),
+  adapt_delta = list(
+    title = "Target acceptance (adapt_delta)",
+    body = paste(
+      "The acceptance rate the sampler tunes its step size to. A higher value takes smaller steps,",
+      "which removes divergent transitions but makes fitting slower."
     ),
     link = kelpbio_articles$diagnostics$path
   ),
@@ -143,45 +142,62 @@ help_topics <- list(
   coverage = list(
     title = "Site-years without data",
     body = paste(
-      "When a model has no data for a site-year, its estimate there uses the site's estimate from other years and the year's estimate from other sites.",
-      "What is specific to that site-year is drawn from the variation the model estimated between site-years, so its compatibility interval is wider.",
+      "The models are hierarchical, so a site-year without data still gets an estimate.",
+      "It uses the site's estimate from other years and the year's estimate from other sites, with a wider compatibility interval.",
       "With neither the site nor the year in the data, the estimate is for a typical site and year."
     ),
     link = kelpbio_articles$results$path
   ),
-  weight_density = list(
-    title = "Density in the weight model",
+  census = list(
+    title = "Census",
     body = paste(
-      "Bull kelp plants of the same diameter weigh more or less depending on how crowded they are,",
-      "so the weight model uses stipe density as a predictor: the stipes counted over the area surveyed in each site-year of the density data.",
-      "Site-years without density data take the mean density."
+      sprintf("With a sample of plants measured (a %s sheet), the surveys tally their plants and a size model is fitted to the plants measured.", size_sheet_names[["sample"]]),
+      sprintf("With all plants measured (a census, a %s sheet), the size sheet holds the plants of each survey, joined to it by survey_id, and the survey sheet has no plants column.", size_sheet_names[["census"]]),
+      "Survey biomass then sums the weights of the plants, and no size model is fitted. Macrocystis surveys are always a census."
+    ),
+    link = kelpbio_articles$models$path
+  ),
+  survey_biomass = list(
+    title = "Survey biomass",
+    body = paste(
+      "The biomass of the plants counted in an in situ survey, per square metre of the area surveyed or in total over it.",
+      "By site and year, the surveys of a site-year are pooled: their summed biomass, divided by their summed area for biomass per square metre."
     ),
     link = kelpbio_articles$models$path
   ),
   canopy_area = list(
     title = "Canopy area",
     body = paste(
-      "The area of kelp canopy the drone imagery delineated within a plot boundary, or mapped over a whole site, in square metres.",
-      "A survey with no canopy has a canopy area of 0."
+      "The area of kelp canopy the drone imagery delineated within a plot polygon, or mapped over a whole site, in square metres.",
+      "A flight with no canopy has a canopy area of 0."
     ),
-    link = kelpbio_articles$total_biomass$path
+    link = kelpbio_articles$canopy_biomass$path
   ),
   tide_cover = list(
     title = "Tide-corrected cover",
     body = paste(
-      "Less of the canopy shows at the surface at higher tides, so the cover biomass model corrects the canopy area for the tide height at the survey.",
-      "Cover is the corrected canopy area as a proportion of the plot boundary area, from 0 to 1."
+      "Less of the canopy shows at the surface at higher tides, so the cover calibration corrects the canopy area for the tide height at the flight.",
+      "Cover is the corrected canopy area as a proportion of the plot area, from 0 to 1."
     ),
-    link = kelpbio_articles$total_biomass$path
+    link = kelpbio_articles$canopy_biomass$path
   ),
-  total_biomass = list(
-    title = "Total site biomass",
+  canopy_biomass = list(
+    title = "Canopy biomass",
     body = paste(
-      "The cover biomass model relates the wet biomass of surveyed plots to their tide-corrected canopy cover.",
-      "Total site biomass applies it to the canopy mapped over each site in a drone survey.",
+      "The cover calibration relates the wet biomass of each survey to the tide-corrected drone canopy cover of its plot.",
+      "Canopy biomass applies it to the canopy mapped over each site in a drone map.",
       "The uncertainty in every model is carried through to the limits."
     ),
-    link = kelpbio_articles$total_biomass$path
+    link = kelpbio_articles$canopy_biomass$path
+  ),
+  stand_ins = list(
+    title = "Stand-in sites",
+    body = paste(
+      "A site that a model has no data for gets the effect of a new site, drawn from the spread between sites, so its compatibility interval is wide.",
+      "Sites in the model's data, such as nearby sites with similar conditions, can stand in for it instead; several are averaged.",
+      "The estimate flags name the stand-ins used."
+    ),
+    link = kelpbio_articles$results$path
   ),
   priors = list(
     title = "Priors",

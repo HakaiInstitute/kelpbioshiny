@@ -1,16 +1,12 @@
-# Estimates step: a sidebar listing every estimate (each model's predictions,
-# then biomass per unit area and total biomass from the combined models) beside
-# the chosen estimate's page, switched with a hidden navset. An estimate whose
-# models are not ready shows why instead.
+# Estimates step: a sidebar listing every estimate (survey and canopy biomass
+# from the combined models, then each model's predictions) beside the chosen estimate's page, switched with a hidden navset. An
+# estimate whose models are not ready shows why instead.
 
 mod_estimates_ui <- function(id) {
   ns <- NS(id)
   pages <- c(
     lapply(component_ids, function(cid) nav_panel_hidden(cid, mod_estimate_ui(ns(cid), cid))),
-    list(
-      nav_panel_hidden("biomass", mod_biomass_estimate_ui(ns("biomass"), "biomass")),
-      nav_panel_hidden("total", mod_biomass_estimate_ui(ns("total"), "total"))
-    )
+    lapply(derived_ids, function(eid) nav_panel_hidden(eid, mod_derived_estimate_ui(ns(eid), eid)))
   )
   main <- tagList(
     page_header("Estimates", step_description("estimates"), uiOutput(ns("continue_ui"), inline = TRUE)),
@@ -22,20 +18,18 @@ mod_estimates_ui <- function(id) {
 mod_estimates_server <- function(id, store) {
   moduleServer(id, function(input, output, session) {
     for (cid in component_ids) mod_estimate_server(cid, store)
-    mod_biomass_estimate_server("biomass", store)
-    mod_biomass_estimate_server("total", store)
+    for (eid in derived_ids) mod_derived_estimate_server(eid, store)
 
-    # The estimate shown: the one asked for, or else the first available, with
-    # plot biomass first as most runs are for it.
+    # The estimate shown: the one asked for, or else the first of the run's own
+    # (a biomass estimate first, as most runs are for them, then a model fitted
+    # to its data), or else survey biomass, which says what it needs.
     shown <- reactive({
       chosen <- store$estimate()
-      if (!is.null(chosen)) {
+      if (!is.null(chosen) && chosen %in% store$shown_estimates()) {
         return(chosen)
       }
-      estimates <- store$estimates()
-      available <- names(estimates)[vapply(estimates, `[[`, logical(1), "available")]
-      first <- intersect(c("biomass", setdiff(estimate_ids, "biomass")), available)
-      if (length(first) > 0) first[[1]] else "biomass"
+      first <- intersect(c("survey", "canopy", component_ids), store$own_estimates())
+      if (length(first) > 0) first[[1]] else "survey"
     })
     observe(nav_select("view", shown(), session = session))
 
@@ -62,13 +56,17 @@ mod_estimates_server <- function(id, store) {
         }
         subnav_link(session$ns(paste0("nav_", eid)), eid == shown, icon, estimate_label(eid), hidden)
       }
+      # The biomass estimates first, then each model's predictions, in the
+      # order of the Models step.
+      heading <- function(text) div(class = "kb-eyebrow text-body-secondary px-2 pt-1", text)
       tags$nav(
         class = "nav nav-pills flex-column gap-1",
         `aria-label` = "Estimates",
-        lapply(component_ids, link),
+        heading("Biomass"),
+        lapply(intersect(derived_ids, store$shown_estimates()), link),
         tags$hr(class = "my-1"),
-        link("biomass"),
-        link("total")
+        heading("Model predictions"),
+        lapply(intersect(model_order, store$shown_estimates()), link)
       )
     })
   })
@@ -86,7 +84,7 @@ estimate_header <- function(title, detail, action = NULL) {
 estimate_unavailable <- function(ns, reason) {
   empty_state(
     "lock", "Not available yet", reason,
-    div(class = "mt-2", button(ns("to_models"), "Go to Models", variant = "outline"))
+    div(class = "mt-2", button(ns("to_models"), "Go to models", variant = "outline"))
   )
 }
 
@@ -106,7 +104,7 @@ mod_estimate_ui <- function(id, cid) {
   tagList(
     estimate_header(
       label_of(cid), textOutput(ns("source"), inline = TRUE),
-      button(ns("open_model"), "Open model", variant = "outline", size = "sm")
+      button(ns("open_model"), "View model", variant = "outline", size = "sm")
     ),
     uiOutput(ns("notices")),
     uiOutput(ns("body"))
@@ -118,7 +116,7 @@ mod_estimate_server <- function(id, store) {
     cid <- id
     ns <- session$ns
     fit <- dedupe(reactive(store$fit_of(cid)))
-    plants <- dedupe(reactive(if (cid == "weight") plant_rows(store$sheets(), store$species())))
+    plants <- dedupe(reactive(if (cid == "weight") plant_rows(store$sheets())))
     # The body re-renders only when what it shows changes, so the chosen grouping
     # and pill survive status changes elsewhere.
     page <- dedupe(reactive({
@@ -144,78 +142,120 @@ mod_estimate_server <- function(id, store) {
       if (!page$available$available) {
         return(estimate_unavailable(ns, page$available$reason))
       }
-      predictions_panel(ns, cid, page$prefit, page$species, page$plants)
+      predictions_panel(ns, cid, page$prefit, page$species, page$plants, isolate(grouping()))
     })
 
+    # The store holds the choice, so a resumed run shows the grouping it was
+    # saved with, and the Export step uses the grouping shown here.
     grouping <- reactive({
-      choices <- prediction_choices(cid, page()$prefit, page()$species, page()$plants)
-      chosen <- input$grouping
-      if (is.null(chosen) || !chosen %in% names(choices)) default_grouping(choices) else chosen
+      chosen_grouping(store$estimate_choices()[[cid]]$grouping, prediction_choices(cid, page()$prefit, page()$species, page()$plants))
+    })
+    observeEvent(input$grouping, store$set_estimate_choice(cid, "grouping", input$grouping))
+    observeEvent(grouping(), {
+      if (!is.null(input$grouping) && !identical(input$grouping, grouping())) updateSelectInput(session, "grouping", selected = grouping())
     })
 
-    # The Group by choice names the grouping, so the figure has no title.
+    # Titled and captioned as the biomass figures are.
     output$figure <- renderUI({
       grouping <- grouping()
-      card(card_body(figure_plot(
-        ns("plot"), prediction_caption(cid, grouping),
-        class = if (grouping == "population") "kb-figure-narrow"
-      )))
+      panel(
+        sentence_case(prediction_info[[cid]]$response),
+        description = prediction_caption(cid, grouping, page()$species),
+        figure_plot(ns("plot"), class = if (grouping == "population") "kb-figure-narrow")
+      )
     })
 
-    # The predictions for the figure, and for the table: the same call unless the
-    # model predicts along a predictor, where the table is at its reference value.
+    # The predictions for the figure, and for the table.
     predictions <- reactive(model_predictions(cid, req(fit()), grouping(), page()$species, plants = plants()))
-    predictions_at <- reactive({
-      if (is.null(prediction_info[[cid]]$along) || grouping() == "plant") {
-        predictions()
-      } else {
-        model_predictions(cid, req(fit()), grouping(), page()$species, at = TRUE)
-      }
-    })
+    predictions_at <- reactive(table_predictions(cid, req(fit()), grouping(), page()$species, predictions()))
 
-    # An overall prediction of a model without a predictor has no column for the
-    # x-axis, so it gets one naming what it is for. Each plant's weight is shown
-    # in one panel: faceted by site and year it would split into a panel per
-    # site-year, so every site-year is kept (max_facets) and the facets dropped.
     output$plot <- render_figure(
-      function() {
-        grouping <- grouping()
-        predictions <- predictions()
-        if (grouping == "plant") {
-          kb_plot_predictions(predictions, x = attr(predictions, "kb_predictor"), max_facets = Inf) + ggplot2::facet_null()
-        } else if (grouping == "population" && is.null(prediction_info[[cid]]$along)) {
-          predictions$group <- population_label(cid, page()$species)
-          kb_plot_predictions(predictions, x = "group") + ggplot2::labs(x = NULL)
-        } else {
-          kb_plot_predictions(predictions)
-        }
-      },
+      function() prediction_figure(cid, predictions(), grouping(), page()$species),
       "plot",
       aspect = function() prediction_aspect(cid, grouping()),
       alt = function() sprintf("Predicted %s for the %s model", prediction_info[[cid]]$response, lower_label(cid))
     )
 
-    output$table_title <- renderText({
-      info <- prediction_info[[cid]]
-      if (grouping() == "plant") info$plant_table else info$table
-    })
+    output$table_title <- renderText(prediction_title(cid, grouping()))
 
     output$table <- reactable::renderReactable({
-      rows <- predictions_at()
-      plant <- grouping() == "plant"
+      rows <- prediction_table(predictions_at(), cid, grouping())
+      predictor <- shows_predictor(cid, grouping())
       number <- function(name) reactable::colDef(name = name, cell = number_text, align = "right", class = "kb-tabular")
-      columns <- c("site", "year", if (plant) intersect(c("diameter_mm", "fronds"), names(rows)), "estimate", "lower", "upper")
-      app_table(rows[intersect(columns, names(rows))], columns = Filter(Negate(is.null), list(
-        site = if ("site" %in% names(rows)) reactable::colDef(name = "Site"),
-        year = if ("year" %in% names(rows)) reactable::colDef(name = "Year"),
-        diameter_mm = if (plant && "diameter_mm" %in% names(rows)) reactable::colDef(name = "Sub-bulb diameter (mm)", align = "right", class = "kb-tabular"),
-        fronds = if (plant && "fronds" %in% names(rows)) reactable::colDef(name = "Fronds", align = "right", class = "kb-tabular"),
-        estimate = number("Estimate"),
-        lower = number("Lower"),
-        upper = number("Upper")
+      app_table(rows, columns = Filter(Negate(is.null), list(
+        site = if ("site" %in% names(rows)) reactable::colDef(name = column_label("site")),
+        year = if ("year" %in% names(rows)) reactable::colDef(name = column_label("year")),
+        diameter_mm = if (predictor && "diameter_mm" %in% names(rows)) reactable::colDef(name = column_label("diameter_mm"), cell = number_text, align = "right", class = "kb-tabular"),
+        fronds = if (predictor && "fronds" %in% names(rows)) reactable::colDef(name = column_label("fronds"), align = "right", class = "kb-tabular"),
+        cover = if (predictor && "cover" %in% names(rows)) reactable::colDef(name = column_label("cover"), cell = number_text, align = "right", class = "kb-tabular"),
+        estimate = number(column_label("estimate")),
+        lower = number(column_label("lower")),
+        upper = number(column_label("upper"))
       )))
     })
   })
+}
+
+# The heading of an estimates table column; another column, such as a grouping
+# column of the canopy sheet, is named in sentence case.
+column_labels <- c(
+  site = "Site", year = "Year", survey_id = "Survey", survey_area_m2 = "Area surveyed (m\u00b2)",
+  canopy_area_m2 = "Canopy area (m\u00b2)", plants = "Plants", diameter_mm = "diameter_mm",
+  fronds = "Fronds", cover = "Tide-corrected cover", estimate = "Estimate", lower = "Lower", upper = "Upper", flags = "Flags"
+)
+column_label <- function(name) if (name %in% names(column_labels)) column_labels[[name]] else sentence_case(name)
+
+# The predictions for a model's table: those of the figure unless the model
+# predicts along a predictor and the table is by group, where it is at the
+# reference value.
+table_predictions <- function(cid, fit, grouping, species, predictions) {
+  if (shows_predictor(cid, grouping) || is.null(prediction_info[[cid]]$along)) {
+    return(predictions)
+  }
+  model_predictions(cid, fit, grouping, species, at = TRUE)
+}
+
+# Whether a model's table has a row per predictor value: each plant's weight,
+# or the overall curve of a curve model.
+shows_predictor <- function(cid, grouping) {
+  grouping == "plant" || (grouping == "population" && !is.null(prediction_info[[cid]]$along))
+}
+
+prediction_title <- function(cid, grouping) {
+  info <- prediction_info[[cid]]
+  if (grouping == "plant") {
+    return(info$plant_table)
+  }
+  if (shows_predictor(cid, grouping)) info$curve_table else info$table
+}
+
+# The decimal places a predictor is shown to, in the app and the export: the
+# curve's evenly spaced values are not round.
+predictor_digits <- c(diameter_mm = 1, fronds = 0, cover = 2)
+
+# The columns of a model's predictions table.
+prediction_table <- function(rows, cid, grouping) {
+  predictors <- if (shows_predictor(cid, grouping)) names(predictor_digits)
+  columns <- c("site", "year", predictors, "estimate", "lower", "upper")
+  rows <- as.data.frame(rows)[intersect(columns, names(rows))]
+  for (name in intersect(names(predictor_digits), names(rows))) rows[[name]] <- round(rows[[name]], predictor_digits[[name]])
+  rows
+}
+
+# A model's predictions figure. An overall prediction of a model without a
+# predictor has no column for the x-axis, so it gets one naming what it is for.
+# Each plant's weight is shown in one panel: faceted by site and year it would
+# split into a panel per site-year, so every site-year is kept (max_facets) and
+# the facets dropped.
+prediction_figure <- function(cid, predictions, grouping, species) {
+  if (grouping == "plant") {
+    return(kb_plot_predictions(predictions, x = attr(predictions, "kb_predictor"), max_facets = Inf) + ggplot2::facet_null())
+  }
+  if (grouping == "population" && is.null(prediction_info[[cid]]$along)) {
+    predictions$group <- population_label(cid, species)
+    return(kb_plot_predictions(predictions, x = "group") + ggplot2::labs(x = NULL))
+  }
+  kb_plot_predictions(predictions)
 }
 
 # What an overall prediction is for: "All sites and years", "All sites" or,
@@ -239,25 +279,37 @@ default_grouping <- function(choices) {
   "population"
 }
 
-predictions_panel <- function(ns, cid, prefit, species, plants) {
+# The grouping chosen on a model's page, or the default where none is chosen or
+# the choice is no longer offered.
+chosen_grouping <- function(chosen, choices) {
+  if (is.null(chosen) || !chosen %in% names(choices)) default_grouping(choices) else chosen
+}
+
+predictions_panel <- function(ns, cid, prefit, species, plants, selected = NULL) {
   choices <- prediction_choices(cid, prefit, species, plants)
   note <- if (prefit) {
-    "A pre-fit model's predictions are overall, for a typical site and year. Biomass estimates use site-level estimates for sites in the reference data."
+    "A pre-fit model was fitted to other sites and years, so its predictions here are for a typical site and year."
   } else if (!has_effect(cid, "site", species)) {
     "This model has no site or year effects, so its predictions are overall, for a typical site and year."
   } else if (!has_effect(cid, "year", species)) {
     "This model has a site effect but no year effect, so there are no predictions by year."
   }
+  # A labelled dropdown, as on the biomass pages; a model with one grouping
+  # has none, and its note says why.
   tagList(
     div(
-      class = "d-flex flex-wrap align-items-center column-gap-3 row-gap-1 mb-3",
-      span(class = "small fw-medium", with_help(span(id = ns("grouping_title"), if (length(choices) > 1) "Group by" else "Overall"), "prediction_groups")),
+      class = "d-flex flex-wrap align-items-start column-gap-4 row-gap-2 mb-3",
       if (length(choices) > 1) {
-        radioButtons(
-          ns("grouping"), NULL,
-          choices = stats::setNames(names(choices), choices), selected = default_grouping(choices), inline = TRUE
-        ) |>
-          tagAppendAttributes(class = "mb-0", `aria-labelledby` = ns("grouping_title"))
+        div(
+          class = "d-flex flex-column gap-1",
+          span(class = "small fw-medium", with_help(span(id = ns("grouping_title"), "Group by"), "prediction_groups")),
+          selectInput(
+            ns("grouping"), NULL,
+            choices = stats::setNames(names(choices), choices), selected = chosen_grouping(selected, choices),
+            selectize = FALSE, width = "16rem"
+          ) |>
+            tagAppendAttributes(class = "mb-0", `aria-labelledby` = ns("grouping_title"))
+        )
       },
       if (!is.null(note)) div(class = "small text-body-secondary w-100", note)
     ),
@@ -273,34 +325,70 @@ predictions_panel <- function(ns, cid, prefit, species, plants) {
   )
 }
 
-# Biomass -----------------------------------------------------------------------
-# Plot biomass by site-year, or total biomass of each drone survey of a whole
-# site, for the chosen measure (wet, dry or carbon).
+# Derived estimates -----------------------------------------------------------
+# Survey biomass and total biomass over the canopy mapped by drone, for the
+# chosen measure (wet, dry or carbon) and rows; survey biomass per m\u00b2
+# surveyed or in total over the area surveyed (for a census of whole sites,
+# the site's total). kelpbio offers more (mean plant weight, canopy biomass per
+# m\u00b2, any sum); the app keeps to those a report uses.
 
-mod_biomass_estimate_ui <- function(id, eid) {
+derived_info <- list(
+  survey = list(
+    detail = "Biomass of the area surveyed in situ.",
+    help = "survey_biomass", scales = c(area = "Per m\u00b2 surveyed", total = "Total over the area surveyed")
+  ),
+  canopy = list(
+    detail = "Biomass over the canopy mapped at each site.",
+    help = "canopy_biomass", per_area = FALSE
+  )
+)
+
+# The grouping choices of a derived estimate.
+derived_sums <- function(eid, sheets) {
+  switch(eid,
+    survey = survey_sums,
+    canopy = canopy_sums(if (!is.null(sheets$canopy)) canopy_groups(sheets$canopy$rows) else character())
+  )
+}
+
+mod_derived_estimate_ui <- function(id, eid) {
   ns <- NS(id)
-  title <- if (eid == "total") with_help(estimate_label(eid), "total_biomass") else estimate_label(eid)
   tagList(
     estimate_header(
-      title,
-      if (eid == "total") "Biomass over the canopy mapped in each drone survey of a whole site." else "Biomass per m\u00b2 at the plot scale, by site-year.",
-      button(ns("change_sources"), "Change sources", variant = "outline", size = "sm")
+      with_help(estimate_label(eid), derived_info[[eid]]$help),
+      derived_info[[eid]]$detail,
+      button(ns("change_sources"), "View models", variant = "outline", size = "sm")
     ),
     uiOutput(ns("notices")),
     uiOutput(ns("body"))
   )
 }
 
-mod_biomass_estimate_server <- function(id, store) {
+mod_derived_estimate_server <- function(id, store) {
   moduleServer(id, function(input, output, session) {
     eid <- id
-    total <- eid == "total"
+    info <- derived_info[[eid]]
     ns <- session$ns
     chosen <- reactiveVal("wet")
     output_key <- reactive(if (store$outputs()[[chosen()]]$available) chosen() else "wet")
     available <- dedupe(reactive(store$estimates()[[eid]]))
+    sums <- dedupe(reactive(derived_sums(eid, store$sheets())))
+    # The store holds the scale and sum chosen, so a resumed run shows those it
+    # was saved with, and the Export step uses those shown here.
+    choice <- reactive(store$estimate_choices()[[eid]])
+    per_area <- reactive(chosen_per_area(eid, choice()$scale, store$census()))
+    sum_key <- reactive(chosen_sum(choice()$sum, sums()))
 
     observeEvent(input$output, chosen(input$output))
+    observeEvent(input$scale, store$set_estimate_choice(eid, "scale", input$scale))
+    observeEvent(input$sum, store$set_estimate_choice(eid, "sum", input$sum))
+    observeEvent(per_area(), {
+      scale <- if (per_area()) "area" else "total"
+      if (!is.null(input$scale) && !identical(input$scale, scale)) updateSelectInput(session, "scale", selected = scale)
+    })
+    observeEvent(sum_key(), {
+      if (!is.null(input$sum) && !identical(input$sum, sum_key())) updateSelectInput(session, "sum", selected = sum_key())
+    })
     observeEvent(input$change_sources, store$go_to("models"))
     observeEvent(input$to_models, store$go_to("models"))
     observe_warning_links(input, store)
@@ -311,9 +399,9 @@ mod_biomass_estimate_server <- function(id, store) {
       outputs <- store$outputs()
       unavailable <- lapply(Filter(function(k) !outputs[[k]]$available, names(outputs)), function(k) outputs[[k]]$reason)
       result <- estimates()
-      estimate_notices(ns, store, c(output_components[[key]], if (total) "cover"), extra = c(
+      estimate_notices(ns, store, unique(c(derived_components[[eid]], output_components[[key]])), extra = c(
         lapply(unavailable, function(reason) notice("minus-circle", reason, tone = "muted")),
-        if (inherits(result, "error")) list(notice("x-circle", "Biomass could not be estimated", conditionMessage(result), tone = "warning"))
+        if (inherits(result, "error")) list(notice("x-circle", sprintf("%s could not be estimated", estimate_label(eid)), condition_text(result), tone = "warning"))
       ))
     })
 
@@ -323,67 +411,168 @@ mod_biomass_estimate_server <- function(id, store) {
       }
       outputs <- store$outputs()
       open <- names(outputs)[vapply(outputs, `[[`, logical(1), "available")]
-      key <- isolate(output_key())
+      choices <- sums()
+      # Each control is a group with its label above it, so the groups wrap
+      # whole on a narrow screen.
+      group <- function(title, input_id, control) {
+        div(
+          class = "d-flex flex-column gap-1",
+          span(class = "small fw-medium", id = ns(paste0(input_id, "_title")), title),
+          tagAppendAttributes(control, class = "mb-0", `aria-labelledby` = ns(paste0(input_id, "_title")))
+        )
+      }
       tagList(
         div(
-          class = "d-flex flex-wrap align-items-center column-gap-3 row-gap-1 mb-3",
-          span(class = "small fw-medium", id = ns("output_title"), "Output"),
-          radioButtons(
+          class = "d-flex flex-wrap align-items-start column-gap-4 row-gap-2 mb-3",
+          group("Output", "output", selectInput(
             ns("output"), NULL,
-            choices = stats::setNames(open, vapply(output_info[open], `[[`, "", "label")), selected = key, inline = TRUE
-          ) |>
-            tagAppendAttributes(class = "mb-0", `aria-labelledby` = ns("output_title"))
+            choices = stats::setNames(open, vapply(output_info[open], `[[`, "", "label")), selected = isolate(output_key()),
+            selectize = FALSE, width = "12rem"
+          )),
+          if (!is.null(info$scales)) {
+            group("Scale", "scale", selectInput(
+              ns("scale"), NULL,
+              choices = stats::setNames(names(info$scales), info$scales), selected = if (isolate(per_area())) "area" else "total",
+              selectize = FALSE, width = "14rem"
+            ))
+          },
+          if (!is.null(choices)) {
+            group("Show", "sum", selectInput(
+              ns("sum"), NULL,
+              choices = stats::setNames(names(choices), vapply(choices, `[[`, "", "label")), selected = isolate(sum_key()),
+              selectize = FALSE, width = "16rem"
+            ))
+          },
+          if (!is.null(choices)) div(class = "small text-body-secondary w-100", textOutput(ns("sum_detail"), inline = TRUE))
         ),
+        uiOutput(ns("stand_ins")),
         plot_table_nav(ns("view"), uiOutput(ns("plot_panel")), uiOutput(ns("table_panel")), selected = isolate(input$view))
       )
     })
 
-    output$plot_panel <- renderUI(biomass_panels(ns, output_key(), total)$plot)
-    output$table_panel <- renderUI(biomass_panels(ns, output_key(), total)$table)
+    # Stand-in sites: for each fit that has no data for some of the sites
+    # predicted, the sites of its data that stand in for them.
+    stand_in_models <- dedupe(reactive({
+      rows <- store$sheets()[[stand_in_rows[[eid]]]]$rows
+      models <- lapply(stats::setNames(nm = stand_in_ids[[eid]]), function(id) {
+        fit <- store$fit_of(id)
+        if (!is.null(fit) && !is.null(rows)) list(sites = fit_sites(fit), new = new_sites(fit, rows))
+      })
+      Filter(function(model) length(model$new) > 0, models)
+    }))
+    output$stand_ins <- renderUI({
+      models <- stand_in_models()
+      if (length(models) == 0) {
+        return(NULL)
+      }
+      chosen <- isolate(store$stand_ins_chosen())
+      div(
+        class = "border rounded-3 p-3 mb-3",
+        div(class = "small fw-medium mb-1", with_help("Stand-in sites", "stand_ins")),
+        div(
+          class = "small text-body-secondary mb-2",
+          "Any new site the model hasn't seen has wide uncertainty. To narrow it, optionally choose model site(s) with similar conditions."
+        ),
+        div(class = "d-flex flex-wrap column-gap-4 row-gap-2", lapply(names(models), function(id) {
+          selectizeInput(
+            ns(paste0("stand_in_", id)),
+            sprintf("%s model has no data for %s", label_of(id), site_list(models[[id]]$new)),
+            choices = models[[id]]$sites, selected = intersect(chosen[[id]], models[[id]]$sites), multiple = TRUE,
+            width = "22rem", options = list(placeholder = "None: estimated as new sites")
+          )
+        }))
+      )
+    })
+    lapply(stand_in_ids[[eid]], function(id) {
+      observeEvent(input[[paste0("stand_in_", id)]], store$set_stand_ins(id, input[[paste0("stand_in_", id)]] %||% character()), ignoreNULL = FALSE, ignoreInit = TRUE)
+    })
 
-    # Plot biomass, or total site biomass, for the chosen measure, or the error
-    # kelpbio gave.
+    # A note only where the rows are not obvious from their label.
+    output$sum_detail <- renderText({
+      detail <- sums()[[req(sum_key())]]$detail
+      if (is.list(detail)) detail[[if (per_area()) "area" else "total"]] else detail %||% ""
+    })
+
+    labels <- reactive(derived_labels(eid, output_key(), per_area()))
+    # Each survey is plotted one site at a time, by plot within each year, so
+    # the surveys of a site-year sit side by side; the table holds every survey.
+    by_survey <- reactive(eid == "survey" && identical(sum_key(), "survey"))
+    sites <- reactive(unique(as.character(estimated()$site)))
+    site <- reactive({
+      choices <- sites()
+      if (!is.null(input$site) && input$site %in% choices) input$site else choices[[1]]
+    })
+    output$plot_panel <- renderUI({
+      panel(
+        labels()$label,
+        description = derived_caption(eid, labels(), sum_key()),
+        if (by_survey()) {
+          div(
+            class = "d-flex align-items-center gap-2",
+            span(class = "small fw-medium", id = ns("site_title"), "Site"),
+            selectInput(ns("site"), NULL, choices = sites(), selected = isolate(site()), selectize = FALSE, width = "12rem") |>
+              tagAppendAttributes(class = "mb-0", `aria-labelledby` = ns("site_title"))
+          )
+        },
+        figure_plot(ns("figure"))
+      )
+    })
+    output$table_panel <- renderUI({
+      panel(
+        sprintf("%s (%s)", labels()$label, labels()$unit),
+        description = tagList(
+          with_help("With 95% compatibility intervals, to 3 significant figures.", "interval"),
+          flags_note()
+        ),
+        reactable::reactableOutput(ns("table"))
+      )
+    })
+
+    # The estimates for the chosen measure, scale and rows, or the error kelpbio gave.
     estimates <- reactive({
       req(available()$available)
+      key <- output_key()
       tryCatch(
-        if (total) store$biomass_total(output_key()) else store$biomass(output_key()),
+        switch(eid,
+          survey = store$survey_biomass(key, per_area(), sums()[[sum_key()]]$pool_by),
+          canopy = store$canopy_biomass(key, sums()[[sum_key()]]$pool_by)
+        ),
         error = function(e) e
       )
     })
     estimated <- reactive(if (!inherits(estimates(), "error")) estimates() else req(FALSE))
 
-    # One facet per site, so the figure grows with the rows of facets
-    # (kb_plot_predictions() uses facet_wrap()'s default layout).
     output$figure <- render_figure(
-      function() kb_plot_predictions(estimated()), "figure",
-      height = function() figure_px(60 + 170 * ggplot2::wrap_dims(length(unique(estimated()$site)))[1]),
-      alt = function() {
-        label <- output_info[[output_key()]]$label
-        sprintf("Estimated %s by site and year", tolower(if (total) paste("Total", label) else label))
-      }
+      function() derived_figure(estimated(), if (by_survey()) site()),
+      "figure",
+      height = function() figure_px(derived_height(estimated(), if (by_survey()) site())),
+      alt = function() sprintf("Estimated %s", tolower(labels()$label))
     )
 
     output$table <- reactable::renderReactable({
-      rows <- biomass_table(estimated())
+      rows <- biomass_table(estimated(), store$stand_ins())
       flagged <- rows$flags != ""
       number <- function(name) reactable::colDef(name = name, cell = number_text, align = "right", class = "kb-tabular")
+      area <- function(name) {
+        reactable::colDef(name = name, align = "right", class = "kb-tabular", format = reactable::colFormat(separators = TRUE, digits = 0))
+      }
+      columns <- lapply(stats::setNames(nm = setdiff(names(rows), c("estimate", "lower", "upper", "flags"))), function(name) {
+        switch(name,
+          survey_area_m2 = ,
+          canopy_area_m2 = area(column_label(name)),
+          plants = reactable::colDef(name = column_label(name), align = "right", class = "kb-tabular"),
+          reactable::colDef(name = column_label(name))
+        )
+      })
       app_table(
         rows,
         row_style = function(index) if (flagged[index]) app_row_colour$info,
-        columns = Filter(Negate(is.null), list(
-          site = reactable::colDef(name = "Site"),
-          year = reactable::colDef(name = "Year"),
-          canopy_area_m2 = if (total) {
-            reactable::colDef(
-              name = "Site canopy area (m\u00b2)", align = "right", class = "kb-tabular",
-              format = reactable::colFormat(separators = TRUE, digits = 0)
-            )
-          },
-          estimate = number("Estimate"),
-          lower = number("Lower"),
-          upper = number("Upper"),
+        columns = c(columns, list(
+          estimate = number(column_label("estimate")),
+          lower = number(column_label("lower")),
+          upper = number(column_label("upper")),
           flags = reactable::colDef(
-            name = "Flags", minWidth = 220, sortable = FALSE,
+            name = column_label("flags"), minWidth = 220, sortable = FALSE, show = any(flagged),
             cell = function(value) {
               if (value == "") {
                 return(NULL)
@@ -399,22 +588,89 @@ mod_biomass_estimate_server <- function(id, store) {
   })
 }
 
-# The estimates table: kb_predict_plot_biomass() or kb_predict_site_biomass()
-# rows with a flags column naming the models without data for each site-year,
-# from the *_support columns, which give what each model's data hold for it.
-# The sources, pre-fit or not, are the same for every row and are listed on the
-# Models step.
-biomass_table <- function(rows) {
+# A derived estimate's figure: by site and year, one facet per site, so the
+# figure grows with the rows of facets (kb_plot_predictions() uses
+# facet_wrap()'s default layout); summed over every row, the one estimate gets
+# a label on the x-axis. With `site`, each survey of that site, by year.
+derived_figure <- function(predictions, site = NULL) {
+  if (!is.null(site)) {
+    predictions <- predictions[predictions$site == site, ]
+    return(kb_plot_predictions(predictions, x = "survey_id", max_facets = Inf) + ggplot2::facet_wrap(~year, scales = "free_x") + ggplot2::labs(x = "Survey"))
+  }
+  if (length(attr(predictions, "kb_group_vars")) == 0) {
+    predictions$group <- "All"
+    return(kb_plot_predictions(predictions, x = "group") + ggplot2::labs(x = NULL))
+  }
+  kb_plot_predictions(predictions)
+}
+
+# The height of derived_figure() in pixels at 96 dpi.
+derived_height <- function(predictions, site = NULL) {
+  if (!is.null(site)) {
+    years <- unique(predictions$year[predictions$site == site])
+    return(60 + 170 * ggplot2::wrap_dims(length(years))[1])
+  }
+  if (!all(c("site", "year") %in% attr(predictions, "kb_group_vars"))) {
+    return(360)
+  }
+  60 + 170 * ggplot2::wrap_dims(length(unique(predictions$site)))[1]
+}
+
+# The scale chosen for a derived estimate: survey biomass is per m\u00b2
+# surveyed unless chosen otherwise, or in total in a census, where the area
+# surveyed is often the whole site; canopy biomass is in total.
+chosen_per_area <- function(eid, chosen, census) {
+  if (is.null(derived_info[[eid]]$scales)) {
+    return(derived_info[[eid]]$per_area)
+  }
+  (chosen %||% if (census) "total" else "area") == "area"
+}
+
+# The rows chosen for a derived estimate (a derived_sums() name), or the first.
+chosen_sum <- function(chosen, choices) {
+  if (is.null(choices)) {
+    return(NULL)
+  }
+  if (!is.null(chosen) && chosen %in% names(choices)) chosen else names(choices)[1]
+}
+
+# A derived estimate's label and unit, for the chosen measure and scale.
+derived_labels <- function(eid, key, per_area) {
+  info <- output_info[[key]]
+  list(label = info$label, unit = info$unit[[if (per_area) "area" else "total"]])
+}
+
+# With `site`, the caption of the figure of that site's surveys.
+derived_caption <- function(eid, labels, sum_key, site = NULL) {
+  by <- switch(sum_key,
+    survey = sprintf(" of each survey at %s, faceted by year", if (is.null(site)) "the chosen site" else site),
+    site_year = if (eid == "canopy") " of each drone map of a site by year, faceted by site" else " of each site-year by year, faceted by site",
+    year = " summed over sites by year",
+    sprintf(" summed by %s and year, faceted by %s", sum_key, sum_key)
+  )
+  sprintf("Estimated %s (%s)%s, with 95%% compatibility intervals.", tolower(labels$label), labels$unit, by)
+}
+
+# The estimates table: the rows of a derived prediction without their draws,
+# with a flags column naming the models without data for each row's site-year,
+# from the *_support columns, which give what each model's data hold for it,
+# and the sites standing in where a model has no data for the site
+# (`stand_ins`, by model). The sources, pre-fit or not, are the same for every
+# row and are listed on the Models step.
+biomass_table <- function(rows, stand_ins = list()) {
   supports <- intersect(names(support_info), names(rows))
   flags <- vapply(seq_len(nrow(rows)), function(i) {
-    paste(unlist(lapply(supports, function(column) support_flag(column, rows[[column]][i]))), collapse = "|")
+    paste(unlist(lapply(supports, function(column) {
+      support_flag(column, rows[[column]][i], stand_ins[[support_info[[column]]$id]])
+    })), collapse = "|")
   }, character(1))
-  columns <- intersect(c("site", "year", "canopy_area_m2", "estimate", "lower", "upper"), names(rows))
-  data.frame(as.data.frame(rows)[columns], flags = flags)
+  keys <- c("survey_id", attr(rows, "kb_group_vars"), "survey_area_m2", "plants", "canopy_area_m2")
+  columns <- intersect(c(unique(keys), "estimate", "lower", "upper"), names(rows))
+  data.frame(as.data.frame(summary_columns(rows))[columns], flags = flags)
 }
 
 # Each *_support column: the model it is for, and its value when the model has
-# data for the site-year itself (the cover biomass model has no site-year effect).
+# data for the site-year itself (the cover calibration has no site-year effect).
 support_info <- list(
   size_support = list(id = "size", full = "site-year"),
   weight_support = list(id = "weight", full = "site-year"),
@@ -422,13 +678,21 @@ support_info <- list(
 )
 
 # "No size data: uses its site and year", or NULL where the model has data for
-# the site-year.
-support_flag <- function(column, support) {
+# the site-year. A site without data takes the effects of the stand-in sites
+# (`stand_ins`), if any.
+support_flag <- function(column, support, stand_ins = NULL) {
   info <- support_info[[column]]
   if (support == info$full) {
     return(NULL)
   }
   model <- lower_label(info$id)
+  if (length(stand_ins) > 0 && support %in% c("year", "none")) {
+    uses <- and_list(stand_ins)
+    return(switch(support,
+      year = sprintf("No %s data at its site: uses its year, with %s for its site", model, uses),
+      sprintf("No %s data for its site or year: uses %s for its site", model, uses)
+    ))
+  }
   switch(support,
     "site, year" = sprintf("No %s data: uses its site and year", model),
     site = sprintf("No %s data: uses its site", model),
@@ -441,30 +705,5 @@ flags_note <- function() {
   span(
     class = "d-inline-flex flex-wrap align-items-center gap-1",
     "Flags show where a model has no data for the", with_help("site-year.", "coverage")
-  )
-}
-
-# The figure and table panels of a biomass estimate, for the Plot and Table pills.
-biomass_panels <- function(ns, key, total) {
-  info <- output_info[[key]]
-  label <- if (total) paste("Total", tolower(info$label)) else info$label
-  unit <- info$unit[[if (total) "site" else "plot"]]
-  list(
-    plot = panel(
-      label,
-      description = sprintf(
-        "Estimated %s (%s) %sby year, faceted by site, with 95%% compatibility intervals.",
-        tolower(label), unit, if (total) "of each drone survey of a whole site " else ""
-      ),
-      figure_plot(ns("figure"))
-    ),
-    table = panel(
-      sprintf("%s (%s)", label, unit),
-      description = tagList(
-        with_help("With 95% compatibility intervals, to 3 significant figures.", "interval"),
-        flags_note()
-      ),
-      reactable::reactableOutput(ns("table"))
-    )
   )
 }

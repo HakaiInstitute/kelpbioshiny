@@ -5,9 +5,9 @@
 app_purpose <- "Get annual estimates of kelp biomass by site from survey data, using Bayesian methods in the kelpbio R package."
 
 app_steps <- list(
-  data = list(label = "Data", description = "Load the survey data, from a workbook or a CSV file per model."),
-  models = list(label = "Models", description = "Fit each model to your data or use a pre-fit model; open a model to adjust settings and view diagnostics."),
-  estimates = list(label = "Estimates", description = "Review the estimates from each model, and plot and total site biomass from the combined models."),
+  data = list(label = "Data", description = "Load your survey data."),
+  models = list(label = "Models", description = "Fit the models, or use pre-fit ones."),
+  estimates = list(label = "Estimates", description = "Review biomass and model estimates."),
   export = list(label = "Export", description = "Save the estimates, or rerun the whole analysis in R.")
 )
 

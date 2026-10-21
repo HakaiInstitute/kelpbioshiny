@@ -13,3 +13,4 @@
 ^app\.R$
 ^decisions$
 ^data-raw$
+^STYLE\.md$

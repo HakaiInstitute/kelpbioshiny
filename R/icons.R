@@ -29,6 +29,7 @@ lucide_paths <- list(
   "file-text" = '<path d="M6 22a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h8a2.4 2.4 0 0 1 1.704.706l3.588 3.588A2.4 2.4 0 0 1 20 8v12a2 2 0 0 1-2 2z"/><path d="M14 2v5a1 1 0 0 0 1 1h5"/><path d="M10 9H8"/><path d="M16 13H8"/><path d="M16 17H8"/>',
   "copy" = '<rect width="14" height="14" x="8" y="8" rx="2" ry="2"/><path d="M4 16c-1.1 0-2-.9-2-2V4c0-1.1.9-2 2-2h10c1.1 0 2 .9 2 2"/>',
   "check" = '<path d="M20 6 9 17l-5-5"/>',
+  "list-checks" = '<path d="M13 5h8"/><path d="M13 12h8"/><path d="M13 19h8"/><path d="m3 17 2 2 4-4"/><path d="m3 7 2 2 4-4"/>',
   "arrow-left" = '<path d="m12 19-7-7 7-7"/><path d="M19 12H5"/>',
   "arrow-right" = '<path d="M5 12h14"/><path d="m12 5 7 7-7 7"/>',
   "chevron-right" = '<path d="m9 18 6-6-6-6"/>',

@@ -66,11 +66,12 @@ step_item <- function(value, ..., small = TRUE) {
 }
 
 # A step page: the aside (choices and statuses) beside the main content on large
-# screens, and below it on small ones, so a phone shows the content first.
-step_layout <- function(aside, main) {
+# screens, and below it on small ones, so a phone shows the content first; a
+# setup aside (`aside_first`) stays above it.
+step_layout <- function(aside, main, aside_first = FALSE) {
   div(
     class = "row g-4",
-    div(class = "col-lg-3 order-last order-lg-first", div(class = "kb-aside", aside)),
+    div(class = paste("col-lg-3", if (!aside_first) "order-last order-lg-first"), div(class = "kb-aside", aside)),
     div(class = "col-lg-9", main)
   )
 }
@@ -152,6 +153,9 @@ status_label <- function(status) {
   }
   if (status$kind == "ready" && has_warning(status)) {
     return("Ready with warnings")
+  }
+  if (status$kind == "ready" && status$source == "census") {
+    return("Census")
   }
   switch(status$kind,
     "not-used" = "Not used",
@@ -244,7 +248,7 @@ fit_control <- function(fit_id, cancel_id, status, invalid, fit_label = "Fit", v
   )
 }
 
-# "density, size and weight"
+# "weight, size and survey"
 and_list <- function(x) {
   if (length(x) < 2) {
     return(x)
@@ -308,30 +312,40 @@ figure_plot <- function(output_id, caption = NULL, class = NULL) {
   )
 }
 
-# Renders plot() at the figure's width, with a height in pixels or as a share
-# of the width (aspect); either can be a function, to follow other inputs.
+# Renders plot() in the app's figure theme (figure_theme()) at the figure's
+# width, with a height in pixels or as a share of the width (aspect); either
+# can be a function, to follow other inputs.
 render_figure <- function(plot, output_id, aspect = 0.5, height = NULL, alt = NA,
                           session = getDefaultReactiveDomain()) {
   value <- function(x) if (is.function(x)) x() else x
+  width <- function() session$clientData[[paste0("output_", session$ns(output_id), "_width")]]
   renderPlot(
-    plot(),
+    {
+      figure <- plot()
+      if (inherits(figure, "ggplot")) figure + figure_theme() else figure
+    },
     res = figure_res,
     alt = alt,
+    # A figure in a panel that is still opening has no width to draw at; it
+    # is drawn once the panel is open.
+    width = function() {
+      req(isTRUE(width() > 0))
+      width()
+    },
     height = function() {
       if (!is.null(height)) {
         return(value(height))
       }
-      width <- session$clientData[[paste0("output_", session$ns(output_id), "_width")]]
-      if (is.null(width) || width == 0) 400 else round(width * value(aspect))
+      if (isTRUE(width() > 0)) round(width() * value(aspect)) else 400
     }
   )
 }
 
 # One row per component: icon, label, a muted note on the right.
-status_list <- function(statuses, notes) {
+status_list <- function(statuses, notes, ids = component_ids) {
   tags$ul(
     class = "list-unstyled d-flex flex-column gap-2 small mb-0",
-    lapply(component_ids, function(id) {
+    lapply(ids, function(id) {
       tags$li(
         class = "d-flex align-items-center gap-2",
         status_icon(statuses[[id]]),
@@ -343,18 +357,24 @@ status_list <- function(statuses, notes) {
 }
 
 # Each warning's title and what to do about it, read by the notices, the fit
-# messages and the User guide's warnings section.
+# messages and the User guide's warnings section. A note (`note`) flags
+# something to check in a valid fit; a warning, a fit or data that cannot be
+# relied on until it is fixed.
 warning_help <- list(
   convergence = list(
     title = "Convergence warning",
     advice = "Some parameters have not converged. Increase thinning (nthin) on the Settings tab, for example to 2, and refit."
   ),
+  divergence = list(
+    title = "Divergent transitions",
+    advice = "The sampler could not explore part of the posterior. Raise adapt_delta on the Settings tab, for example to 0.99, and refit."
+  ),
   prior = list(
-    title = "Prior sensitivity warning",
+    title = "Prior sensitivity", note = TRUE,
     advice = "If the flagged prior was not chosen on purpose, make it less informative on the Settings tab and refit."
   ),
   influence = list(
-    title = "Influential observations",
+    title = "Influential observations", note = TRUE,
     advice = paste(
       "Check the flagged observations, listed on the Diagnostics tab, for recording errors.",
       "Correct any error in the sheet, upload it again and refit; keep observations that check out."
@@ -369,8 +389,8 @@ warning_help <- list(
   mismatch = list(title = "Site names differ across sheets", advice = mismatch_advice)
 )
 
-# The warnings of each model in `ids`, in words: "convergence", "prior
-# sensitivity" and "influential observations" for a ready model, "fit failed"
+# The warnings of each model in `ids`, in words: "convergence" and "divergent
+# transitions" for a ready model, "fit failed"
 # for a failed one.
 model_warnings <- function(statuses, ids = component_ids) {
   warnings <- lapply(ids, function(id) {
@@ -378,15 +398,14 @@ model_warnings <- function(statuses, ids = component_ids) {
     c(
       if (status$kind == "failed") "fit failed",
       if (isTRUE(status$convergence)) "convergence",
-      if (isTRUE(status$prior)) "prior sensitivity",
-      if (isTRUE(status$influence)) "influential observations"
+      if (isTRUE(status$divergence)) "divergent transitions"
     )
   })
   Filter(length, stats::setNames(warnings, ids))
 }
 
 # A model's warnings as a phrase, for its own estimate page: "convergence and
-# prior sensitivity warnings", or "fit failed".
+# divergent transitions warnings", or "fit failed".
 warnings_phrase <- function(warnings) {
   if ("fit failed" %in% warnings) {
     return("fit failed")
@@ -463,23 +482,25 @@ settings_link <- function(text, settings_id) {
   HTML(paste0(htmltools::htmlEscape(parts[[1]]), as.character(link), htmltools::htmlEscape(parts[[2]])))
 }
 
-# A convergence warning, its advice linking to the Settings tab.
-convergence_notice <- function(settings_id) {
+# A convergence or divergence warning (`warning`), its advice linking to the
+# Settings tab.
+convergence_notice <- function(settings_id, warning = "convergence") {
   notice(
-    "alert-triangle", warning_help$convergence$title,
-    settings_link(warning_help$convergence$advice, settings_id),
+    "alert-triangle", warning_help[[warning]]$title,
+    settings_link(warning_help[[warning]]$advice, settings_id),
     tone = "warning"
   )
 }
 
-# Prior sensitivity: a warning for parameters whose prior is not weak, its
+# Prior sensitivity: a note for parameters whose prior is influencing their
+# estimate (sensitivity_flags()), its
 # advice linking to the Settings tab. priors is the fit's priors list, whose
 # entries the rows' term column names.
 prior_notice <- function(rows, priors, settings_id) {
   if (!prior_flagged(rows)) {
     return(NULL)
   }
-  flagged <- rows[!rows$weak_prior, ]
+  flagged <- rows[rows$term %in% sensitivity_flags(rows)$influencing, ]
   many <- nrow(flagged) > 1
   advice <- vapply(seq_len(nrow(flagged)), function(i) {
     prior_advice(priors[[flagged$term[i]]], if (many) flagged$term[i])
@@ -493,22 +514,23 @@ prior_notice <- function(rows, priors, settings_id) {
     sprintf("Unless it was chosen on purpose, %s on the Settings tab and refit.", advice)
   }
   notice(
-    "alert-triangle", warning_help$prior$title,
+    "info", warning_help$prior$title,
     settings_link(paste(prior_influence(flagged), action), settings_id),
-    tone = "warning"
+    tone = "info"
   )
 }
 
-# Influential observations: a warning naming how many observations strongly
+# Influential observations: a note naming how many observations strongly
 # influence the fit, from kb_influence() rows, with a button to the Diagnostics
 # tab (diagnostics_id) that lists them.
+# jarl-ignore unused_function: influential observations are hidden for now, so its call in mod_model.R is commented out.
 influence_notice <- function(rows, diagnostics_id) {
   if (!influence_flagged(rows)) {
     return(NULL)
   }
   n <- sum(rows$influential)
   notice(
-    "alert-triangle", warning_help$influence$title,
+    "info", warning_help$influence$title,
     paste(
       sprintf(
         "%s strongly %s the fit.",
@@ -516,30 +538,33 @@ influence_notice <- function(rows, diagnostics_id) {
       ),
       warning_help$influence$advice
     ),
-    tone = "warning",
+    tone = "info",
     action = button(diagnostics_id, "View observations", variant = "outline", size = "sm")
   )
 }
 
-# Above the prior sensitivity table: a muted note for parameters with a weak
-# prior that the data say little about. The prior warning itself is in the model
-# page header.
+# Above the prior sensitivity table: a note when no prior is influential and
+# the data inform every parameter, or a caution for parameters with a weak
+# prior that the data do not strongly inform, whose estimates then rest
+# largely on the prior. The prior warning itself is in the model page header.
 data_strength_notice <- function(rows) {
-  weak_data <- rows$term[rows$weak_prior & !rows$strong_data]
-  if (all(rows$weak_prior) && length(weak_data) == 0) {
-    return(notice("check-circle-2", "All parameters have weak priors and strong data", tone = "muted"))
+  flags <- sensitivity_flags(rows)
+  weak_data <- flags$weak_data
+  if (length(flags$influencing) == 0 && length(weak_data) == 0) {
+    return(notice("check-circle-2", "No prior sensitivity", tone = "muted"))
   }
   if (length(weak_data) == 0) {
     return(NULL)
   }
   many <- length(weak_data) > 1
   notice(
-    "info", sprintf("The data say little about %s", and_list(weak_data)),
+    "info", sprintf("Not strongly informed by the data: %s", and_list(weak_data)),
     sprintf(
-      "%s uncertain. More data would narrow %s.",
-      if (many) "Their estimates are" else "Its estimate is", if (many) "them" else "it"
+      "%s largely on %s prior. Check that the %s reasonable; more data would narrow %s.",
+      if (many) "Their estimates depend" else "Its estimate depends", if (many) "their" else "its",
+      if (many) "priors are" else "prior is", if (many) "them" else "it"
     ),
-    tone = "muted"
+    tone = "info"
   )
 }
 
@@ -559,7 +584,7 @@ fit_columns <- function(data, columns = NULL) {
     def <- columns[[name]] %||% reactable::colDef()
     if (is.null(def$minWidth)) {
       values <- data[[name]]
-      if (is.numeric(values)) values <- signif(values, 3)
+      if (is.numeric(values)) values <- formatC(values, digits = 3, format = "fg")
       chars <- max(nchar(def$name %||% name), nchar(as.character(values)), na.rm = TRUE)
       def$minWidth <- min(8 * chars + 24, 160)
     }

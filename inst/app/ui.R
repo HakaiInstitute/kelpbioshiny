@@ -1,2 +1,2 @@
-# jarl-ignore internal_function: the app directory belongs to the package.
+# jarl-ignore undesirable_operator: the app directory belongs to the package.
 kelpbioshiny:::app_ui()
