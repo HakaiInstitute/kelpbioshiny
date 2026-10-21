@@ -47,7 +47,7 @@ export_script <- function(species, sources, sheets, workbook, priors, samplers, 
       reference <- prefit_reference(sources[[id]])
       return(c(
         sprintf("# %s model", prefit_info[[reference]]$label),
-        sprintf("%s <- fit_%s_%s_%s", fit_name(id), model, reference, sp)
+        sprintf("%s <- kelpbiodata::%s", fit_name(id), prefit_name(id, species, reference))
       ))
     }
     changed <- priors[[id]][format_prior(priors[[id]]) != format_prior(default_priors(id, species)), ]

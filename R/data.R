@@ -3,8 +3,8 @@
 # and choices.
 
 # Pre-fit models, by the reference dataset they were fitted to. A model's pre-fit
-# source is "prefit_" and the reference, e.g. "prefit_hakai"; the fit is
-# kelpbio's reference fit of that name (fit_weight_hakai_nereo).
+# source is "prefit_" and the reference, e.g. "prefit_hakai"; the fit is the
+# kelpbiodata reference fit of that name (fit_weight_hakai_nereo).
 prefit_info <- list(
   coastwide = list(label = "Pre-fit Coastwide", data = "data compiled from surveys along the coast"),
   hakai = list(label = "Pre-fit Hakai Institute", data = "Hakai Institute survey data")
@@ -14,10 +14,18 @@ prefit_source <- function(reference) if (length(reference) > 0) paste0("prefit_"
 is_prefit <- function(source) startsWith(source, "prefit_")
 prefit_reference <- function(source) sub("^prefit_", "", source)
 
-# kelpbio's reference fit of a model to a reference dataset.
-prefit_fit <- function(id, species, reference) {
-  getExportedValue("kelpbio", sprintf("fit_%s_%s_%s", model_name(id), reference, species_info[[species]]$suffix))
+# The name of the kelpbiodata reference fit of a model to a reference dataset.
+prefit_name <- function(id, species, reference) {
+  sprintf("fit_%s_%s_%s", model_name(id), reference, species_info[[species]]$suffix)
 }
+
+prefit_fit <- function(id, species, reference) getExportedValue("kelpbiodata", prefit_name(id, species, reference))
+
+# The reference fits the installed kelpbiodata holds, read once.
+reference_fits <- local({
+  names <- NULL
+  function() names <<- names %||% utils::data(package = "kelpbiodata")$results[, "Item"]
+})
 
 species_info <- list(
   nereo = list(latin = "Nereocystis luetkeana", common = "bull kelp", suffix = "nereo"),
@@ -111,8 +119,8 @@ names(component_ids) <- component_ids
 # pre-fit source, or none. No model is required: a run can, for example, use
 # only a size sheet and a pre-fit weight model to predict plant weights.
 # `sheet` is the sheet the model is fitted to, and `prefit` the references of
-# kelpbio's reference fits, by species. kelpbio names the cover model
-# cover_calibration (`model`).
+# its reference fits, by species, offered where kelpbiodata holds them. kelpbio
+# names the cover model cover_calibration (`model`).
 components <- list(
   weight = list(
     label = "Weight", detail = "Wet weight by plant size", sheet = "weight",
@@ -187,7 +195,9 @@ model_sources <- function(id, census = FALSE, species = "nereo") {
     return("census")
   }
   sources <- as.list(components[[id]]$sources)
-  sources[sources == "prefit"] <- list(prefit_source(components[[id]]$prefit[[species]]))
+  references <- components[[id]]$prefit[[species]]
+  references <- references[prefit_name(id, species, references) %in% reference_fits()]
+  sources[sources == "prefit"] <- list(prefit_source(references))
   unlist(sources)
 }
 

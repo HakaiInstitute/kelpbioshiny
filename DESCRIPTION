@@ -21,6 +21,7 @@ Imports:
     ggplot2,
     htmltools,
     kelpbio,
+    kelpbiodata,
     mirai,
     posterior,
     priorsense,
@@ -40,7 +41,8 @@ Suggests:
     shinytest2,
     testthat (>= 3.0.0)
 Remotes:
-    HakaiInstitute/kelpbio@app-api-additions
+    HakaiInstitute/kelpbio@app-api-additions,
+    HakaiInstitute/kelpbiodata@add-reference-fits
 Encoding: UTF-8
 Roxygen: list(markdown = TRUE)
 Config/roxygen2/version: 8.1.0.9000
