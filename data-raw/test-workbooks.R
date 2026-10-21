@@ -21,7 +21,9 @@
 #   canopy biomass; wet:dry and carbon are pre-fit.
 # 4-canopy-prefit: a canopy sheet alone, with drone maps of the sites of the
 #   pre-fit Hakai Institute cover calibration flown again in a year after its
-#   data, so canopy biomass takes each site's effect but treats the year as new.
+#   data, so canopy biomass takes each site's effect but treats the year as new,
+#   and one map of a new site with the same areas as the first site's, whose
+#   limits are wider as the site is new too.
 #
 # Errors:
 # 5-bad-data: every sheet, with a weight sheet missing two years (a data
@@ -57,12 +59,18 @@ census_rows <- function(survey, size) {
 }
 
 # Drone maps of each site of the pre-fit cover calibration in the year after
-# its data, with canopy, tide and classified areas from the simulated maps.
+# its data, with canopy, tide and classified areas from the simulated maps,
+# and a map of a site the calibration has no data for ("New site") with the
+# areas and tide of the first site's map, so the two can be compared. The
+# Macrocystis maps leave out Manley and Triquetta, which also have
+# Nereocystis, for sites of Macrocystis alone.
 canopy_prefit_rows <- function(species, canopy) {
   fit <- prefit_fit("cover", species, "hakai")
   sites <- fit_sites(fit)
   maps <- canopy[sample.int(nrow(canopy), length(sites)), c("canopy_area_m2", "tide_height_m", "classified_area_m2")]
-  data.frame(site = sites, year = max(as.integer(fit$meta$year_levels)) + 1L, maps, row.names = NULL)
+  rows <- data.frame(site = sites, year = max(as.integer(fit$meta$year_levels)) + 1L, maps, row.names = NULL)
+  if (species == "macro") rows <- rows[!rows$site %in% c("Manley", "Triquetta"), ]
+  rbind(rows, transform(rows[1, ], site = "New site"))
 }
 
 # Weights of 150 plants in each site-year of three sites over two years,
