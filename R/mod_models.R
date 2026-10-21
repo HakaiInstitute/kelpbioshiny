@@ -74,8 +74,7 @@ mod_models_ui <- function(id) {
   rows <- unlist(lapply(model_groups, function(group) {
     title <- tags$tr(tags$td(
       colspan = 4, class = "ps-4 py-2 bg-body-tertiary small text-body-secondary",
-      span(class = "fw-medium text-body", group$label),
-      paste0(if (isTRUE(group$optional)) " (optional)", if (!is.null(group$detail)) paste0(": ", group$detail))
+      span(class = "fw-medium text-body", group$label)
     ))
     c(list(title), unname(rows[group$ids]))
   }), recursive = FALSE)

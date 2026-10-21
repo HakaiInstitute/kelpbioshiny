@@ -153,11 +153,11 @@ components <- list(
 survey_ids <- c("weight", "size")
 
 # The models by what they are for, in the order the Models and Estimates steps
-# list them; the optional groups add to survey biomass.
+# list them.
 model_groups <- list(
   survey = list(label = "For survey biomass", ids = survey_ids),
-  canopy = list(label = "For canopy biomass", optional = TRUE, detail = "fitted once the weight and size models are ready", ids = "cover"),
-  measure = list(label = "For dry and carbon biomass", optional = TRUE, ids = c("wetdry", "carbon"))
+  canopy = list(label = "For canopy biomass", ids = "cover"),
+  measure = list(label = "For dry and carbon biomass", ids = c("wetdry", "carbon"))
 )
 model_order <- unlist(lapply(model_groups, `[[`, "ids"), use.names = FALSE)
 
