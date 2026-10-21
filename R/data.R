@@ -354,6 +354,8 @@ derived_components <- list(survey = survey_ids, canopy = c(survey_ids, "cover"))
 # after the first.
 condition_text <- function(cnd) {
   message <- withr::with_options(list(cli.width = Inf, cli.num_colors = 1), conditionMessage(cnd))
+  # A message formatted when it was signalled can still hold ANSI styles.
+  message <- cli::ansi_strip(message)
   lines <- trimws(strsplit(message, "\n", fixed = TRUE)[[1]])
   lines[-1] <- sub("^(\u2139|\u2716|\u2714|\u2022|!|i|x|v|\\*) ", "", lines[-1])
   paste(lines[lines != ""], collapse = " ")

@@ -17,6 +17,7 @@ Depends:
 Imports:
     bslib,
     chk,
+    cli,
     generics,
     ggplot2,
     htmltools,
