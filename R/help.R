@@ -151,8 +151,8 @@ help_topics <- list(
   census = list(
     title = "Census",
     body = paste(
-      "With a sample of plants measured, the surveys tally their plants and a size model is fitted to the plants measured.",
-      "With all plants measured (a census), the size sheet holds the plants of each survey, joined to it by survey_id, and the survey sheet has no plants column.",
+      sprintf("With a sample of plants measured (a %s sheet), the surveys tally their plants and a size model is fitted to the plants measured.", size_sheet_names[["sample"]]),
+      sprintf("With all plants measured (a census, a %s sheet), the size sheet holds the plants of each survey, joined to it by survey_id, and the survey sheet has no plants column.", size_sheet_names[["census"]]),
       "Survey biomass then sums the weights of the plants, and no size model is fitted. Macrocystis surveys are always a census."
     ),
     link = kelpbio_articles$models$path

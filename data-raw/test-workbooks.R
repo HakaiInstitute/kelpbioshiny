@@ -3,7 +3,9 @@
 # simulated data and, for the canopy-only run, the sites of kelpbiodata's
 # reference cover calibration. The app's "Use example workbook" button loads
 # the first (example_rows()). Years are written as numbers, as a spreadsheet
-# stores them. Run from the package root:
+# stores them, and the size sheet is named for its kind of size data
+# (size_sample or size_census), which sets Size data on upload. Run from the
+# package root:
 #   Rscript data-raw/test-workbooks.R
 #
 # Use cases:
@@ -14,8 +16,7 @@
 # 3-census (Nereocystis only): weight, size, survey and canopy sheets, with
 #   every counted plant measured, each survey's plants drawn from the measured
 #   sample of its site-year (census_rows()), and a twentieth of them partial;
-#   wet:dry and carbon are pre-fit. Choose "All plants measured" under Size
-#   data, before or after uploading.
+#   wet:dry and carbon are pre-fit.
 # 4-canopy-prefit: a canopy sheet alone, with drone maps of the sites of the
 #   pre-fit Hakai Institute cover calibration flown again in a year after its
 #   data, so canopy biomass takes each site's effect but treats the year as new.
@@ -31,10 +32,11 @@
 
 pkgload::load_all(quiet = TRUE)
 
-write_workbook <- function(sheets, name, species) {
+write_workbook <- function(sheets, name, species, census = is_census(species)) {
   for (id in names(sheets)) {
     if ("year" %in% names(sheets[[id]])) sheets[[id]]$year <- as.integer(sheets[[id]]$year)
   }
+  names(sheets) <- vapply(names(sheets), sheet_name, "", census = census)
   writexl::write_xlsx(sheets, file.path("data-raw/workbooks", sprintf("kelpbio-%s-%s.xlsx", name, species)))
 }
 
@@ -93,7 +95,7 @@ for (species in names(species_info)) {
     census <- full[c("weight", "size", "survey", "canopy")]
     census$size <- census_rows(full$survey, full$size)
     census$survey$plants <- NULL
-    write_workbook(census, "3-census", species)
+    write_workbook(census, "3-census", species, census = TRUE)
   }
   write_workbook(list(canopy = canopy_prefit_rows(species, full$canopy)), "4-canopy-prefit", species)
   bad <- full

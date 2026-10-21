@@ -749,17 +749,34 @@ new_store <- function(session, run_fit = mirai_fit_runner) {
     apply_sheets(checked_sheets(example_rows(species), file), file)
   }
 
+  # A Nereocystis size sheet named for one kind of size data (in a workbook's
+  # sheet names or a CSV's file name, `names`) sets that kind, which can still
+  # be changed by hand. The fits are reset by the load itself.
+  guess_size_data <- function(names) {
+    guess <- size_data_guess(names)
+    if (is.null(guess) || isolate(s$species()) != "nereo" || identical(guess, isolate(s$size_data()))) {
+      return()
+    }
+    s$size_data(guess)
+    s$notify(
+      sprintf("From the %s sheet. Change it under Size data if it is wrong.", size_sheet_names[[guess]]),
+      title = sprintf("Size data set to %s", size_data_info[[guess]]$label), duration = 8
+    )
+  }
+
   # A workbook that cannot be read, or has no sheet named after a model, leaves
   # the data as they were.
   s$load_workbook <- function(file, path) {
-    rows <- tryCatch(read_workbook(path), error = function(e) e)
+    names <- tryCatch(readxl::excel_sheets(path), error = function(e) character())
+    guess_size_data(names)
+    rows <- tryCatch(read_workbook(path, isolate(s$census())), error = function(e) e)
     if (inherits(rows, "error")) {
       s$notify(condition_text(rows), type = "error", title = sprintf("%s could not be read", file), duration = 10)
       return()
     }
     if (length(rows) == 0) {
       s$notify(
-        sprintf("Name each sheet after its data: %s.", and_list(unname(sheet_ids))),
+        sprintf("Name each sheet after its data: %s.", and_list(c(setdiff(sheet_ids, "size"), size_sheet_names))),
         type = "error", title = sprintf("%s has no sheet kelpbio reads", file), duration = 10
       )
       return()
@@ -776,6 +793,7 @@ new_store <- function(session, run_fit = mirai_fit_runner) {
       s$notify(condition_text(rows), type = "error", title = sprintf("%s could not be read", file), duration = 10)
       return()
     }
+    if (id == "size") guess_size_data(sub("\\.[^.]*$", "", file))
     cid <- sheet_component(id)
     if (!is.null(cid)) s$reset_fit(cid)
     sheets <- isolate(s$sheets())

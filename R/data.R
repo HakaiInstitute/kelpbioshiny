@@ -93,6 +93,18 @@ size_data_info <- list(
 
 is_census <- function(species, size_data = "sample") species == "macro" || size_data == "census"
 
+# The size sheet is named for its kind of size data in a workbook, a CSV file
+# name, the template and the messages; the app's sheet id stays "size".
+size_sheet_names <- c(sample = "size_sample", census = "size_census")
+sheet_name <- function(id, census = FALSE) if (id == "size") size_sheet_names[[if (census) "census" else "sample"]] else id
+
+# The kind of size data that sheet or file names (`names`) show: "sample" or
+# "census" when exactly one of the size sheet names is among them, else NULL.
+size_data_guess <- function(names) {
+  kinds <- names(size_sheet_names)[size_sheet_names %in% names]
+  if (length(kinds) == 1) kinds
+}
+
 # The survey rows as kelpbio takes them: in a census, without a blank plants
 # column (one with counts is left in, so the check flags it), as the counts
 # then come from the plant rows.
@@ -351,7 +363,7 @@ condition_text <- function(cnd) {
 # aborts with a message naming the column. Warnings the check gives
 # (implausible values) become the sheet's warnings, one per element, and its
 # messages its note. `check` runs the check.
-new_sheet <- function(id, rows, file, check) {
+new_sheet <- function(id, rows, file, check, name = id) {
   warnings <- character()
   notes <- character()
   result <- tryCatch(
@@ -369,7 +381,7 @@ new_sheet <- function(id, rows, file, check) {
     error = function(e) e
   )
   list(
-    component = id, name = id, file = file, rows = rows,
+    component = id, name = name, file = file, rows = rows,
     error = if (inherits(result, "error")) condition_text(result),
     warnings = if (length(warnings) > 0) unique(warnings),
     note = if (length(notes) > 0) paste(notes, collapse = " ")
@@ -380,7 +392,7 @@ new_sheet <- function(id, rows, file, check) {
 # size census and the survey sheet with it (`size`, its rows once they pass
 # their check), so plants that match no survey show on the survey sheet.
 check_sheet <- function(id, rows, species, census, size = NULL) {
-  x_name <- sprintf("`%s`", id)
+  x_name <- sprintf("`%s`", sheet_name(id, census))
   switch(id,
     size = if (!census) {
       kb_check_data_size_sample_nereo(rows, x_name = x_name)
@@ -403,7 +415,7 @@ check_sheets <- function(rows, files, species, census = is_census(species)) {
   sheets <- list()
   for (id in intersect(sheet_ids, names(rows))) {
     size <- if (!is.null(sheets$size) && is.null(sheets$size$error)) rows$size else empty_plants(species)
-    sheets[[id]] <- new_sheet(id, rows[[id]], files[[id]], function() check_sheet(id, rows[[id]], species, census, size))
+    sheets[[id]] <- new_sheet(id, rows[[id]], files[[id]], function() check_sheet(id, rows[[id]], species, census, size), sheet_name(id, census))
   }
   survey <- sheets$survey
   if (!is.null(survey$error) && species == "nereo") {
@@ -492,7 +504,7 @@ template_readme <- function(species, census = is_census(species)) {
   rows <- lapply(sheet_ids, function(id) {
     columns <- sheet_columns(id, species, census)
     data.frame(
-      sheet = id,
+      sheet = sheet_name(id, census),
       needed = sheet_need(id, species),
       one_row_per = sheet_info[[id]]$row,
       column = columns,
@@ -519,6 +531,7 @@ template_sheets <- function(species, census = is_census(species)) {
     columns <- sheet_columns(id, species, census)
     as.data.frame(stats::setNames(rep(list(character()), length(columns)), columns))
   })
+  names(sheets) <- vapply(sheet_ids, sheet_name, "", census = census)
   c(list(README = template_readme(species, census)), sheets)
 }
 
@@ -526,12 +539,17 @@ template_file <- function(species, census = is_census(species)) {
   sprintf("kelpbio-template-%s%s.xlsx", species_info[[species]]$suffix, if (census && species == "nereo") "-census" else "")
 }
 
-# The rows of each sheet in an Excel workbook named after a sheet id, by id;
-# other sheets are ignored.
-read_workbook <- function(path) {
+# The rows of each sheet in an Excel workbook named after a sheet, by sheet id;
+# other sheets are ignored. The size sheet is the one of the kind of size data
+# (`census`), else the other kind, else one named size.
+read_workbook <- function(path, census = FALSE) {
   present <- readxl::excel_sheets(path)
-  ids <- Filter(function(id) id %in% present, sheet_ids)
-  lapply(ids, function(id) as_sheet_rows(readxl::read_excel(path, sheet = id)))
+  names <- lapply(sheet_ids, function(id) {
+    candidates <- if (id == "size") c(sheet_name(id, census), sheet_name(id, !census), "size") else id
+    intersect(candidates, present)[1]
+  })
+  names <- Filter(Negate(is.na), names)
+  lapply(names, function(name) as_sheet_rows(readxl::read_excel(path, sheet = name)))
 }
 
 read_csv_rows <- function(path) as_sheet_rows(utils::read.csv(path, check.names = FALSE))

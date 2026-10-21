@@ -26,7 +26,7 @@ export_script <- function(species, sources, sheets, workbook, priors, samplers, 
   read <- c(
     # File names are the user's, so they are quoted as R strings.
     if (length(from_book) > 0) sprintf("path <- %s", encodeString(workbook %||% "kelp-survey.xlsx", quote = "\"")),
-    vapply(from_book, function(id) read_call(id, sprintf("readxl::read_excel(path, sheet = \"%s\")", id)), ""),
+    vapply(from_book, function(id) read_call(id, sprintf("readxl::read_excel(path, sheet = \"%s\")", sheet_name(id, census))), ""),
     vapply(from_csv, function(id) read_call(id, sprintf("readr::read_csv(%s)", encodeString(sheets[[id]]$file, quote = "\""))), ""),
     if (survey && census && "plants" %in% names(sheets$survey$rows)) {
       c("# A census: the counts come from the plant rows of the size sheet", "survey <- dplyr::select(survey, -plants)")

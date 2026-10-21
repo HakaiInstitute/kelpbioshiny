@@ -38,7 +38,10 @@ guide_columns <- function(id) {
 guide_sheets <- function() {
   guide_table(
     c("Sheet", "One row per", "Columns"),
-    lapply(sheet_ids, function(id) list(tags$code(id), sheet_info[[id]]$row, guide_columns(id)))
+    lapply(sheet_ids, function(id) {
+      name <- if (id == "size") tagList(tags$code(size_sheet_names[["sample"]]), " or ", tags$code(size_sheet_names[["census"]])) else tags$code(id)
+      list(name, sheet_info[[id]]$row, guide_columns(id))
+    })
   )
 }
 

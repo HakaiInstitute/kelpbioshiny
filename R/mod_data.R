@@ -479,7 +479,7 @@ sheet_panel <- function(ns, sheet, source, species, facet = NULL) {
     div(
       class = "d-flex flex-wrap align-items-center gap-2",
       lucide("file-spreadsheet", "text-body-secondary"),
-      tags$code(style = "min-width: 4.5rem", sheet$name),
+      tags$code(style = "min-width: 6.5rem", sheet$name),
       badge_ui,
       if (endsWith(sheet$file, ".csv")) span(class = "small text-body-secondary fw-normal", "from ", sheet$file),
       # Text styled as a link: the whole title opens the panel, and a link
