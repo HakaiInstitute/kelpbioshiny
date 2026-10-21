@@ -865,6 +865,15 @@ fit_sites <- function(fit) unique(as.character(kb_new_data(fit, by = "site")$sit
 # The sites of `rows` that a fit has no data for.
 new_sites <- function(fit, rows) setdiff(unique(as.character(rows$site)), fit_sites(fit))
 
+# Sites named in a sentence, the first `n` and a count of the rest.
+site_list <- function(sites, n = 3) {
+  label <- if (length(sites) == 1) "site" else "sites"
+  if (length(sites) > n) {
+    sites <- c(sites[seq_len(n)], sprintf("%d more", length(sites) - n))
+  }
+  paste(label, and_list(sites))
+}
+
 # The chosen stand-ins (`chosen`, by model) that are sites of each fit in use,
 # leaving out the models with none: kelpbio's representative_site, as a list
 # by fit.

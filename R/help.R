@@ -191,10 +191,11 @@ help_topics <- list(
     link = kelpbio_articles$canopy_biomass$path
   ),
   stand_ins = list(
-    title = "Sites without model data",
+    title = "Stand-in sites",
     body = paste(
       "A site that a model has no data for gets the effect of a new site, drawn from the spread between sites, so its compatibility interval is wide.",
-      "Choose sites in the model's data, such as nearby sites with similar conditions, to stand in for it instead; several are averaged."
+      "Sites in the model's data, such as nearby sites with similar conditions, can stand in for it instead; several are averaged.",
+      "The estimate flags name the stand-ins used."
     ),
     link = kelpbio_articles$results$path
   ),

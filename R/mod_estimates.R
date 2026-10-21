@@ -446,17 +446,19 @@ mod_derived_estimate_server <- function(id, store) {
         return(NULL)
       }
       chosen <- isolate(store$stand_ins_chosen())
-      what <- if (eid == "survey") "surveyed" else "mapped"
       div(
         class = "border rounded-3 p-3 mb-3",
-        div(class = "small fw-medium mb-1", with_help("Sites without model data", "stand_ins")),
+        div(class = "small fw-medium mb-1", with_help("Stand-in sites", "stand_ins")),
+        div(
+          class = "small text-body-secondary mb-2",
+          "Any new site the model hasn't seen has wide uncertainty. To narrow it, optionally choose model site(s) with similar conditions."
+        ),
         div(class = "d-flex flex-wrap column-gap-4 row-gap-2", lapply(names(models), function(id) {
-          n <- length(models[[id]]$new)
           selectizeInput(
             ns(paste0("stand_in_", id)),
-            sprintf("%s: %d %s %s without data", label_of(id), n, what, if (n == 1) "site" else "sites"),
+            sprintf("%s model has no data for %s", label_of(id), site_list(models[[id]]$new)),
             choices = models[[id]]$sites, selected = intersect(chosen[[id]], models[[id]]$sites), multiple = TRUE,
-            width = "18rem", options = list(placeholder = "A new site (default)")
+            width = "22rem", options = list(placeholder = "None: estimated as new sites")
           )
         }))
       )

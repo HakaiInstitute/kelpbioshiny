@@ -161,8 +161,8 @@
       Canopy biomass
       The cover calibration relates the wet biomass of each survey to the tide-corrected drone canopy cover of its plot. Canopy biomass applies it to the canopy mapped over each site in a drone map. The uncertainty in every model is carried through to the limits.
       Learn more (https://hakaiinstitute.github.io/kelpbio/articles/canopy-biomass.html)
-      Sites without model data
-      A site that a model has no data for gets the effect of a new site, drawn from the spread between sites, so its compatibility interval is wide. Choose sites in the model's data, such as nearby sites with similar conditions, to stand in for it instead; several are averaged.
+      Stand-in sites
+      A site that a model has no data for gets the effect of a new site, drawn from the spread between sites, so its compatibility interval is wide. Sites in the model's data, such as nearby sites with similar conditions, can stand in for it instead; several are averaged. The estimate flags name the stand-ins used.
       Learn more (https://hakaiinstitute.github.io/kelpbio/articles/results.html)
       Priors
       A prior states which parameter values are plausible before the data are seen. The defaults rule out implausible values but leave the data to decide the estimates, so most analyses keep them.
