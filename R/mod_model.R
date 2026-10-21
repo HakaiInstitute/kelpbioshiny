@@ -478,7 +478,7 @@ mod_model_server <- function(id, store) {
           line(TRUE, "No prior sensitivity", "diag_sensitivity")
         },
         if (!is.null(influential)) {
-          line(TRUE, if (influential == 0) "No influential observations" else sprintf("%d influential observations to check", influential), "diag_influence", tone = if (influential == 0) "ok" else "info")
+          line(TRUE, if (influential == 0) "No influential observations" else sprintf("%d influential %s to check", influential, if (influential == 1) "observation" else "observations"), "diag_influence", tone = if (influential == 0) "ok" else "info")
         },
         line(TRUE, "Posterior predictive check: compare the data with the simulated datasets", "diag_ppc", tone = "info")
       )
