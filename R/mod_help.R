@@ -2,7 +2,8 @@
 # sidebar as on the Models and Estimates steps. Help is not a step, so it carries no step marker
 # and takes no part in step completion. The guide is built
 # from the definitions the app already uses (app_steps, sheet_info, components,
-# prefit_info, warning_help, help_topics), so it changes when they do; only the
+# model_groups, prefit_info, output_info, the sums, warning_help, help_topics),
+# so it changes when they do; only the
 # connecting sentences are written here.
 
 source_url <- "https://github.com/HakaiInstitute/kelpbioshiny"
@@ -45,11 +46,12 @@ guide_sheets <- function() {
   )
 }
 
-# Each model's sources, naming the species of a pre-fit model only one has.
+# Each model, what it is for and its sources, naming the species of a pre-fit
+# model only one has.
 guide_sources <- function() {
   guide_table(
-    c("Model", "Sources"),
-    lapply(component_ids, function(id) {
+    c("Model", "For", "Sources"),
+    lapply(model_order, function(id) {
       by_species <- lapply(names(species_info), function(species) model_sources(id, species = species))
       sources <- unique(unlist(by_species))
       labels <- vapply(sources, function(source) {
@@ -57,22 +59,63 @@ guide_sources <- function() {
         label <- htmltools::htmlEscape(source_label(source))
         if (length(species) == 1) sprintf("%s (<em>%s</em> only)", label, species_info[[species]]$latin) else label
       }, "")
-      list(label_of(id), HTML(paste(labels, collapse = ", ")))
+      group <- Filter(function(g) id %in% g$ids, model_groups)[[1]]
+      list(label_of(id), sub("^For ", "", group$label), HTML(paste(labels, collapse = ", ")))
     })
   )
 }
+
+# What each estimate needs, and how it can be shown.
+guide_estimates <- function() {
+  or_list <- function(x) sentence_case(sub(", ([^,]*)$", " or \\1", paste(tolower(x), collapse = ", ")))
+  guide_table(
+    c("Estimate", "Needs", "Shown"),
+    list(
+      list(
+        estimate_label("survey"),
+        sprintf("The %s and %s models (or a census), and a survey sheet", lower_label("weight"), lower_label("size")),
+        paste0(
+          or_list(vapply(survey_sums, `[[`, "", "label")), "; ",
+          tolower(or_list(derived_info$survey$scales))
+        )
+      ),
+      list(
+        estimate_label("canopy"),
+        sprintf("A canopy sheet and the %s", lower_label("cover")),
+        or_list(c(vapply(canopy_sums(), `[[`, "", "label"), "total by any text column of the canopy sheet and year"))
+      ),
+      list(
+        "Each model's predictions",
+        "The model, fitted or pre-fit",
+        paste("Group by:", tolower(or_list(prediction_groupings[c("population", "site", "year", "site_year")])))
+      )
+    )
+  )
+}
+
+# A few short points under a step.
+guide_points <- function(...) tags$ul(class = "small text-body-secondary mb-0 d-flex flex-column gap-1", lapply(c(...), tags$li))
 
 # Extra content under a step's heading in the guide.
 guide_extras <- list(
   data = function() {
     tagList(
+      guide_points(
+        sprintf(
+          "Choose the species, and for Nereocystis whether a sample of plants or all of them were measured, in the sidebar. A workbook with a %s or %s sheet sets the choice on upload.",
+          size_sheet_names[["sample"]], size_sheet_names[["census"]]
+        ),
+        "Upload a workbook with one sheet per kind of data, or a CSV file per sheet. Download the template workbook to start from the right sheets and columns, or try the app with the example workbook.",
+        "Each sheet is checked on upload. Open its panel to see the check, a figure and a table of the data; Coverage shows the site-years each sheet has data for.",
+        "To resume a saved run, add its fit bundle under Resume a run."
+      ),
       div(
         class = "small text-body-secondary",
         paste(
           "The columns of each sheet. Every sheet is optional, and other columns are ignored.",
           sprintf(
-            "For Nereocystis, choose under Size data whether a sample of plants was measured or all of them. With %s, a census, the size sheet holds every counted plant and the survey sheet has no plants column. Macrocystis surveys are always a census.",
-            tolower(size_data_info$census$label)
+            "The size sheet is %s for a sample of plants measured, or %s with %s, a census, when it holds every counted plant and the survey sheet has no plants column. Macrocystis surveys are always a census.",
+            size_sheet_names[["sample"]], size_sheet_names[["census"]], tolower(size_data_info$census$label)
           )
         )
       ),
@@ -81,13 +124,34 @@ guide_extras <- list(
   },
   models = function() {
     tagList(
-      div(class = "small text-body-secondary", "Each model uses one source: your data, a pre-fit model, or none. With all plants measured (a census) there is no size model."),
+      guide_points(
+        "Choose a source for each model: your data, a pre-fit model, or none. With all plants measured (a census) there is no size model.",
+        sprintf("Fit all fits every model that uses your data, in the background; the %s is fitted once the %s and %s models are ready.", lower_label("cover"), lower_label("weight"), lower_label("size")),
+        sprintf(
+          "Open a model for its %s tabs. Check the Diagnostics tab before using its estimates; any warning there says what to do.",
+          and_list(model_tabs)
+        ),
+        sprintf("A pre-fit %s gives canopy biomass from a canopy sheet alone, without survey data.", lower_label("cover"))
+      ),
       div(class = "table-responsive", guide_sources())
+    )
+  },
+  estimates = function() {
+    tagList(
+      guide_points(
+        sprintf(
+          "Each estimate has a figure and a table, in %s, %s with a %s model, or %s with the %s and %s models.",
+          tolower(output_info$wet$label), tolower(output_info$dry$label), lower_label("wetdry"),
+          tolower(output_info$carbon$label), lower_label("wetdry"), lower_label("carbon")
+        ),
+        "Where a model has no data for a site predicted, choose sites in its data to stand in for it under Stand-in sites."
+      ),
+      div(class = "table-responsive", guide_estimates())
     )
   },
   export = function() {
     tagList(
-      div(class = "small text-body-secondary", "The results workbook and the figures hold every available estimate, at the choices made on its page on the Estimates step (such as Group by, Scale and Show), in each measure available. To resume a run later, download its fit bundle and add it under Resume a run on the Data step."),
+      div(class = "small text-body-secondary", "The results workbook and the figures hold every available estimate, at the choices made on its page on the Estimates step (such as Group by, Scale and Show), in each output available. The R script reruns the whole analysis with kelpbio, with the same sources, priors and sampler settings."),
       tags$ul(class = "small text-body-secondary mb-0", lapply(download_items, function(item) tags$li(sprintf("%s (%s)", item$label, item$detail))))
     )
   }
@@ -213,7 +277,7 @@ help_guide_ui <- function() {
       panel(
         guide_sections[["guide_steps"]],
         id = "guide_steps", class = "kb-anchor",
-        description = "A run moves through four steps in the navbar. A step's marker shows a check mark once the step is complete: data loaded, models ready, or estimates saved.",
+        description = "A run moves through four steps in the navbar. A step's marker shows a check mark once its task is done: data loaded, every model in use ready, or a download made or the R script copied. A warning sign flags a sheet that failed its check or a model with a warning.",
         div(
           class = "d-flex flex-column gap-4",
           lapply(names(steps), function(value) {
@@ -279,28 +343,8 @@ help_methods_ui <- function() {
   )
 }
 
-# A package's installed version, or "Not installed". The app currently uses
-# mocks for the kelpbio functions not yet implemented (R/mock-kelpbio.R), so
-# kelpbio need not be installed; once kelpbio is imported, the About page always
-# shows its installed version.
-package_version_text <- function(package) {
-  if (!requireNamespace(package, quietly = TRUE)) {
-    return("Not installed")
-  }
-  as.character(utils::packageVersion(package))
-}
-
-# The kelpbio citation, from kelpbio's inst/CITATION. Switch to
-# utils::citation("kelpbio") once kelpbio is a dependency.
-kelpbio_citation <- function() {
-  utils::bibentry(
-    bibtype = "Manual",
-    title = "kelpbio: Bayesian Kelp Biomass Estimation",
-    author = utils::person("Seb", "Dalgarno"),
-    year = "2026",
-    url = "https://github.com/HakaiInstitute/kelpbio"
-  )
-}
+# A package's installed version.
+package_version_text <- function(package) as.character(utils::packageVersion(package))
 
 # HTML style renders the title in italics and the URL as a link, where the text
 # style would show R's markup characters.
@@ -357,7 +401,7 @@ help_about_ui <- function() {
         "Citation",
         description = "To cite the app and the kelpbio package in publications, use:",
         citation_block("citation_kelpbioshiny", "kelpbioshiny", utils::citation("kelpbioshiny")),
-        citation_block("citation_kelpbio", "kelpbio", kelpbio_citation())
+        citation_block("citation_kelpbio", "kelpbio", utils::citation("kelpbio"))
       )
     )
   )

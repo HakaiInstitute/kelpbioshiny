@@ -6,11 +6,15 @@
       User guide
       How to use the app, step by step.
       Steps
-      A run moves through four steps in the navbar. A step's marker shows a check mark once the step is complete: data loaded, models ready, or estimates saved.
+      A run moves through four steps in the navbar. A step's marker shows a check mark once its task is done: data loaded, every model in use ready, or a download made or the R script copied. A warning sign flags a sheet that failed its check or a model with a warning.
       1
       Data
       Load your survey data.
-      The columns of each sheet. Every sheet is optional, and other columns are ignored. For Nereocystis, choose under Size data whether a sample of plants was measured or all of them. With all plants measured, a census, the size sheet holds every counted plant and the survey sheet has no plants column. Macrocystis surveys are always a census.
+      Choose the species, and for Nereocystis whether a sample of plants or all of them were measured, in the sidebar.
+      Upload a workbook with one sheet per kind of data, or a CSV file per sheet. Download the template workbook to start from the right sheets and columns, or try the app with the example workbook.
+      Each sheet is checked on upload. Open its panel to see the check, a figure and a table of the data; Coverage shows the site-years each sheet has data for.
+      To resume a saved run, add its fit bundle under Resume a run.
+      The columns of each sheet. Every sheet is optional, and other columns are ignored. With all plants measured, a census, the size sheet holds every counted plant and the survey sheet has no plants column. Macrocystis surveys are always a census.
       Sheet
       One row per
       Columns
@@ -60,30 +64,53 @@
       2
       Models
       Fit the models, or use pre-fit ones.
-      Each model uses one source: your data, a pre-fit model, or none. With all plants measured (a census) there is no size model.
+      Choose a source for each model: your data, a pre-fit model, or none. With all plants measured (a census) there is no size model.
+      Fit all fits every model that uses your data, in the background; the cover calibration is fitted once the weight and size models are ready.
+      Open a model for its Settings, Diagnostics, Parameters and Description tabs. Check the Diagnostics tab before using its estimates; any warning there says what to do.
+      A pre-fit cover calibration gives canopy biomass from a canopy sheet alone, without survey data.
       Model
+      For
       Sources
       Weight
+      survey biomass
       Your data, Pre-fit Coastwide (
       Nereocystis luetkeana
       only), Pre-fit Hakai Institute
       Size
+      survey biomass
       Your data, Pre-fit Hakai Institute (
       Nereocystis luetkeana
       only), Not used
+      Cover calibration
+      canopy biomass
+      Your data, Pre-fit Hakai Institute, Not used
       Wet:dry
+      dry and carbon biomass
       Your data, Pre-fit Hakai Institute, Not used
       Carbon
-      Your data, Pre-fit Hakai Institute, Not used
-      Cover calibration
+      dry and carbon biomass
       Your data, Pre-fit Hakai Institute, Not used
       3
       Estimates
       Review biomass and model estimates.
+      Each estimate has a figure and a table, in wet biomass, dry biomass with a wet:dry model, or carbon with the wet:dry and carbon models.
+      Where a model has no data for a site predicted, choose sites in its data to stand in for it under Stand-in sites.
+      Estimate
+      Needs
+      Shown
+      Survey biomass
+      The weight and size models (or a census), and a survey sheet
+      By site and year or each survey; per m² surveyed or total over the area surveyed
+      Canopy biomass
+      A canopy sheet and the cover calibration
+      Total by drone map, total by year or total by any text column of the canopy sheet and year
+      Each model's predictions
+      The model, fitted or pre-fit
+      Group by: overall, site, year or site and year
       4
       Export
       Save the estimates, or rerun the whole analysis in R.
-      The results workbook and the figures hold every available estimate, at the choices made on its page on the Estimates step (such as Group by, Scale and Show), in each measure available. To resume a run later, download its fit bundle and add it under Resume a run on the Data step.
+      The results workbook and the figures hold every available estimate, at the choices made on its page on the Estimates step (such as Group by, Scale and Show), in each output available. The R script reruns the whole analysis with kelpbio, with the same sources, priors and sampler settings.
       Results workbook (Excel: every available estimate, with the settings and sources)
       Figures (ZIP of PNG and PDF figures)
       Fit bundle (RDS: add it on the Data step to resume this run)
