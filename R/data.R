@@ -712,21 +712,24 @@ prediction_groupings <- c(
 )
 
 # What each model predicts. `along` names the predictor of a curve model; its
-# table, and its by-site-and-year figure, give the value at `at`, the predictor
-# value (by species where it differs) passed to kb_new_data() as `value`.
+# overall table gives the curve (`curve_table`), and its other tables, and its
+# by-site-and-year figure, the value at `at`, the predictor value (by species
+# where it differs) passed to kb_new_data() as `value`.
 prediction_info <- list(
   size = list(response = "mean diameter", table = "Mean diameter (mm)"),
   weight = list(
     response = "wet weight", along = "diameter", at = "a plant with a 50 mm diameter",
     value = list(nereo = list(diameter_mm = 50), macro = list(fronds = 10)),
     table = "Wet weight (kg) of a plant with a 50 mm diameter",
+    curve_table = "Wet weight (kg) of a plant by size, for a typical site and year",
     plant_table = "Wet weight (kg) of each plant in the size sheet"
   ),
   wetdry = list(response = "ratio of dry to wet mass", table = "Ratio of dry to wet mass"),
   carbon = list(response = "carbon fraction of dry mass", table = "Carbon fraction of dry mass"),
   cover = list(
     response = "wet biomass per square metre", along = "tide-corrected cover", at = "a tide-corrected cover of 0.5",
-    value = list(cover = 0.5), table = "Wet biomass (kg/m\u00b2) at a tide-corrected cover of 0.5"
+    value = list(cover = 0.5), table = "Wet biomass (kg/m\u00b2) at a tide-corrected cover of 0.5",
+    curve_table = "Wet biomass (kg/m\u00b2) by tide-corrected cover, for a typical site and year"
   )
 )
 
@@ -766,11 +769,11 @@ plant_rows <- function(sheets) {
 
 prediction_by <- list(population = NULL, site = "site", year = "year", site_year = c("site", "year"))
 
-# A model's predictions at a grouping: curves along the predictor for the figure,
-# or, for the table (at = TRUE) and the by-site-and-year figure, the value at a
-# reference predictor value: a 50 mm plant, a cover of 0.5. The rows to predict
-# at come from kb_new_data(); the plant grouping predicts the weight of each row
-# of `plants`.
+# A model's predictions at a grouping: curves along the predictor for the figure
+# and the overall table, or, for the other tables (at = TRUE) and the
+# by-site-and-year figure, the value at a reference predictor value: a 50 mm
+# plant, a cover of 0.5. The rows to predict at come from kb_new_data(); the
+# plant grouping predicts the weight of each row of `plants`.
 model_predictions <- function(id, fit, grouping, species, at = FALSE, plants = NULL) {
   if (grouping == "plant") {
     return(kb_predict_weight(fit, new_data = plants))

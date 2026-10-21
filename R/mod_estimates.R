@@ -176,20 +176,18 @@ mod_estimate_server <- function(id, store) {
       alt = function() sprintf("Predicted %s for the %s model", prediction_info[[cid]]$response, lower_label(cid))
     )
 
-    output$table_title <- renderText({
-      info <- prediction_info[[cid]]
-      if (grouping() == "plant") info$plant_table else info$table
-    })
+    output$table_title <- renderText(prediction_title(cid, grouping()))
 
     output$table <- reactable::renderReactable({
-      plant <- grouping() == "plant"
-      rows <- prediction_table(predictions_at(), plant)
+      rows <- prediction_table(predictions_at(), cid, grouping())
+      predictor <- shows_predictor(cid, grouping())
       number <- function(name) reactable::colDef(name = name, cell = number_text, align = "right", class = "kb-tabular")
       app_table(rows, columns = Filter(Negate(is.null), list(
         site = if ("site" %in% names(rows)) reactable::colDef(name = column_label("site")),
         year = if ("year" %in% names(rows)) reactable::colDef(name = column_label("year")),
-        diameter_mm = if (plant && "diameter_mm" %in% names(rows)) reactable::colDef(name = column_label("diameter_mm"), align = "right", class = "kb-tabular"),
-        fronds = if (plant && "fronds" %in% names(rows)) reactable::colDef(name = column_label("fronds"), align = "right", class = "kb-tabular"),
+        diameter_mm = if (predictor && "diameter_mm" %in% names(rows)) reactable::colDef(name = column_label("diameter_mm"), cell = number_text, align = "right", class = "kb-tabular"),
+        fronds = if (predictor && "fronds" %in% names(rows)) reactable::colDef(name = column_label("fronds"), align = "right", class = "kb-tabular"),
+        cover = if (predictor && "cover" %in% names(rows)) reactable::colDef(name = column_label("cover"), cell = number_text, align = "right", class = "kb-tabular"),
         estimate = number(column_label("estimate")),
         lower = number(column_label("lower")),
         upper = number(column_label("upper"))
@@ -202,24 +200,46 @@ mod_estimate_server <- function(id, store) {
 # column of the canopy sheet, is named in sentence case.
 column_labels <- c(
   site = "Site", year = "Year", survey_id = "Survey", survey_area_m2 = "Area surveyed (m\u00b2)",
-  canopy_area_m2 = "Canopy area (m\u00b2)", plants = "Plants", diameter_mm = "Sub-bulb diameter (mm)",
-  fronds = "Fronds", estimate = "Estimate", lower = "Lower", upper = "Upper", flags = "Flags"
+  canopy_area_m2 = "Canopy area (m\u00b2)", plants = "Plants", diameter_mm = "diameter_mm",
+  fronds = "Fronds", cover = "Tide-corrected cover", estimate = "Estimate", lower = "Lower", upper = "Upper", flags = "Flags"
 )
 column_label <- function(name) if (name %in% names(column_labels)) column_labels[[name]] else sentence_case(name)
 
 # The predictions for a model's table: those of the figure unless the model
-# predicts along a predictor, where the table is at its reference value.
+# predicts along a predictor and the table is by group, where it is at the
+# reference value.
 table_predictions <- function(cid, fit, grouping, species, predictions) {
-  if (is.null(prediction_info[[cid]]$along) || grouping == "plant") {
+  if (shows_predictor(cid, grouping) || is.null(prediction_info[[cid]]$along)) {
     return(predictions)
   }
   model_predictions(cid, fit, grouping, species, at = TRUE)
 }
 
+# Whether a model's table has a row per predictor value: each plant's weight,
+# or the overall curve of a curve model.
+shows_predictor <- function(cid, grouping) {
+  grouping == "plant" || (grouping == "population" && !is.null(prediction_info[[cid]]$along))
+}
+
+prediction_title <- function(cid, grouping) {
+  info <- prediction_info[[cid]]
+  if (grouping == "plant") {
+    return(info$plant_table)
+  }
+  if (shows_predictor(cid, grouping)) info$curve_table else info$table
+}
+
+# The decimal places a predictor is shown to, in the app and the export: the
+# curve's evenly spaced values are not round.
+predictor_digits <- c(diameter_mm = 1, fronds = 0, cover = 2)
+
 # The columns of a model's predictions table.
-prediction_table <- function(rows, plant = FALSE) {
-  columns <- c("site", "year", if (plant) c("diameter_mm", "fronds"), "estimate", "lower", "upper")
-  as.data.frame(rows)[intersect(columns, names(rows))]
+prediction_table <- function(rows, cid, grouping) {
+  predictors <- if (shows_predictor(cid, grouping)) names(predictor_digits)
+  columns <- c("site", "year", predictors, "estimate", "lower", "upper")
+  rows <- as.data.frame(rows)[intersect(columns, names(rows))]
+  for (name in intersect(names(predictor_digits), names(rows))) rows[[name]] <- round(rows[[name]], predictor_digits[[name]])
+  rows
 }
 
 # A model's predictions figure. An overall prediction of a model without a

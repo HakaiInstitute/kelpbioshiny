@@ -196,16 +196,14 @@ model_export <- function(store, cid, choice) {
   choices <- prediction_choices(cid, is_prefit(store$sources()[[cid]]), species, !is.null(plants))
   grouping <- chosen_grouping(choice$grouping, choices)
   predictions <- model_predictions(cid, fit, grouping, species, plants = plants)
-  plant <- grouping == "plant"
-  info <- prediction_info[[cid]]
   caption <- prediction_caption(cid, grouping, species)
   width <- if (grouping == "population") export_width / 2 else export_width
   list(
     name = model_name(cid),
-    title = if (plant) info$plant_table else info$table,
+    title = prediction_title(cid, grouping),
     rows = prediction_groupings[[grouping]],
     note = "Estimates with their lower and upper 95% compatibility limits.",
-    table = prediction_table(table_predictions(cid, fit, grouping, species, predictions), plant),
+    table = prediction_table(table_predictions(cid, fit, grouping, species, predictions), cid, grouping),
     figures = list(list(
       name = model_name(cid), plot = prediction_figure(cid, predictions, grouping, species),
       width = width, height = width * prediction_aspect(cid, grouping), caption = caption
