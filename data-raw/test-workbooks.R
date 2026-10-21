@@ -13,10 +13,12 @@
 #   biomass. Nereocystis has a measured sample of plants, Macrocystis a census.
 # 2-prefit: size, survey and canopy sheets but no harvests or tissue samples,
 #   so weight, wet:dry and carbon are pre-fit.
-# 3-census (Nereocystis only): weight, size, survey and canopy sheets, with
-#   every counted plant measured, each survey's plants drawn from the measured
-#   sample of its site-year (census_rows()), and a twentieth of them partial;
-#   wet:dry and carbon are pre-fit.
+# 3-census (Nereocystis only): weight, size and survey sheets, for surveys that
+#   cover the whole area of interest, so survey biomass in total over the area
+#   surveyed is the estimate. Every counted plant is measured, each survey's
+#   plants drawn from the measured sample of its site-year (census_rows()).
+#   There are no drone columns or canopy sheet, so no cover calibration or
+#   canopy biomass; wet:dry and carbon are pre-fit.
 # 4-canopy-prefit: a canopy sheet alone, with drone maps of the sites of the
 #   pre-fit Hakai Institute cover calibration flown again in a year after its
 #   data, so canopy biomass takes each site's effect but treats the year as new.
@@ -51,9 +53,7 @@ census_rows <- function(survey, size) {
     diameter <- pool[sample.int(length(pool), survey$plants[i], replace = TRUE)]
     data.frame(survey_id = rep(survey$survey_id[i], length(diameter)), diameter_mm = diameter)
   })
-  plants <- do.call(rbind, plants)
-  plants$partial <- stats::runif(nrow(plants)) < 0.05
-  plants
+  do.call(rbind, plants)
 }
 
 # Drone maps of each site of the pre-fit cover calibration in the year after
@@ -92,9 +92,9 @@ for (species in names(species_info)) {
   write_workbook(full, "1-full", species)
   write_workbook(full[c("size", "survey", "canopy")], "2-prefit", species)
   if (species == "nereo") {
-    census <- full[c("weight", "size", "survey", "canopy")]
+    census <- full[c("weight", "size", "survey")]
     census$size <- census_rows(full$survey, full$size)
-    census$survey$plants <- NULL
+    census$survey <- census$survey[setdiff(names(census$survey), c("plants", "plot_area_m2", "canopy_area_m2", "tide_height_m"))]
     write_workbook(census, "3-census", species, census = TRUE)
   }
   write_workbook(list(canopy = canopy_prefit_rows(species, full$canopy)), "4-canopy-prefit", species)
