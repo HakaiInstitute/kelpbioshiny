@@ -8,6 +8,7 @@
 report_available <- function() !is.null(quarto::quarto_path())
 
 # What the report says about the run, read from the store.
+# jarl-ignore unused_function: the report download is off for now, so its call in mod_export.R is commented out.
 report_content <- function(store) {
   sources <- store$sources()
   records <- store$records()
@@ -217,6 +218,7 @@ report_markdown <- function(content, estimates, figures) {
 }
 
 # Renders the report to `path`, with the estimates' figures as PNGs.
+# jarl-ignore unused_function: the report download is off for now, so its call in mod_export.R is commented out.
 write_report <- function(content, estimates, path) {
   dir <- tempfile("kb-report-")
   dir.create(dir)

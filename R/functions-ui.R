@@ -523,6 +523,7 @@ prior_notice <- function(rows, priors, settings_id) {
 # Influential observations: a note naming how many observations strongly
 # influence the fit, from kb_influence() rows, with a button to the Diagnostics
 # tab (diagnostics_id) that lists them.
+# jarl-ignore unused_function: influential observations are hidden for now, so its call in mod_model.R is commented out.
 influence_notice <- function(rows, diagnostics_id) {
   if (!influence_flagged(rows)) {
     return(NULL)
