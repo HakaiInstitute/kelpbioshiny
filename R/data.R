@@ -741,9 +741,9 @@ has_effect <- function(id, effect, species = "nereo") {
   paste0("sd_", effect) %in% names(kelpbio_fn("priors", id, species)())
 }
 
-# The groupings a model's predictions can be shown at. A pre-fit model was
-# fitted to other sites and years, so only its overall predictions
-# apply. The weight model can also predict each plant in the size sheet
+# The groupings a model's predictions can be shown at. A pre-fit model offers
+# only its overall predictions, as predictions by site or year would reveal its
+# reference data, which stay private. The weight model can also predict each plant in the size sheet
 # (`plants`, from plant_rows()).
 prediction_choices <- function(id, prefit = FALSE, species = "nereo", plants = FALSE) {
   groups <- if (prefit || !has_effect(id, "site", species)) {

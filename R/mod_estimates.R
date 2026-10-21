@@ -268,8 +268,8 @@ population_label <- function(cid, species) {
 }
 
 # By site where the model has site effects, as that is what most users want to
-# see; then each plant, for a weight model with a size sheet (a pre-fit model's
-# sites are the reference data's rather than the user's); else the population.
+# see; then each plant, for a weight model with a size sheet (a pre-fit model
+# offers no sites, as its reference data stay private); else the population.
 default_grouping <- function(choices) {
   for (grouping in c("site", "plant")) {
     if (grouping %in% names(choices)) {
@@ -288,7 +288,7 @@ chosen_grouping <- function(chosen, choices) {
 predictions_panel <- function(ns, cid, prefit, species, plants, selected = NULL) {
   choices <- prediction_choices(cid, prefit, species, plants)
   note <- if (prefit) {
-    "A pre-fit model was fitted to other sites and years, so its predictions here are for a typical site and year."
+    "A pre-fit model's predictions are for a typical site and year, so that its reference data stay private."
   } else if (!has_effect(cid, "site", species)) {
     "This model has no site or year effects, so its predictions are overall, for a typical site and year."
   } else if (!has_effect(cid, "year", species)) {
