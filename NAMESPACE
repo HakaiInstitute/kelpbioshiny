@@ -3,7 +3,10 @@
 export(run_app)
 import(bslib)
 import(shiny)
-importFrom(generics,tidy)
+importFrom(generics,
+  glance,
+  tidy
+)
 importFrom(ggplot2,
   aes,
   expand_limits,

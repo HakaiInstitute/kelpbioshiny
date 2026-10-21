@@ -1,5 +1,5 @@
 #' @import shiny bslib
-#' @importFrom generics tidy
+#' @importFrom generics glance tidy
 #' @importFrom rlang %||% .data
 #' @importFrom kelpbio kb_check_data_canopy kb_check_data_carbon_macro kb_check_data_carbon_nereo
 #' @importFrom kelpbio kb_check_data_size_census_macro kb_check_data_size_census_nereo

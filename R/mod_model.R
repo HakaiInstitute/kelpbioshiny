@@ -195,8 +195,9 @@ mod_model_server <- function(id, store) {
           if (isTRUE(status$outdated)) notice("refresh-cw", warning_help$outdated$title, warning_help$outdated$advice, tone = "warning"),
           if (isTRUE(status$convergence)) convergence_notice(ns("settings_convergence")),
           if (isTRUE(status$divergence)) convergence_notice(ns("settings_divergence"), "divergence"),
-          prior_notice(store$sensitivity[[cid]](), prior_summary(fit()), ns("settings_prior")),
-          influence_notice(store$influence[[cid]](), ns("diagnostics_influence"))
+          prior_notice(store$sensitivity[[cid]](), prior_summary(fit()), ns("settings_prior"))
+          # Influential observations are hidden for now.
+          # influence_notice(store$influence[[cid]](), ns("diagnostics_influence"))
         )
       }
       if (length(notice_ui) > 0) div(class = "d-flex flex-column gap-2 mb-3", notice_ui)
@@ -434,6 +435,8 @@ mod_model_server <- function(id, store) {
       )
     })
 
+    output$convergence_overall <- renderUI(convergence_checks(glance(fitted_fit())))
+
     output$trace <- render_figure(
       function() kb_plot_trace(fitted_fit()), "trace",
       height = function() figure_px(70 + 150 * ceiling(nrow(tidy(fitted_fit())) / 2)),
@@ -465,7 +468,7 @@ mod_model_server <- function(id, store) {
       rows <- sensitivity()
       influencing <- sensitivity_flags(rows)$influencing
       weak_data <- sensitivity_flags(rows)$weak_data
-      influential <- if (page()$mode == "user") sum(influence()$influential)
+      # influential <- if (page()$mode == "user") sum(influence()$influential)
       tags$ul(
         class = "list-unstyled d-flex flex-column gap-2 mb-0 small",
         line(length(unconverged) == 0, if (length(unconverged) == 0) "All parameters converged" else sprintf("Not converged: %s", and_list(unconverged)), "diag_convergence"),
@@ -477,9 +480,10 @@ mod_model_server <- function(id, store) {
         } else {
           line(TRUE, "No prior sensitivity", "diag_sensitivity")
         },
-        if (!is.null(influential)) {
-          line(TRUE, if (influential == 0) "No influential observations" else sprintf("%d influential %s to check", influential, if (influential == 1) "observation" else "observations"), "diag_influence", tone = if (influential == 0) "ok" else "info")
-        },
+        # Influential observations are hidden for now.
+        # if (!is.null(influential)) {
+        #   line(TRUE, if (influential == 0) "No influential observations" else sprintf("%d influential %s to check", influential, if (influential == 1) "observation" else "observations"), "diag_influence", tone = if (influential == 0) "ok" else "info")
+        # },
         line(TRUE, "Posterior predictive check: compare the data with the simulated datasets", "diag_ppc", tone = "info")
       )
     })
@@ -554,7 +558,9 @@ diagnostics_panel <- function(ns, data, influence = FALSE) {
   div(
     class = "d-flex flex-column gap-3",
     panel("Summary", uiOutput(ns("verdict"))),
-    convergence_panel(ns), sensitivity_panel(ns), if (influence) influence_panel(ns), ppc_panel(ns, data)
+    # Influential observations are hidden for now.
+    convergence_panel(ns), sensitivity_panel(ns), # if (influence) influence_panel(ns),
+    ppc_panel(ns, data)
   )
 }
 
@@ -608,8 +614,41 @@ convergence_panel <- function(ns) {
       with_help("effective sample size (ESS)", "ess"),
       sprintf(" below %s per chain are flagged.", default_arg(kb_converged, "ess"))
     ),
+    uiOutput(ns("convergence_overall")),
     reactable::reactableOutput(ns("convergence")),
     figure_plot(ns("trace"), "Draws for each chain by iteration. Well-mixed chains overlap.")
+  )
+}
+
+# The worst R-hat and ESS over every parameter and the divergent transitions,
+# from a glance() row, each against kb_converged()'s threshold (ESS per chain).
+convergence_checks <- function(row) {
+  threshold <- function(name) default_arg(kb_converged, name)
+  min_ess <- threshold("ess") * row$nchains
+  ess_text <- function(value) format(round(value), big.mark = ",")
+  checks <- list(
+    list("Largest R-hat", format(round(row$rhat, 3), nsmall = 3), isTRUE(row$rhat < threshold("rhat")), sprintf("below %s", threshold("rhat"))),
+    list("Smallest bulk ESS", ess_text(row$ess_bulk), isTRUE(row$ess_bulk >= min_ess), sprintf("at least %s", ess_text(min_ess))),
+    list("Smallest tail ESS", ess_text(row$ess_tail), isTRUE(row$ess_tail >= min_ess), sprintf("at least %s", ess_text(min_ess))),
+    list(
+      "Divergent transitions", sprintf("%s%%", format(row$perc_divergent)),
+      isTRUE(row$perc_divergent <= threshold("max_perc_divergent")), sprintf("at most %s%%", threshold("max_perc_divergent"))
+    )
+  )
+  div(
+    class = "d-flex flex-wrap column-gap-4 row-gap-2 border rounded-3 p-3",
+    lapply(checks, function(check) {
+      ok <- check[[3]]
+      div(
+        class = "d-flex align-items-start gap-2",
+        span(class = "mt-1", lucide(if (ok) "check-circle-2" else "alert-triangle", if (ok) "text-success" else "text-warning")),
+        div(
+          div(class = "small text-body-secondary", check[[1]]),
+          div(class = "fw-medium kb-tabular", check[[2]]),
+          div(class = "small text-body-secondary", span(class = "visually-hidden", if (ok) "Passes: " else "Fails: "), check[[4]])
+        )
+      )
+    })
   )
 }
 
