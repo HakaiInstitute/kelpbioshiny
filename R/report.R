@@ -134,7 +134,7 @@ report_markdown <- function(content, estimates, figures) {
     "",
     if (nrow(settings) > 0) {
       c(
-        "The prior and sampler settings each model was fitted with, and the sites standing in for sites a model has no data for:", "",
+        "The prior and sampler settings each model was fitted with, and the representative sites chosen for sites a model has no data for:", "",
         md_table(stats::setNames(settings, c("Model", "Setting", "Value"))), ""
       )
     }

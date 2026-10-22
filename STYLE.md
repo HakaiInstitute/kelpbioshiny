@@ -27,6 +27,6 @@ In addition to kelpbio's:
 | The area a survey covers | area surveyed | area searched |
 | A prediction without site or year effects | overall | population-level |
 | Predictions for each site in each year | by site and year | by site-year (in a label), by site |
-| A site of the fit's data standing in for a new site | stand-in site | representative site, borrowed site |
+| A site of the fit's data standing in for a new site | representative site | stand-in site, borrowed site |
 | A sheet, in text | its name in code font (`size_census`, `survey`) | "the Size tab" |
 | A model | its label (Weight, Size, Cover calibration, Wet:dry, Carbon) | its function name |

@@ -277,7 +277,7 @@ settings_rows <- function(store) {
           c(format_prior(priors), format(sampler$nthin), format(sampler$adapt_delta))
         )
       },
-      if (length(stand_ins[[id]]) > 0) row(label, "Stand-in sites", paste(stand_ins[[id]], collapse = ", "))
+      if (length(stand_ins[[id]]) > 0) row(label, "Representative sites", paste(stand_ins[[id]], collapse = ", "))
     )
   })
   do.call(rbind, c(list(run), models))
@@ -292,7 +292,7 @@ write_results <- function(estimates, settings, path) {
     sheet = c(ifelse(field("error") == "", field("name"), ""), "settings"),
     estimate = c(field("title"), "Settings"),
     rows = c(field("rows"), "One per setting"),
-    notes = c(notes, "The sources, the prior and sampler settings each model was fitted with, and the stand-in sites of the run.")
+    notes = c(notes, "The sources, the prior and sampler settings each model was fitted with, and the representative sites of the run.")
   )
   tables <- stats::setNames(lapply(done, `[[`, "table"), vapply(done, `[[`, "", "name"))
   writexl::write_xlsx(c(list(contents = contents), tables, list(settings = settings)), path)

@@ -461,7 +461,7 @@ mod_derived_estimate_server <- function(id, store) {
       )
     })
 
-    # Stand-in sites: for each fit that has no data for some of the sites
+    # Representative sites: for each fit that has no data for some of the sites
     # predicted, the sites of its data that stand in for them.
     stand_in_models <- dedupe(reactive({
       rows <- store$sheets()[[stand_in_rows[[eid]]]]$rows
@@ -477,22 +477,24 @@ mod_derived_estimate_server <- function(id, store) {
         return(NULL)
       }
       chosen <- isolate(store$stand_ins_chosen())
-      div(
-        class = "border rounded-3 p-3 mb-3",
-        div(class = "small fw-medium mb-1", with_help("Stand-in sites", "stand_ins")),
+      div(class = "d-flex flex-wrap align-items-start column-gap-4 row-gap-2 mb-3", lapply(names(models), function(id) {
+        title_id <- ns(paste0("stand_in_", id, "_title"))
         div(
-          class = "small text-body-secondary mb-2",
-          "Any new site the model hasn't seen has wide uncertainty. To narrow it, optionally choose model site(s) with similar conditions."
-        ),
-        div(class = "d-flex flex-wrap column-gap-4 row-gap-2", lapply(names(models), function(id) {
-          selectizeInput(
-            ns(paste0("stand_in_", id)),
-            sprintf("%s model has no data for %s", label_of(id), site_list(models[[id]]$new)),
-            choices = models[[id]]$sites, selected = intersect(chosen[[id]], models[[id]]$sites), multiple = TRUE,
-            width = "22rem", options = list(placeholder = "None: estimated as new sites")
+          class = "d-flex flex-column gap-1",
+          span(
+            class = "small fw-medium", id = title_id,
+            with_help(sprintf("Representative site (%s model)", label_of(id)), "stand_ins")
+          ),
+          tagAppendAttributes(
+            selectizeInput(
+              ns(paste0("stand_in_", id)), NULL,
+              choices = models[[id]]$sites, selected = intersect(chosen[[id]], models[[id]]$sites), multiple = TRUE,
+              width = "16rem", options = list(placeholder = sprintf("None (%d new %s)", length(models[[id]]$new), if (length(models[[id]]$new) == 1) "site" else "sites"))
+            ),
+            class = "mb-0", `aria-labelledby` = title_id
           )
-        }))
-      )
+        )
+      }))
     })
     lapply(stand_in_ids[[eid]], function(id) {
       observeEvent(input[[paste0("stand_in_", id)]], store$set_stand_ins(id, input[[paste0("stand_in_", id)]] %||% character()), ignoreNULL = FALSE, ignoreInit = TRUE)
