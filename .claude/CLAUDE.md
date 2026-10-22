@@ -2,7 +2,9 @@
 
 R package holding the Shiny app for kelpbio (Bayesian kelp biomass estimation). The one export is `run_app()`. The app walks a run through four steps: Data, Models, Estimates, Export. Why a Shiny app, and its scope: `~/Code/HakaiInstitute/kelpbio/decisions/webapp-decision.md`.
 
-Every text the app shows, and the README, follows `STYLE.md`. Follow the kelpbio `CLAUDE.md` (`~/Code/HakaiInstitute/kelpbio/CLAUDE.md`) for code style and testing conventions; this file lists only what differs or is specific to the app.
+Every text the app shows, and the README, follows `.claude/STYLE.md`. Follow the kelpbio `CLAUDE.md` (`~/Code/HakaiInstitute/kelpbio/.claude/CLAUDE.md`) for code style and testing conventions; this file lists only what differs or is specific to the app.
+
+At the start of every session, load the posit-dev Shiny skills `shiny:shiny-bslib` and `shiny:shiny-bslib-theming` (Skill tool) before working on the app.
 
 ## Repositories and issues
 
@@ -23,7 +25,8 @@ Every text the app shows, and the README, follows `STYLE.md`. Follow the kelpbio
 
 | Task | Command |
 |------|---------|
-| Routine build + QC | `Rscript scripts/build.R` (`install()` -> `roxygen2md()` -> `document()` -> `test()`) |
+| Tests from source (before a push) | `devtools::test()` |
+| Build + QC before a push | `Rscript scripts/build.R` (`install()` -> `roxygen2md()` -> `document()` -> `test()`) |
 | Full check (slow) | `Rscript scripts/build.R --check` (adds `R CMD check`) |
 | Run all tests | `devtools::test()` |
 | Run the app from source | `pkgload::load_all(); run_app()` |
@@ -32,8 +35,8 @@ The build runs are also Positron/VS Code tasks ("kelpbioshiny: build", "kelpbios
 
 ## Tests, installs and example workbooks
 
-- Any change: `Rscript scripts/build.R` installs the app and runs the tests. The tests stub every fit with kelpbio's simulated fits, so no MCMC runs, and the app stores no fits of its own to rebuild.
-- The app, its tests and its mirai daemons use the installed kelpbio and kelpbiodata, not their checkouts (`load_all()` loads only kelpbioshiny from source). After either changes, reinstall it from the branch `Remotes:` pins (`remotes::install_github()`, never by switching branches in its checkout, which other sessions use) before testing or saying a change is visible.
+- During development, skip the tests, lint and app checks to keep changes fast: run the tests (`devtools::test()`), `jarl check .` and a check in the running app once, just before pushing to a PR. The app is never built or installed during development: run it from source with `pkgload::load_all(); run_app()`. `scripts/build.R` runs only before a push: its `install()` follows the `Remotes:` pins and reinstalls kelpbio and kelpbiodata from GitHub, replacing a local install. The tests stub every fit with kelpbio's simulated fits, so no MCMC runs, and the app stores no fits of its own to rebuild.
+- The app, its tests and its mirai daemons use the installed kelpbio and kelpbiodata, not their checkouts (`load_all()` loads only kelpbioshiny from source). After either changes, reinstall it before testing or saying a change is visible: from its local working tree while its change is unpushed (`R CMD INSTALL <path>`), else from the branch `Remotes:` pins (`remotes::install_github()`); never by switching branches in its checkout, which other sessions use.
 - When kelpbio's simulated data change, rebuild the example workbooks (`Rscript data-raw/test-workbooks.R`), check each still shows what its header says, and commit them. Workbook 6 needs real fits over several seeds to check: confirm before running them.
 
 ## Layout
@@ -82,7 +85,7 @@ The derived estimates offer only what a report uses (`survey_sums`, `canopy_sums
 - kelpbio owns the statistics: model forms, priors, diagnostics theory, interpretation and any long-form explanation live in kelpbio's roxygen docs and vignettes/articles. kelpbioshiny never restates them; it links to the relevant kelpbio article or section (`kelpbio_url` and `kelpbio_articles` in `R/help.R`, each article's title, summary and path, which the Methods page lists).
 - kelpbioshiny documents only how to use the app: what each step is for, what to click, which sheets and columns to provide, and what to do about a warning.
 - One fact, one home inside the app: step names and descriptions (`app_steps`), sheet and column lists and model sources (`components`, `prefit_info`), and glossary text (`help_topics`) are each defined once in R and reused by the UI, the welcome card, the help popovers and the User guide. Never duplicate them as hand-written prose.
-- Wording of labels, notices, popovers and the guide: `STYLE.md`. Screenshots, if the guide ever needs them, are generated with shinytest2.
+- Wording of labels, notices, popovers and the guide: `.claude/STYLE.md`. Screenshots, if the guide ever needs them, are generated with shinytest2.
 - Definition of done: any change to steps, sheets, sources, warnings or help topics updates the guide in the same PR; the guide snapshot test (`test-mod_help.R`) shows the change for review. Statistical content changes go to kelpbio, not here.
 
 ## Testing

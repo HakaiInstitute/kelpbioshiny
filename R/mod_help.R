@@ -144,7 +144,7 @@ guide_extras <- list(
           tolower(output_info$wet$label), tolower(output_info$dry$label), lower_label("wetdry"),
           tolower(output_info$carbon$label), lower_label("wetdry"), lower_label("carbon")
         ),
-        "Where a model has no data for a site predicted, choose sites in its data to stand in for it under Stand-in sites."
+        "Where a model has no data for a site predicted, optionally choose sites in its data with similar conditions under Representative site."
       ),
       div(class = "table-responsive", guide_estimates())
     )

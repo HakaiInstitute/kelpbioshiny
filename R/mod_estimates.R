@@ -146,10 +146,12 @@ mod_estimate_server <- function(id, store) {
     })
 
     # The store holds the choice, so a resumed run shows the grouping it was
-    # saved with, and the Export step uses the grouping shown here.
-    grouping <- reactive({
+    # saved with, and the Export step uses the grouping shown here. It holds
+    # every estimate's choices, so the grouping is deduplicated, to follow only
+    # this model's.
+    grouping <- dedupe(reactive({
       chosen_grouping(store$estimate_choices()[[cid]]$grouping, prediction_choices(cid, page()$prefit, page()$species, page()$plants))
-    })
+    }))
     observeEvent(input$grouping, store$set_estimate_choice(cid, "grouping", input$grouping))
     observeEvent(grouping(), {
       if (!is.null(input$grouping) && !identical(input$grouping, grouping())) updateSelectInput(session, "grouping", selected = grouping())
@@ -161,7 +163,7 @@ mod_estimate_server <- function(id, store) {
       panel(
         sentence_case(prediction_info[[cid]]$response),
         description = prediction_caption(cid, grouping, page()$species),
-        figure_plot(ns("plot"), class = if (grouping == "population") "kb-figure-narrow")
+        figure_plot(ns("plot"), class = if (grouping == "population") "kb-figure-narrow", aspect = prediction_aspect(cid, grouping))
       )
     })
 
@@ -190,8 +192,12 @@ mod_estimate_server <- function(id, store) {
         cover = if (predictor && "cover" %in% names(rows)) reactable::colDef(name = column_label("cover"), cell = number_text, align = "right", class = "kb-tabular"),
         estimate = number(column_label("estimate")),
         lower = number(column_label("lower")),
-        upper = number(column_label("upper"))
+        upper = number(column_label("upper")),
+        data_support = if (!is.null(rows$data_support)) support_column(rows)
       )))
+    })
+    output$support_note <- renderUI({
+      if (!is.null(prediction_table(predictions_at(), cid, grouping())$data_support)) support_note()
     })
   })
 }
@@ -201,7 +207,7 @@ mod_estimate_server <- function(id, store) {
 column_labels <- c(
   site = "Site", year = "Year", survey_id = "Survey", survey_area_m2 = "Area surveyed (m\u00b2)",
   canopy_area_m2 = "Canopy area (m\u00b2)", plants = "Plants", diameter_mm = "diameter_mm",
-  fronds = "Fronds", cover = "Tide-corrected cover", estimate = "Estimate", lower = "Lower", upper = "Upper", flags = "Flags"
+  fronds = "Fronds", cover = "Tide-corrected cover", estimate = "Estimate", lower = "Lower", upper = "Upper", data_support = "Data support"
 )
 column_label <- function(name) if (name %in% names(column_labels)) column_labels[[name]] else sentence_case(name)
 
@@ -233,12 +239,16 @@ prediction_title <- function(cid, grouping) {
 # curve's evenly spaced values are not round.
 predictor_digits <- c(diameter_mm = 1, fronds = 0, cover = 2)
 
-# The columns of a model's predictions table.
+# The columns of a model's predictions table, with a data_support column
+# (data_support()) where a row's site-year lacks the model's data, as each
+# plant's can; a model's own site-years always have its data.
 prediction_table <- function(rows, cid, grouping) {
   predictors <- if (shows_predictor(cid, grouping)) names(predictor_digits)
   columns <- c("site", "year", predictors, "estimate", "lower", "upper")
+  support <- data_support(rows)
   rows <- as.data.frame(rows)[intersect(columns, names(rows))]
   for (name in intersect(names(predictor_digits), names(rows))) rows[[name]] <- round(rows[[name]], predictor_digits[[name]])
+  if (any(support != "")) rows$data_support <- support
   rows
 }
 
@@ -268,8 +278,8 @@ population_label <- function(cid, species) {
 }
 
 # By site where the model has site effects, as that is what most users want to
-# see; then each plant, for a weight model with a size sheet (a pre-fit model's
-# sites are the reference data's rather than the user's); else the population.
+# see; then each plant, for a weight model with a size sheet (a pre-fit model
+# offers no sites, as its reference data stay private); else the population.
 default_grouping <- function(choices) {
   for (grouping in c("site", "plant")) {
     if (grouping %in% names(choices)) {
@@ -288,7 +298,7 @@ chosen_grouping <- function(chosen, choices) {
 predictions_panel <- function(ns, cid, prefit, species, plants, selected = NULL) {
   choices <- prediction_choices(cid, prefit, species, plants)
   note <- if (prefit) {
-    "A pre-fit model was fitted to other sites and years, so its predictions here are for a typical site and year."
+    "A pre-fit model's predictions are for a typical site and year, so that its reference data stay private."
   } else if (!has_effect(cid, "site", species)) {
     "This model has no site or year effects, so its predictions are overall, for a typical site and year."
   } else if (!has_effect(cid, "year", species)) {
@@ -318,7 +328,10 @@ predictions_panel <- function(ns, cid, prefit, species, plants, selected = NULL)
       uiOutput(ns("figure")),
       panel(
         textOutput(ns("table_title"), inline = TRUE),
-        description = with_help("With 95% compatibility intervals, to 3 significant figures.", "interval"),
+        description = tagList(
+          with_help("With 95% compatibility intervals, to 3 significant figures.", "interval"),
+          uiOutput(ns("support_note"), inline = TRUE)
+        ),
         reactable::reactableOutput(ns("table"))
       )
     )
@@ -374,8 +387,9 @@ mod_derived_estimate_server <- function(id, store) {
     available <- dedupe(reactive(store$estimates()[[eid]]))
     sums <- dedupe(reactive(derived_sums(eid, store$sheets())))
     # The store holds the scale and sum chosen, so a resumed run shows those it
-    # was saved with, and the Export step uses those shown here.
-    choice <- reactive(store$estimate_choices()[[eid]])
+    # was saved with, and the Export step uses those shown here; deduplicated,
+    # as it holds every estimate's choices.
+    choice <- dedupe(reactive(store$estimate_choices()[[eid]]))
     per_area <- reactive(chosen_per_area(eid, choice()$scale, store$census()))
     sum_key <- reactive(chosen_sum(choice()$sum, sums()))
 
@@ -398,10 +412,8 @@ mod_derived_estimate_server <- function(id, store) {
       key <- output_key()
       outputs <- store$outputs()
       unavailable <- lapply(Filter(function(k) !outputs[[k]]$available, names(outputs)), function(k) outputs[[k]]$reason)
-      result <- estimates()
-      estimate_notices(ns, store, unique(c(derived_components[[eid]], output_components[[key]])), extra = c(
-        lapply(unavailable, function(reason) notice("minus-circle", reason, tone = "muted")),
-        if (inherits(result, "error")) list(notice("x-circle", sprintf("%s could not be estimated", estimate_label(eid)), condition_text(result), tone = "warning"))
+      estimate_notices(ns, store, unique(c(derived_components[[eid]], output_components[[key]])), extra = lapply(
+        unavailable, function(reason) notice("minus-circle", reason, tone = "muted")
       ))
     })
 
@@ -450,7 +462,7 @@ mod_derived_estimate_server <- function(id, store) {
       )
     })
 
-    # Stand-in sites: for each fit that has no data for some of the sites
+    # Representative sites: for each fit that has no data for some of the sites
     # predicted, the sites of its data that stand in for them.
     stand_in_models <- dedupe(reactive({
       rows <- store$sheets()[[stand_in_rows[[eid]]]]$rows
@@ -466,22 +478,24 @@ mod_derived_estimate_server <- function(id, store) {
         return(NULL)
       }
       chosen <- isolate(store$stand_ins_chosen())
-      div(
-        class = "border rounded-3 p-3 mb-3",
-        div(class = "small fw-medium mb-1", with_help("Stand-in sites", "stand_ins")),
+      div(class = "d-flex flex-wrap align-items-start column-gap-4 row-gap-2 mb-3", lapply(names(models), function(id) {
+        title_id <- ns(paste0("stand_in_", id, "_title"))
         div(
-          class = "small text-body-secondary mb-2",
-          "Any new site the model hasn't seen has wide uncertainty. To narrow it, optionally choose model site(s) with similar conditions."
-        ),
-        div(class = "d-flex flex-wrap column-gap-4 row-gap-2", lapply(names(models), function(id) {
-          selectizeInput(
-            ns(paste0("stand_in_", id)),
-            sprintf("%s model has no data for %s", label_of(id), site_list(models[[id]]$new)),
-            choices = models[[id]]$sites, selected = intersect(chosen[[id]], models[[id]]$sites), multiple = TRUE,
-            width = "22rem", options = list(placeholder = "None: estimated as new sites")
+          class = "d-flex flex-column gap-1",
+          span(
+            class = "small fw-medium", id = title_id,
+            with_help(sprintf("Representative site (%s model)", label_of(id)), "stand_ins")
+          ),
+          tagAppendAttributes(
+            selectizeInput(
+              ns(paste0("stand_in_", id)), NULL,
+              choices = models[[id]]$sites, selected = intersect(chosen[[id]], models[[id]]$sites), multiple = TRUE,
+              width = "16rem", options = list(placeholder = sprintf("None (%d new %s)", length(models[[id]]$new), if (length(models[[id]]$new) == 1) "site" else "sites"))
+            ),
+            class = "mb-0", `aria-labelledby` = title_id
           )
-        }))
-      )
+        )
+      }))
     })
     lapply(stand_in_ids[[eid]], function(id) {
       observeEvent(input[[paste0("stand_in_", id)]], store$set_stand_ins(id, input[[paste0("stand_in_", id)]] %||% character()), ignoreNULL = FALSE, ignoreInit = TRUE)
@@ -502,19 +516,34 @@ mod_derived_estimate_server <- function(id, store) {
       choices <- sites()
       if (!is.null(input$site) && input$site %in% choices) input$site else choices[[1]]
     })
+    # Shiny sends the outputs of one flush together, so the panels hold only
+    # what is quick to render and show at once; whatever needs the estimates
+    # (the site choice, an error, the figure and table) is an output inside
+    # them, rendered in the flush after.
+    # The figure's height is reserved from the sheet rows, as its estimates are
+    # still to come; the site is the one chosen or else the first.
     output$plot_panel <- renderUI({
+      rows <- store$sheets()[[stand_in_rows[[eid]]]]$rows
+      pool_by <- sums()[[sum_key()]]$pool_by
+      site <- if (by_survey()) {
+        chosen <- isolate(input$site)
+        if (!is.null(chosen) && chosen %in% rows$site) chosen else as.character(rows$site[[1]])
+      }
+      height <- derived_height(rows, site, faceted = is.null(pool_by) || "site" %in% pool_by)
       panel(
         labels()$label,
         description = derived_caption(eid, labels(), sum_key()),
-        if (by_survey()) {
-          div(
-            class = "d-flex align-items-center gap-2",
-            span(class = "small fw-medium", id = ns("site_title"), "Site"),
-            selectInput(ns("site"), NULL, choices = sites(), selected = isolate(site()), selectize = FALSE, width = "12rem") |>
-              tagAppendAttributes(class = "mb-0", `aria-labelledby` = ns("site_title"))
-          )
-        },
-        figure_plot(ns("figure"))
+        if (by_survey()) uiOutput(ns("site_ui")),
+        uiOutput(ns("plot_error")),
+        figure_plot(ns("figure"), height = figure_px(height))
+      )
+    })
+    output$site_ui <- renderUI({
+      div(
+        class = "d-flex align-items-center gap-2",
+        span(class = "small fw-medium", id = ns("site_title"), "Site"),
+        selectInput(ns("site"), NULL, choices = sites(), selected = isolate(site()), selectize = FALSE, width = "12rem") |>
+          tagAppendAttributes(class = "mb-0", `aria-labelledby` = ns("site_title"))
       )
     })
     output$table_panel <- renderUI({
@@ -522,11 +551,20 @@ mod_derived_estimate_server <- function(id, store) {
         sprintf("%s (%s)", labels()$label, labels()$unit),
         description = tagList(
           with_help("With 95% compatibility intervals, to 3 significant figures.", "interval"),
-          flags_note()
+          support_note()
         ),
+        uiOutput(ns("table_error")),
         reactable::reactableOutput(ns("table"))
       )
     })
+    estimate_error <- function() {
+      result <- estimates()
+      if (inherits(result, "error")) {
+        notice("x-circle", sprintf("%s could not be estimated", estimate_label(eid)), condition_text(result), tone = "warning")
+      }
+    }
+    output$plot_error <- renderUI(estimate_error())
+    output$table_error <- renderUI(estimate_error())
 
     # The estimates for the chosen measure, scale and rows, or the error kelpbio gave.
     estimates <- reactive({
@@ -551,12 +589,11 @@ mod_derived_estimate_server <- function(id, store) {
 
     output$table <- reactable::renderReactable({
       rows <- biomass_table(estimated(), store$stand_ins())
-      flagged <- rows$flags != ""
       number <- function(name) reactable::colDef(name = name, cell = number_text, align = "right", class = "kb-tabular")
       area <- function(name) {
         reactable::colDef(name = name, align = "right", class = "kb-tabular", format = reactable::colFormat(separators = TRUE, digits = 0))
       }
-      columns <- lapply(stats::setNames(nm = setdiff(names(rows), c("estimate", "lower", "upper", "flags"))), function(name) {
+      columns <- lapply(stats::setNames(nm = setdiff(names(rows), c("estimate", "lower", "upper", "data_support"))), function(name) {
         switch(name,
           survey_area_m2 = ,
           canopy_area_m2 = area(column_label(name)),
@@ -566,22 +603,11 @@ mod_derived_estimate_server <- function(id, store) {
       })
       app_table(
         rows,
-        row_style = function(index) if (flagged[index]) app_row_colour$info,
         columns = c(columns, list(
           estimate = number(column_label("estimate")),
           lower = number(column_label("lower")),
           upper = number(column_label("upper")),
-          flags = reactable::colDef(
-            name = column_label("flags"), minWidth = 220, sortable = FALSE, show = any(flagged),
-            cell = function(value) {
-              if (value == "") {
-                return(NULL)
-              }
-              div(class = "d-flex flex-wrap gap-1", lapply(strsplit(value, "|", fixed = TRUE)[[1]], function(flag) {
-                badge(flag, "border text-body fw-normal")
-              }))
-            }
-          )
+          data_support = support_column(rows)
         ))
       )
     })
@@ -604,16 +630,18 @@ derived_figure <- function(predictions, site = NULL) {
   kb_plot_predictions(predictions)
 }
 
-# The height of derived_figure() in pixels at 96 dpi.
-derived_height <- function(predictions, site = NULL) {
+# The height of derived_figure() in pixels at 96 dpi, from its predictions, or
+# from the sheet rows they are made from before they are computed (with
+# `faceted`, whether the rows chosen are by site and year).
+derived_height <- function(rows, site = NULL, faceted = all(c("site", "year") %in% attr(rows, "kb_group_vars"))) {
   if (!is.null(site)) {
-    years <- unique(predictions$year[predictions$site == site])
+    years <- unique(rows$year[rows$site == site])
     return(60 + 170 * ggplot2::wrap_dims(length(years))[1])
   }
-  if (!all(c("site", "year") %in% attr(predictions, "kb_group_vars"))) {
+  if (!faceted) {
     return(360)
   }
-  60 + 170 * ggplot2::wrap_dims(length(unique(predictions$site)))[1]
+  60 + 170 * ggplot2::wrap_dims(length(unique(rows$site)))[1]
 }
 
 # The scale chosen for a derived estimate: survey biomass is per m\u00b2
@@ -652,21 +680,12 @@ derived_caption <- function(eid, labels, sum_key, site = NULL) {
 }
 
 # The estimates table: the rows of a derived prediction without their draws,
-# with a flags column naming the models without data for each row's site-year,
-# from the *_support columns, which give what each model's data hold for it,
-# and the sites standing in where a model has no data for the site
-# (`stand_ins`, by model). The sources, pre-fit or not, are the same for every
-# row and are listed on the Models step.
+# with a data_support column (data_support()). The sources, pre-fit or not,
+# are the same for every row and are listed on the Models step.
 biomass_table <- function(rows, stand_ins = list()) {
-  supports <- intersect(names(support_info), names(rows))
-  flags <- vapply(seq_len(nrow(rows)), function(i) {
-    paste(unlist(lapply(supports, function(column) {
-      support_flag(column, rows[[column]][i], stand_ins[[support_info[[column]]$id]])
-    })), collapse = "|")
-  }, character(1))
   keys <- c("survey_id", attr(rows, "kb_group_vars"), "survey_area_m2", "plants", "canopy_area_m2")
   columns <- intersect(c(unique(keys), "estimate", "lower", "upper"), names(rows))
-  data.frame(as.data.frame(summary_columns(rows))[columns], flags = flags)
+  data.frame(as.data.frame(summary_columns(rows))[columns], data_support = data_support(rows, stand_ins))
 }
 
 # Each *_support column: the model it is for, and its value when the model has
@@ -677,33 +696,57 @@ support_info <- list(
   cover_support = list(id = "cover", full = "site, year")
 )
 
-# "No size data: uses its site and year", or NULL where the model has data for
-# the site-year. A site without data takes the effects of the stand-in sites
+# Each row's models without data for its site-year and how their estimates
+# were made, joined by "; " ("" where none), from the *_support columns, which
+# give what each model's data hold for it, and the sites standing in where a
+# model has no data for the site (`stand_ins`, by model).
+data_support <- function(rows, stand_ins = list()) {
+  supports <- intersect(names(support_info), names(rows))
+  vapply(seq_len(nrow(rows)), function(i) {
+    paste(unlist(lapply(supports, function(column) {
+      support_detail(column, rows[[column]][i], stand_ins[[support_info[[column]]$id]])
+    })), collapse = "; ")
+  }, character(1))
+}
+
+# "No size data: estimated from year", or NULL where the model has data for the
+# site-year. A site without data takes the effects of the stand-in sites
 # (`stand_ins`), if any.
-support_flag <- function(column, support, stand_ins = NULL) {
+support_detail <- function(column, support, stand_ins = NULL) {
   info <- support_info[[column]]
   if (support == info$full) {
     return(NULL)
   }
-  model <- lower_label(info$id)
-  if (length(stand_ins) > 0 && support %in% c("year", "none")) {
-    uses <- and_list(stand_ins)
-    return(switch(support,
-      year = sprintf("No %s data at its site: uses its year, with %s for its site", model, uses),
-      sprintf("No %s data for its site or year: uses %s for its site", model, uses)
-    ))
+  from <- if (length(stand_ins) > 0 && support %in% c("year", "none")) {
+    switch(support,
+      year = sprintf("from year and %s", and_list(stand_ins)),
+      sprintf("from %s", and_list(stand_ins))
+    )
+  } else {
+    switch(support,
+      "site, year" = "from site and year",
+      site = "from site",
+      year = "from year",
+      "for a typical site-year"
+    )
   }
-  switch(support,
-    "site, year" = sprintf("No %s data: uses its site and year", model),
-    site = sprintf("No %s data: uses its site", model),
-    year = sprintf("No %s data: uses its year", model),
-    sprintf("No %s data for its site or year", model)
+  sprintf("No %s data: estimated %s", lower_label(info$id), from)
+}
+
+# The Data support column, one model to a line, shown only where a row lacks data.
+support_column <- function(rows) {
+  reactable::colDef(
+    name = column_label("data_support"), minWidth = 260, show = any(rows$data_support != ""),
+    cell = function(value) {
+      if (value != "") div(lapply(strsplit(value, "; ", fixed = TRUE)[[1]], div))
+    }
   )
 }
 
-flags_note <- function() {
+support_note <- function() {
   span(
     class = "d-inline-flex flex-wrap align-items-center gap-1",
-    "Flags show where a model has no data for the", with_help("site-year.", "coverage")
+    "Data support names the models without data for the", with_help("site-year", "coverage"),
+    "and how their estimates were made."
   )
 }

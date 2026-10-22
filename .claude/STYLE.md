@@ -1,6 +1,6 @@
 # kelpbioshiny writing style
 
-How the text the app shows is written: titles, labels, buttons, notices, help popovers, the welcome card and the User guide, and the README. kelpbio's `STYLE.md` (`~/Code/HakaiInstitute/kelpbio/STYLE.md`) applies: its principles, vocabulary, and mechanics. This file lists what differs for an app and the app's own terms. The statistics are kelpbio's, so the app links to its articles rather than restating them.
+How the text the app shows is written: titles, labels, buttons, notices, help popovers, the welcome card and the User guide, and the README. kelpbio's `STYLE.md` (`~/Code/HakaiInstitute/kelpbio/.claude/STYLE.md`) applies: its principles, vocabulary, and mechanics. This file lists what differs for an app and the app's own terms. The statistics are kelpbio's, so the app links to its articles rather than restating them.
 
 ## Principles
 
@@ -27,6 +27,6 @@ In addition to kelpbio's:
 | The area a survey covers | area surveyed | area searched |
 | A prediction without site or year effects | overall | population-level |
 | Predictions for each site in each year | by site and year | by site-year (in a label), by site |
-| A site of the fit's data standing in for a new site | stand-in site | representative site, borrowed site |
+| A site of the fit's data standing in for a new site | representative site | stand-in site, borrowed site |
 | A sheet, in text | its name in code font (`size_census`, `survey`) | "the Size tab" |
 | A model | its label (Weight, Size, Cover calibration, Wet:dry, Carbon) | its function name |

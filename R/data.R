@@ -741,9 +741,9 @@ has_effect <- function(id, effect, species = "nereo") {
   paste0("sd_", effect) %in% names(kelpbio_fn("priors", id, species)())
 }
 
-# The groupings a model's predictions can be shown at. A pre-fit model was
-# fitted to other sites and years, so only its overall predictions
-# apply. The weight model can also predict each plant in the size sheet
+# The groupings a model's predictions can be shown at. A pre-fit model offers
+# only its overall predictions, as predictions by site or year would reveal its
+# reference data, which stay private. The weight model can also predict each plant in the size sheet
 # (`plants`, from plant_rows()).
 prediction_choices <- function(id, prefit = FALSE, species = "nereo", plants = FALSE) {
   groups <- if (prefit || !has_effect(id, "site", species)) {
@@ -887,15 +887,6 @@ fit_sites <- function(fit) unique(as.character(kb_new_data(fit, by = "site")$sit
 
 # The sites of `rows` that a fit has no data for.
 new_sites <- function(fit, rows) setdiff(unique(as.character(rows$site)), fit_sites(fit))
-
-# Sites named in a sentence, the first `n` and a count of the rest.
-site_list <- function(sites, n = 3) {
-  label <- if (length(sites) == 1) "site" else "sites"
-  if (length(sites) > n) {
-    sites <- c(sites[seq_len(n)], sprintf("%d more", length(sites) - n))
-  }
-  paste(label, and_list(sites))
-}
 
 # The chosen stand-ins (`chosen`, by model) that are sites of each fit in use,
 # leaving out the models with none: kelpbio's representative_site, as a list

@@ -6,11 +6,9 @@
 ^LICENSE\.md$
 ^README\.Rmd$
 ^\.claude$
-^CLAUDE\.md$
 ^jarl\.toml$
 ^[.]?air[.]toml$
 ^\.vscode$
 ^app\.R$
 ^decisions$
 ^data-raw$
-^STYLE\.md$

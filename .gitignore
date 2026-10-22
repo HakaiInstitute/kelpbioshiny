@@ -8,7 +8,9 @@
 .RProfile
 .httr-oauth
 
-.claude/
+.claude/*
+!.claude/CLAUDE.md
+!.claude/STYLE.md
 
 README.html
 
