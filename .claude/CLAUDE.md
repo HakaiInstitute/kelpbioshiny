@@ -2,7 +2,7 @@
 
 R package holding the Shiny app for kelpbio (Bayesian kelp biomass estimation). The one export is `run_app()`. The app walks a run through four steps: Data, Models, Estimates, Export. Why a Shiny app, and its scope: `~/Code/HakaiInstitute/kelpbio/decisions/webapp-decision.md`.
 
-Every text the app shows, and the README, follows `STYLE.md`. Follow the kelpbio `CLAUDE.md` (`~/Code/HakaiInstitute/kelpbio/CLAUDE.md`) for code style and testing conventions; this file lists only what differs or is specific to the app.
+Every text the app shows, and the README, follows `.claude/STYLE.md`. Follow the kelpbio `CLAUDE.md` (`~/Code/HakaiInstitute/kelpbio/.claude/CLAUDE.md`) for code style and testing conventions; this file lists only what differs or is specific to the app.
 
 At the start of every session, load the posit-dev Shiny skills `shiny:shiny-bslib` and `shiny:shiny-bslib-theming` (Skill tool) before working on the app.
 
@@ -85,7 +85,7 @@ The derived estimates offer only what a report uses (`survey_sums`, `canopy_sums
 - kelpbio owns the statistics: model forms, priors, diagnostics theory, interpretation and any long-form explanation live in kelpbio's roxygen docs and vignettes/articles. kelpbioshiny never restates them; it links to the relevant kelpbio article or section (`kelpbio_url` and `kelpbio_articles` in `R/help.R`, each article's title, summary and path, which the Methods page lists).
 - kelpbioshiny documents only how to use the app: what each step is for, what to click, which sheets and columns to provide, and what to do about a warning.
 - One fact, one home inside the app: step names and descriptions (`app_steps`), sheet and column lists and model sources (`components`, `prefit_info`), and glossary text (`help_topics`) are each defined once in R and reused by the UI, the welcome card, the help popovers and the User guide. Never duplicate them as hand-written prose.
-- Wording of labels, notices, popovers and the guide: `STYLE.md`. Screenshots, if the guide ever needs them, are generated with shinytest2.
+- Wording of labels, notices, popovers and the guide: `.claude/STYLE.md`. Screenshots, if the guide ever needs them, are generated with shinytest2.
 - Definition of done: any change to steps, sheets, sources, warnings or help topics updates the guide in the same PR; the guide snapshot test (`test-mod_help.R`) shows the change for review. Statistical content changes go to kelpbio, not here.
 
 ## Testing

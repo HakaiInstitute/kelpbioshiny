@@ -1,6 +1,6 @@
 # kelpbioshiny writing style
 
-How the text the app shows is written: titles, labels, buttons, notices, help popovers, the welcome card and the User guide, and the README. kelpbio's `STYLE.md` (`~/Code/HakaiInstitute/kelpbio/STYLE.md`) applies: its principles, vocabulary, and mechanics. This file lists what differs for an app and the app's own terms. The statistics are kelpbio's, so the app links to its articles rather than restating them.
+How the text the app shows is written: titles, labels, buttons, notices, help popovers, the welcome card and the User guide, and the README. kelpbio's `STYLE.md` (`~/Code/HakaiInstitute/kelpbio/.claude/STYLE.md`) applies: its principles, vocabulary, and mechanics. This file lists what differs for an app and the app's own terms. The statistics are kelpbio's, so the app links to its articles rather than restating them.
 
 ## Principles
 
