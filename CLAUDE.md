@@ -23,7 +23,8 @@ Every text the app shows, and the README, follows `STYLE.md`. Follow the kelpbio
 
 | Task | Command |
 |------|---------|
-| Routine build + QC | `Rscript scripts/build.R` (`install()` -> `roxygen2md()` -> `document()` -> `test()`) |
+| Tests from source (before a push) | `devtools::test()` |
+| Build + QC before a push | `Rscript scripts/build.R` (`install()` -> `roxygen2md()` -> `document()` -> `test()`) |
 | Full check (slow) | `Rscript scripts/build.R --check` (adds `R CMD check`) |
 | Run all tests | `devtools::test()` |
 | Run the app from source | `pkgload::load_all(); run_app()` |
@@ -32,8 +33,8 @@ The build runs are also Positron/VS Code tasks ("kelpbioshiny: build", "kelpbios
 
 ## Tests, installs and example workbooks
 
-- Any change: `Rscript scripts/build.R` installs the app and runs the tests. The tests stub every fit with kelpbio's simulated fits, so no MCMC runs, and the app stores no fits of its own to rebuild.
-- The app, its tests and its mirai daemons use the installed kelpbio and kelpbiodata, not their checkouts (`load_all()` loads only kelpbioshiny from source). After either changes, reinstall it from the branch `Remotes:` pins (`remotes::install_github()`, never by switching branches in its checkout, which other sessions use) before testing or saying a change is visible.
+- During development, skip the tests, lint and app checks to keep changes fast: run the tests (`devtools::test()`), `jarl check .` and a check in the running app once, just before pushing to a PR. The app is never built or installed during development: run it from source with `pkgload::load_all(); run_app()`. `scripts/build.R` runs only before a push: its `install()` follows the `Remotes:` pins and reinstalls kelpbio and kelpbiodata from GitHub, replacing a local install. The tests stub every fit with kelpbio's simulated fits, so no MCMC runs, and the app stores no fits of its own to rebuild.
+- The app, its tests and its mirai daemons use the installed kelpbio and kelpbiodata, not their checkouts (`load_all()` loads only kelpbioshiny from source). After either changes, reinstall it before testing or saying a change is visible: from its local working tree while its change is unpushed (`R CMD INSTALL <path>`), else from the branch `Remotes:` pins (`remotes::install_github()`); never by switching branches in its checkout, which other sessions use.
 - When kelpbio's simulated data change, rebuild the example workbooks (`Rscript data-raw/test-workbooks.R`), check each still shows what its header says, and commit them. Workbook 6 needs real fits over several seeds to check: confirm before running them.
 
 ## Layout
