@@ -146,10 +146,12 @@ mod_estimate_server <- function(id, store) {
     })
 
     # The store holds the choice, so a resumed run shows the grouping it was
-    # saved with, and the Export step uses the grouping shown here.
-    grouping <- reactive({
+    # saved with, and the Export step uses the grouping shown here. It holds
+    # every estimate's choices, so the grouping is deduplicated, to follow only
+    # this model's.
+    grouping <- dedupe(reactive({
       chosen_grouping(store$estimate_choices()[[cid]]$grouping, prediction_choices(cid, page()$prefit, page()$species, page()$plants))
-    })
+    }))
     observeEvent(input$grouping, store$set_estimate_choice(cid, "grouping", input$grouping))
     observeEvent(grouping(), {
       if (!is.null(input$grouping) && !identical(input$grouping, grouping())) updateSelectInput(session, "grouping", selected = grouping())
@@ -161,7 +163,7 @@ mod_estimate_server <- function(id, store) {
       panel(
         sentence_case(prediction_info[[cid]]$response),
         description = prediction_caption(cid, grouping, page()$species),
-        figure_plot(ns("plot"), class = if (grouping == "population") "kb-figure-narrow")
+        figure_plot(ns("plot"), class = if (grouping == "population") "kb-figure-narrow", aspect = prediction_aspect(cid, grouping))
       )
     })
 
@@ -385,8 +387,9 @@ mod_derived_estimate_server <- function(id, store) {
     available <- dedupe(reactive(store$estimates()[[eid]]))
     sums <- dedupe(reactive(derived_sums(eid, store$sheets())))
     # The store holds the scale and sum chosen, so a resumed run shows those it
-    # was saved with, and the Export step uses those shown here.
-    choice <- reactive(store$estimate_choices()[[eid]])
+    # was saved with, and the Export step uses those shown here; deduplicated,
+    # as it holds every estimate's choices.
+    choice <- dedupe(reactive(store$estimate_choices()[[eid]]))
     per_area <- reactive(chosen_per_area(eid, choice()$scale, store$census()))
     sum_key <- reactive(chosen_sum(choice()$sum, sums()))
 
@@ -409,10 +412,8 @@ mod_derived_estimate_server <- function(id, store) {
       key <- output_key()
       outputs <- store$outputs()
       unavailable <- lapply(Filter(function(k) !outputs[[k]]$available, names(outputs)), function(k) outputs[[k]]$reason)
-      result <- estimates()
-      estimate_notices(ns, store, unique(c(derived_components[[eid]], output_components[[key]])), extra = c(
-        lapply(unavailable, function(reason) notice("minus-circle", reason, tone = "muted")),
-        if (inherits(result, "error")) list(notice("x-circle", sprintf("%s could not be estimated", estimate_label(eid)), condition_text(result), tone = "warning"))
+      estimate_notices(ns, store, unique(c(derived_components[[eid]], output_components[[key]])), extra = lapply(
+        unavailable, function(reason) notice("minus-circle", reason, tone = "muted")
       ))
     })
 
@@ -515,19 +516,34 @@ mod_derived_estimate_server <- function(id, store) {
       choices <- sites()
       if (!is.null(input$site) && input$site %in% choices) input$site else choices[[1]]
     })
+    # Shiny sends the outputs of one flush together, so the panels hold only
+    # what is quick to render and show at once; whatever needs the estimates
+    # (the site choice, an error, the figure and table) is an output inside
+    # them, rendered in the flush after.
+    # The figure's height is reserved from the sheet rows, as its estimates are
+    # still to come; the site is the one chosen or else the first.
     output$plot_panel <- renderUI({
+      rows <- store$sheets()[[stand_in_rows[[eid]]]]$rows
+      pool_by <- sums()[[sum_key()]]$pool_by
+      site <- if (by_survey()) {
+        chosen <- isolate(input$site)
+        if (!is.null(chosen) && chosen %in% rows$site) chosen else as.character(rows$site[[1]])
+      }
+      height <- derived_height(rows, site, faceted = is.null(pool_by) || "site" %in% pool_by)
       panel(
         labels()$label,
         description = derived_caption(eid, labels(), sum_key()),
-        if (by_survey()) {
-          div(
-            class = "d-flex align-items-center gap-2",
-            span(class = "small fw-medium", id = ns("site_title"), "Site"),
-            selectInput(ns("site"), NULL, choices = sites(), selected = isolate(site()), selectize = FALSE, width = "12rem") |>
-              tagAppendAttributes(class = "mb-0", `aria-labelledby` = ns("site_title"))
-          )
-        },
-        figure_plot(ns("figure"))
+        if (by_survey()) uiOutput(ns("site_ui")),
+        uiOutput(ns("plot_error")),
+        figure_plot(ns("figure"), height = figure_px(height))
+      )
+    })
+    output$site_ui <- renderUI({
+      div(
+        class = "d-flex align-items-center gap-2",
+        span(class = "small fw-medium", id = ns("site_title"), "Site"),
+        selectInput(ns("site"), NULL, choices = sites(), selected = isolate(site()), selectize = FALSE, width = "12rem") |>
+          tagAppendAttributes(class = "mb-0", `aria-labelledby` = ns("site_title"))
       )
     })
     output$table_panel <- renderUI({
@@ -537,9 +553,18 @@ mod_derived_estimate_server <- function(id, store) {
           with_help("With 95% compatibility intervals, to 3 significant figures.", "interval"),
           support_note()
         ),
+        uiOutput(ns("table_error")),
         reactable::reactableOutput(ns("table"))
       )
     })
+    estimate_error <- function() {
+      result <- estimates()
+      if (inherits(result, "error")) {
+        notice("x-circle", sprintf("%s could not be estimated", estimate_label(eid)), condition_text(result), tone = "warning")
+      }
+    }
+    output$plot_error <- renderUI(estimate_error())
+    output$table_error <- renderUI(estimate_error())
 
     # The estimates for the chosen measure, scale and rows, or the error kelpbio gave.
     estimates <- reactive({
@@ -605,16 +630,18 @@ derived_figure <- function(predictions, site = NULL) {
   kb_plot_predictions(predictions)
 }
 
-# The height of derived_figure() in pixels at 96 dpi.
-derived_height <- function(predictions, site = NULL) {
+# The height of derived_figure() in pixels at 96 dpi, from its predictions, or
+# from the sheet rows they are made from before they are computed (with
+# `faceted`, whether the rows chosen are by site and year).
+derived_height <- function(rows, site = NULL, faceted = all(c("site", "year") %in% attr(rows, "kb_group_vars"))) {
   if (!is.null(site)) {
-    years <- unique(predictions$year[predictions$site == site])
+    years <- unique(rows$year[rows$site == site])
     return(60 + 170 * ggplot2::wrap_dims(length(years))[1])
   }
-  if (!all(c("site", "year") %in% attr(predictions, "kb_group_vars"))) {
+  if (!faceted) {
     return(360)
   }
-  60 + 170 * ggplot2::wrap_dims(length(unique(predictions$site)))[1]
+  60 + 170 * ggplot2::wrap_dims(length(unique(rows$site)))[1]
 }
 
 # The scale chosen for a derived estimate: survey biomass is per m\u00b2

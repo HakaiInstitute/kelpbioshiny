@@ -303,11 +303,34 @@ plot_table_nav <- function(id, plot, table, selected = NULL) {
 figure_res <- 120
 figure_px <- function(px) round(px * figure_res / 96)
 
-# A ggplot from kelpbio drawn by render_figure(), with its caption.
-figure_plot <- function(output_id, caption = NULL, class = NULL) {
+# A ggplot from kelpbio drawn by render_figure(), with its caption. Until it is
+# first drawn, its frame holds the figure's space, as a share of its width
+# (`aspect`, as render_figure()'s) or a height in pixels (`height`), and shows a
+# placeholder; without either it holds a set height.
+figure_plot <- function(output_id, caption = NULL, class = NULL, aspect = NULL, height = NULL) {
+  # Sized by its content box, so the border adds to the figure's size, as it
+  # does once the figure is drawn.
+  size <- if (!is.null(height)) {
+    sprintf("box-sizing: content-box; min-height: %dpx;", round(height))
+  } else if (!is.null(aspect)) {
+    sprintf("box-sizing: content-box; aspect-ratio: %s;", format(1 / aspect, digits = 4))
+  }
   tags$figure(
     class = paste(c("d-flex flex-column gap-2 mb-0", class), collapse = " "),
-    div(class = "rounded-3 border bg-white overflow-hidden", plotOutput(output_id, height = "auto")),
+    # The plot fills the frame, so the spinner sits in the middle of where the
+    # figure will be. A figure being redrawn fades under its spinner, as only
+    # it is out of date.
+    as_fillable_container(div(
+      class = paste(c("kb-figure-frame position-relative rounded-3 border bg-white overflow-hidden", if (is.null(size)) "kb-figure-unsized"), collapse = " "),
+      style = size,
+      busyIndicatorOptions(fade_opacity = 0.3),
+      div(
+        class = "kb-figure-skeleton position-absolute top-0 start-0 w-100 h-100 p-3",
+        `aria-hidden` = "true",
+        span(class = "kb-figure-placeholder placeholder d-block w-100 h-100 rounded-2 bg-secondary-subtle")
+      ),
+      plotOutput(output_id, height = "auto")
+    )),
     if (!is.null(caption)) tags$figcaption(class = "small text-body-secondary", caption)
   )
 }

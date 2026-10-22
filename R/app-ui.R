@@ -84,8 +84,11 @@ app_ui <- function() {
     lang = "en",
     navbar_options = navbar_options(collapsible = TRUE),
     # Shiny's busy pulse would flash at the top of the page on every tick of a
-    # fit; the fit progress shows in the app instead.
-    header = tagList(useBusyIndicators(pulse = FALSE), tags$head(
+    # fit; the fit progress shows in the app instead. Outputs keep full opacity
+    # while they recalculate, so the text and controls around a slow figure
+    # stay legible; only the figure fades (figure_plot()), and a table hides
+    # behind its spinner.
+    header = tagList(useBusyIndicators(pulse = FALSE), busyIndicatorOptions(fade_opacity = 1, fade_selector = "html"), tags$head(
       # Versioned by the file's modification time, so a browser fetches the
       # stylesheet again when it changes rather than using a cached copy.
       tags$link(rel = "stylesheet", href = paste0("styles.css?v=", styles_version())),

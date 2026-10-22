@@ -458,6 +458,24 @@ dedupe <- function(r) {
   value
 }
 
+# A cache of a kelpbio result by the arguments it was called with, so a choice
+# changed and changed back is not computed again. It empties when `inputs`
+# (the fits and rows the result comes from) change; identical() compares them
+# at once while they are the same objects, as dedupe() keeps them.
+result_cache <- function() {
+  values <- new.env()
+  cached_inputs <- NULL
+  function(inputs, args, compute) {
+    if (!identical(inputs, cached_inputs)) {
+      rm(list = ls(values), envir = values)
+      cached_inputs <<- inputs
+    }
+    key <- rlang::hash(args)
+    if (is.null(values[[key]])) values[[key]] <- compute()
+    values[[key]]
+  }
+}
+
 
 new_store <- function(session, run_fit = mirai_fit_runner) {
   s <- new.env()
@@ -585,20 +603,29 @@ new_store <- function(session, run_fit = mirai_fit_runner) {
     if (eid == "canopy") sites$cover else sites
   }
 
+  # Each is cached (result_cache()), and shared by the Estimates and Export steps.
+  survey_cache <- result_cache()
   s$survey_biomass <- function(measure, per_area, pool_by) {
     a <- survey_inputs()
-    kb_predict_biomass_survey(
-      a$weight, a$size, a$survey, a$wetdry, a$carbon,
-      measure = measure, per_area = per_area, pool_by = pool_by,
-      representative_site = s$representative_site("survey"), progress = "none"
-    )
+    sites <- s$representative_site("survey")
+    survey_cache(a, list(measure, per_area, pool_by, sites), function() {
+      kb_predict_biomass_survey(
+        a$weight, a$size, a$survey, a$wetdry, a$carbon,
+        measure = measure, per_area = per_area, pool_by = pool_by,
+        representative_site = sites, progress = "none"
+      )
+    })
   }
+  canopy_cache <- result_cache()
   s$canopy_biomass <- function(measure, pool_by) {
     a <- canopy_inputs()
-    kb_predict_biomass_canopy(
-      a$fit, a$canopy, a$wetdry, a$carbon,
-      measure = measure, pool_by = pool_by, representative_site = s$representative_site("canopy")
-    )
+    sites <- s$representative_site("canopy")
+    canopy_cache(a, list(measure, pool_by, sites), function() {
+      kb_predict_biomass_canopy(
+        a$fit, a$canopy, a$wetdry, a$carbon,
+        measure = measure, pool_by = pool_by, representative_site = sites
+      )
+    })
   }
 
   # Invalid prior and sampler settings, by model: list(priors, sampler), each a

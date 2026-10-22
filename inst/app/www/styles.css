@@ -125,6 +125,43 @@
   opacity: 0.8;
 }
 
+/* A figure's frame (figure_plot()) holds space until the figure is first
+   drawn, with a placeholder in it: the figure's own size where it is known,
+   else a set height. */
+.kb-figure-unsized:not(:has(img)) {
+  min-height: 16rem;
+}
+
+.kb-figure-frame:has(img) .kb-figure-skeleton {
+  display: none;
+}
+
+/* The placeholder pulses between a pale grey and white, close to the white
+   figure that replaces it. */
+.kb-figure-placeholder {
+  opacity: 0.6;
+  animation: kb-figure-glow 2s ease-in-out infinite;
+}
+
+@keyframes kb-figure-glow {
+  50% {
+    opacity: 0;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .kb-figure-placeholder {
+    animation: none;
+  }
+}
+
+/* The placeholder shows a figure is loading, so Shiny's busy spinner (sized by
+   its --shiny-spinner-size variable) shows only once there is a figure to
+   redraw. */
+.kb-figure-frame:not(:has(img)) {
+  --shiny-spinner-size: 0px;
+}
+
 /* A small figure, such as a single population-level estimate. */
 .kb-figure-narrow {
   max-width: 36rem;
