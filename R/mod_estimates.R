@@ -190,8 +190,12 @@ mod_estimate_server <- function(id, store) {
         cover = if (predictor && "cover" %in% names(rows)) reactable::colDef(name = column_label("cover"), cell = number_text, align = "right", class = "kb-tabular"),
         estimate = number(column_label("estimate")),
         lower = number(column_label("lower")),
-        upper = number(column_label("upper"))
+        upper = number(column_label("upper")),
+        data_support = if (!is.null(rows$data_support)) support_column(rows)
       )))
+    })
+    output$support_note <- renderUI({
+      if (!is.null(prediction_table(predictions_at(), cid, grouping())$data_support)) support_note()
     })
   })
 }
@@ -201,7 +205,7 @@ mod_estimate_server <- function(id, store) {
 column_labels <- c(
   site = "Site", year = "Year", survey_id = "Survey", survey_area_m2 = "Area surveyed (m\u00b2)",
   canopy_area_m2 = "Canopy area (m\u00b2)", plants = "Plants", diameter_mm = "diameter_mm",
-  fronds = "Fronds", cover = "Tide-corrected cover", estimate = "Estimate", lower = "Lower", upper = "Upper", flags = "Flags"
+  fronds = "Fronds", cover = "Tide-corrected cover", estimate = "Estimate", lower = "Lower", upper = "Upper", data_support = "Data support"
 )
 column_label <- function(name) if (name %in% names(column_labels)) column_labels[[name]] else sentence_case(name)
 
@@ -233,12 +237,16 @@ prediction_title <- function(cid, grouping) {
 # curve's evenly spaced values are not round.
 predictor_digits <- c(diameter_mm = 1, fronds = 0, cover = 2)
 
-# The columns of a model's predictions table.
+# The columns of a model's predictions table, with a data_support column
+# (data_support()) where a row's site-year lacks the model's data, as each
+# plant's can; a model's own site-years always have its data.
 prediction_table <- function(rows, cid, grouping) {
   predictors <- if (shows_predictor(cid, grouping)) names(predictor_digits)
   columns <- c("site", "year", predictors, "estimate", "lower", "upper")
+  support <- data_support(rows)
   rows <- as.data.frame(rows)[intersect(columns, names(rows))]
   for (name in intersect(names(predictor_digits), names(rows))) rows[[name]] <- round(rows[[name]], predictor_digits[[name]])
+  if (any(support != "")) rows$data_support <- support
   rows
 }
 
@@ -318,7 +326,10 @@ predictions_panel <- function(ns, cid, prefit, species, plants, selected = NULL)
       uiOutput(ns("figure")),
       panel(
         textOutput(ns("table_title"), inline = TRUE),
-        description = with_help("With 95% compatibility intervals, to 3 significant figures.", "interval"),
+        description = tagList(
+          with_help("With 95% compatibility intervals, to 3 significant figures.", "interval"),
+          uiOutput(ns("support_note"), inline = TRUE)
+        ),
         reactable::reactableOutput(ns("table"))
       )
     )
@@ -522,7 +533,7 @@ mod_derived_estimate_server <- function(id, store) {
         sprintf("%s (%s)", labels()$label, labels()$unit),
         description = tagList(
           with_help("With 95% compatibility intervals, to 3 significant figures.", "interval"),
-          flags_note()
+          support_note()
         ),
         reactable::reactableOutput(ns("table"))
       )
@@ -551,12 +562,11 @@ mod_derived_estimate_server <- function(id, store) {
 
     output$table <- reactable::renderReactable({
       rows <- biomass_table(estimated(), store$stand_ins())
-      flagged <- rows$flags != ""
       number <- function(name) reactable::colDef(name = name, cell = number_text, align = "right", class = "kb-tabular")
       area <- function(name) {
         reactable::colDef(name = name, align = "right", class = "kb-tabular", format = reactable::colFormat(separators = TRUE, digits = 0))
       }
-      columns <- lapply(stats::setNames(nm = setdiff(names(rows), c("estimate", "lower", "upper", "flags"))), function(name) {
+      columns <- lapply(stats::setNames(nm = setdiff(names(rows), c("estimate", "lower", "upper", "data_support"))), function(name) {
         switch(name,
           survey_area_m2 = ,
           canopy_area_m2 = area(column_label(name)),
@@ -566,22 +576,11 @@ mod_derived_estimate_server <- function(id, store) {
       })
       app_table(
         rows,
-        row_style = function(index) if (flagged[index]) app_row_colour$info,
         columns = c(columns, list(
           estimate = number(column_label("estimate")),
           lower = number(column_label("lower")),
           upper = number(column_label("upper")),
-          flags = reactable::colDef(
-            name = column_label("flags"), minWidth = 220, sortable = FALSE, show = any(flagged),
-            cell = function(value) {
-              if (value == "") {
-                return(NULL)
-              }
-              div(class = "d-flex flex-wrap gap-1", lapply(strsplit(value, "|", fixed = TRUE)[[1]], function(flag) {
-                badge(flag, "border text-body fw-normal")
-              }))
-            }
-          )
+          data_support = support_column(rows)
         ))
       )
     })
@@ -652,21 +651,12 @@ derived_caption <- function(eid, labels, sum_key, site = NULL) {
 }
 
 # The estimates table: the rows of a derived prediction without their draws,
-# with a flags column naming the models without data for each row's site-year,
-# from the *_support columns, which give what each model's data hold for it,
-# and the sites standing in where a model has no data for the site
-# (`stand_ins`, by model). The sources, pre-fit or not, are the same for every
-# row and are listed on the Models step.
+# with a data_support column (data_support()). The sources, pre-fit or not,
+# are the same for every row and are listed on the Models step.
 biomass_table <- function(rows, stand_ins = list()) {
-  supports <- intersect(names(support_info), names(rows))
-  flags <- vapply(seq_len(nrow(rows)), function(i) {
-    paste(unlist(lapply(supports, function(column) {
-      support_flag(column, rows[[column]][i], stand_ins[[support_info[[column]]$id]])
-    })), collapse = "|")
-  }, character(1))
   keys <- c("survey_id", attr(rows, "kb_group_vars"), "survey_area_m2", "plants", "canopy_area_m2")
   columns <- intersect(c(unique(keys), "estimate", "lower", "upper"), names(rows))
-  data.frame(as.data.frame(summary_columns(rows))[columns], flags = flags)
+  data.frame(as.data.frame(summary_columns(rows))[columns], data_support = data_support(rows, stand_ins))
 }
 
 # Each *_support column: the model it is for, and its value when the model has
@@ -677,33 +667,57 @@ support_info <- list(
   cover_support = list(id = "cover", full = "site, year")
 )
 
-# "No size data: uses its site and year", or NULL where the model has data for
-# the site-year. A site without data takes the effects of the stand-in sites
+# Each row's models without data for its site-year and how their estimates
+# were made, joined by "; " ("" where none), from the *_support columns, which
+# give what each model's data hold for it, and the sites standing in where a
+# model has no data for the site (`stand_ins`, by model).
+data_support <- function(rows, stand_ins = list()) {
+  supports <- intersect(names(support_info), names(rows))
+  vapply(seq_len(nrow(rows)), function(i) {
+    paste(unlist(lapply(supports, function(column) {
+      support_detail(column, rows[[column]][i], stand_ins[[support_info[[column]]$id]])
+    })), collapse = "; ")
+  }, character(1))
+}
+
+# "No size data: estimated from year", or NULL where the model has data for the
+# site-year. A site without data takes the effects of the stand-in sites
 # (`stand_ins`), if any.
-support_flag <- function(column, support, stand_ins = NULL) {
+support_detail <- function(column, support, stand_ins = NULL) {
   info <- support_info[[column]]
   if (support == info$full) {
     return(NULL)
   }
-  model <- lower_label(info$id)
-  if (length(stand_ins) > 0 && support %in% c("year", "none")) {
-    uses <- and_list(stand_ins)
-    return(switch(support,
-      year = sprintf("No %s data at its site: uses its year, with %s for its site", model, uses),
-      sprintf("No %s data for its site or year: uses %s for its site", model, uses)
-    ))
+  from <- if (length(stand_ins) > 0 && support %in% c("year", "none")) {
+    switch(support,
+      year = sprintf("from year and %s", and_list(stand_ins)),
+      sprintf("from %s", and_list(stand_ins))
+    )
+  } else {
+    switch(support,
+      "site, year" = "from site and year",
+      site = "from site",
+      year = "from year",
+      "for a typical site-year"
+    )
   }
-  switch(support,
-    "site, year" = sprintf("No %s data: uses its site and year", model),
-    site = sprintf("No %s data: uses its site", model),
-    year = sprintf("No %s data: uses its year", model),
-    sprintf("No %s data for its site or year", model)
+  sprintf("No %s data: estimated %s", lower_label(info$id), from)
+}
+
+# The Data support column, one model to a line, shown only where a row lacks data.
+support_column <- function(rows) {
+  reactable::colDef(
+    name = column_label("data_support"), minWidth = 260, show = any(rows$data_support != ""),
+    cell = function(value) {
+      if (value != "") div(lapply(strsplit(value, "; ", fixed = TRUE)[[1]], div))
+    }
   )
 }
 
-flags_note <- function() {
+support_note <- function() {
   span(
     class = "d-inline-flex flex-wrap align-items-center gap-1",
-    "Flags show where a model has no data for the", with_help("site-year.", "coverage")
+    "Data support names the models without data for the", with_help("site-year", "coverage"),
+    "and how their estimates were made."
   )
 }

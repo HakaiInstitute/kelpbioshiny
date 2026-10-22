@@ -157,8 +157,7 @@ app_table_theme <- reactable::reactableTheme(
 
 # Row and cell colours for tables, also from the theme.
 app_row_colour <- list(
-  warning = list(background = "var(--bs-warning-bg-subtle)"),
-  info = list(background = "var(--bs-info-bg-subtle)")
+  warning = list(background = "var(--bs-warning-bg-subtle)")
 )
 
 # The theme of every figure, added by render_figure(): kelpbio's figures use

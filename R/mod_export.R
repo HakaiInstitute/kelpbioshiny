@@ -198,12 +198,16 @@ model_export <- function(store, cid, choice) {
   predictions <- model_predictions(cid, fit, grouping, species, plants = plants)
   caption <- prediction_caption(cid, grouping, species)
   width <- if (grouping == "population") export_width / 2 else export_width
+  table <- prediction_table(table_predictions(cid, fit, grouping, species, predictions), cid, grouping)
   list(
     name = model_name(cid),
     title = prediction_title(cid, grouping),
     rows = prediction_groupings[[grouping]],
-    note = "Estimates with their lower and upper 95% compatibility limits.",
-    table = prediction_table(table_predictions(cid, fit, grouping, species, predictions), cid, grouping),
+    note = paste(c(
+      "Estimates with their lower and upper 95% compatibility limits.",
+      if (!is.null(table$data_support)) support_export_note
+    ), collapse = " "),
+    table = table,
     figures = list(list(
       name = model_name(cid), plot = prediction_figure(cid, predictions, grouping, species),
       width = width, height = width * prediction_aspect(cid, grouping), caption = caption
@@ -235,11 +239,13 @@ derived_export <- function(store, eid, measure, choice) {
     name = name,
     title = sprintf("%s: %s (%s)", estimate_label(eid), labels$label, labels$unit),
     rows = sums[[sum_key]]$label,
-    note = "Estimates with their lower and upper 95% compatibility limits. Flags name the models without data for a row's site-year.",
+    note = paste("Estimates with their lower and upper 95% compatibility limits.", support_export_note),
     table = biomass_table(rows, store$stand_ins()),
     figures = if (by_survey) lapply(unique(as.character(rows$site)), figure) else list(figure())
   )
 }
+
+support_export_note <- "data_support names the models without data for a row's site-year and how their estimates were made."
 
 # A user's site name as part of a file name.
 file_name <- function(x) gsub("[^A-Za-z0-9_-]+", "-", x)

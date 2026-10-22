@@ -143,8 +143,8 @@ help_topics <- list(
     title = "Site-years without data",
     body = paste(
       "The models are hierarchical, so a site-year without data still gets an estimate.",
-      "It uses the site's estimate from other years and the year's estimate from other sites, with a wider compatibility interval.",
-      "With neither the site nor the year in the data, the estimate is for a typical site and year."
+      "It uses the site effect, estimated from the site's other years, and the year effect, estimated from the year's other sites, with a wider compatibility interval.",
+      "With neither the site nor the year in the data, the estimate is for a typical site-year."
     ),
     link = kelpbio_articles$results$path
   ),
@@ -195,7 +195,7 @@ help_topics <- list(
     body = paste(
       "A site that a model has no data for gets the effect of a new site, drawn from the spread between sites, so its compatibility interval is wide.",
       "Sites in the model's data, such as nearby sites with similar conditions, can stand in for it instead; several are averaged.",
-      "The estimate flags name the stand-ins used."
+      "The Data support column of the estimates names the stand-ins used."
     ),
     link = kelpbio_articles$results$path
   ),
