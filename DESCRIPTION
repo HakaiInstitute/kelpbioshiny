@@ -42,7 +42,6 @@ Suggests:
     shinytest2,
     testthat (>= 3.0.0)
 Remotes:
-    HakaiInstitute/kelpbio@app-api-additions,
     HakaiInstitute/kelpbiodata@initial-package
 Encoding: UTF-8
 Roxygen: list(markdown = TRUE)
