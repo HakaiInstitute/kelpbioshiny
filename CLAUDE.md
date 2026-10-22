@@ -4,6 +4,8 @@ R package holding the Shiny app for kelpbio (Bayesian kelp biomass estimation). 
 
 Every text the app shows, and the README, follows `STYLE.md`. Follow the kelpbio `CLAUDE.md` (`~/Code/HakaiInstitute/kelpbio/CLAUDE.md`) for code style and testing conventions; this file lists only what differs or is specific to the app.
 
+At the start of every session, load the posit-dev Shiny skills `shiny:shiny-bslib` and `shiny:shiny-bslib-theming` (Skill tool) before working on the app.
+
 ## Repositories and issues
 
 - Development (branches, commits, pull requests) happens in the HakaiInstitute repo (`HakaiInstitute/kelpbioshiny`), never in the poissonconsulting fork.
