@@ -93,10 +93,18 @@ size_data_info <- list(
 
 is_census <- function(species, size_data = "sample") species == "macro" || size_data == "census"
 
-# The size sheet is named for its kind of size data in a workbook, a CSV file
-# name, the template and the messages; the app's sheet id stays "size".
+# A sheet's name in a workbook, a CSV file name, the template and the
+# messages: the size sheet is named for its kind of size data, and the in situ
+# survey and canopy sheets for how they survey the kelp; the app's sheet ids
+# stay "size", "survey" and "canopy".
 size_sheet_names <- c(sample = "size_sample", census = "size_census")
-sheet_name <- function(id, census = FALSE) if (id == "size") size_sheet_names[[if (census) "census" else "sample"]] else id
+survey_sheet_names <- c(survey = "survey_in_situ", canopy = "survey_canopy")
+sheet_name <- function(id, census = FALSE) {
+  if (id == "size") {
+    return(size_sheet_names[[if (census) "census" else "sample"]])
+  }
+  if (id %in% names(survey_sheet_names)) survey_sheet_names[[id]] else id
+}
 
 # The kind of size data that sheet or file names (`names`) show: "sample" or
 # "census" when exactly one of the size sheet names is among them, else NULL.
@@ -473,7 +481,7 @@ column_info <- list(
 )
 
 sheet_column_info <- list(
-  size = list(survey_id = c("In situ survey the plant was counted in, as in the survey sheet", "Text or number")),
+  size = list(survey_id = c("In situ survey the plant was counted in, as in the survey_in_situ sheet", "Text or number")),
   canopy = list(
     year = c("Year of the canopy map", "Year, e.g. 2024"),
     canopy_area_m2 = c("Canopy area mapped within the site from the canopy imagery (m\u00b2)", "0 or more (0 for no canopy)"),
@@ -518,7 +526,7 @@ template_readme <- function(species, census = is_census(species)) {
     sheet = "All sheets", needed = "", one_row_per = "", column = "Every column",
     description = paste(
       "Fill every cell: a blank cell is an error, except in an optional column and the canopy imagery columns of an in situ survey without canopy imagery.",
-      "Other columns are ignored, except text columns of the canopy sheet, such as region or habitat, which canopy biomass can be totalled over by year."
+      "Other columns are ignored, except text columns of the survey_canopy sheet, such as region or habitat, which canopy biomass can be totalled over by year."
     ),
     values = ""
   )
@@ -547,7 +555,7 @@ template_file <- function(species, census = is_census(species)) {
 read_workbook <- function(path, census = FALSE) {
   present <- readxl::excel_sheets(path)
   names <- lapply(sheet_ids, function(id) {
-    candidates <- if (id == "size") c(sheet_name(id, census), sheet_name(id, !census), "size") else id
+    candidates <- if (id == "size") c(sheet_name(id, census), sheet_name(id, !census), "size") else sheet_name(id)
     intersect(candidates, present)[1]
   })
   names <- Filter(Negate(is.na), names)

@@ -40,7 +40,7 @@ guide_sheets <- function() {
   guide_table(
     c("Sheet", "One row per", "Columns"),
     lapply(sheet_ids, function(id) {
-      name <- if (id == "size") tagList(tags$code(size_sheet_names[["sample"]]), " or ", tags$code(size_sheet_names[["census"]])) else tags$code(id)
+      name <- if (id == "size") tagList(tags$code(size_sheet_names[["sample"]]), " or ", tags$code(size_sheet_names[["census"]])) else tags$code(sheet_name(id))
       list(name, sheet_info[[id]]$row, guide_columns(id))
     })
   )
@@ -73,7 +73,7 @@ guide_estimates <- function() {
     list(
       list(
         estimate_label("survey"),
-        sprintf("The %s and %s models (or a census), and a survey sheet", lower_label("weight"), lower_label("size")),
+        sprintf("The %s and %s models (or a census), and a %s sheet", lower_label("weight"), lower_label("size"), sheet_name("survey")),
         paste0(
           or_list(vapply(survey_sums, `[[`, "", "label")), "; ",
           tolower(or_list(derived_info$survey$scales))
@@ -81,8 +81,8 @@ guide_estimates <- function() {
       ),
       list(
         estimate_label("canopy"),
-        sprintf("A canopy sheet and the %s", lower_label("cover")),
-        or_list(c(vapply(canopy_sums(), `[[`, "", "label"), "total by any text column of the canopy sheet and year"))
+        sprintf("A %s sheet and the %s", sheet_name("canopy"), lower_label("cover")),
+        or_list(c(vapply(canopy_sums(), `[[`, "", "label"), sprintf("total by any text column of the %s sheet and year", sheet_name("canopy"))))
       ),
       list(
         "Each model's predictions",
@@ -114,8 +114,8 @@ guide_extras <- list(
         paste(
           "The columns of each sheet. Every sheet is optional, and other columns are ignored.",
           sprintf(
-            "The size sheet is %s for a sample of plants measured, or %s with %s, a census, when it holds every counted plant and the survey sheet has no plants column. Macrocystis in situ surveys are always a census.",
-            size_sheet_names[["sample"]], size_sheet_names[["census"]], tolower(size_data_info$census$label)
+            "The size sheet is %s for a sample of plants measured, or %s with %s, a census, when it holds every counted plant and the %s sheet has no plants column. Macrocystis in situ surveys are always a census.",
+            size_sheet_names[["sample"]], size_sheet_names[["census"]], tolower(size_data_info$census$label), sheet_name("survey")
           )
         )
       ),
@@ -131,7 +131,7 @@ guide_extras <- list(
           "Open a model for its %s tabs. Check the Diagnostics tab before using its estimates; any warning there says what to do.",
           and_list(model_tabs)
         ),
-        sprintf("A pre-fit %s gives canopy biomass from a canopy sheet alone, without in situ survey data.", lower_label("cover"))
+        sprintf("A pre-fit %s gives canopy biomass from a %s sheet alone, without in situ survey data.", lower_label("cover"), sheet_name("canopy"))
       ),
       div(class = "table-responsive", guide_sources())
     )

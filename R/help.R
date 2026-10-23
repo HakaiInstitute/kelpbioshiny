@@ -152,7 +152,7 @@ help_topics <- list(
     title = "Census",
     body = paste(
       sprintf("With a sample of plants measured (a %s sheet), the in situ surveys tally their plants and a size model is fitted to the plants measured.", size_sheet_names[["sample"]]),
-      sprintf("With all plants measured (a census, a %s sheet), the size sheet holds the plants of each in situ survey, joined to it by survey_id, and the survey sheet has no plants column.", size_sheet_names[["census"]]),
+      sprintf("With all plants measured (a census, a %s sheet), the size sheet holds the plants of each in situ survey, joined to it by survey_id, and the survey_in_situ sheet has no plants column.", size_sheet_names[["census"]]),
       "In situ survey biomass then sums the weights of the plants, and no size model is fitted. Macrocystis in situ surveys are always a census."
     ),
     link = kelpbio_articles$models$path

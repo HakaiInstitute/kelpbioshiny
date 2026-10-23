@@ -265,7 +265,7 @@ estimate_availability <- function(id, statuses, sources, sheets, mismatches) {
       "ready" = list(available = TRUE),
       "not-used" = unavailable(sprintf("The %s model is not used in this run.", model)),
       "no-data" = unavailable(if (id == "cover") {
-        "The cover calibration needs in situ surveys with canopy imagery: add plot_area_m2, canopy_area_m2 and canopy_tide_height_m to the survey sheet."
+        "The cover calibration needs in situ surveys with canopy imagery: add plot_area_m2, canopy_area_m2 and canopy_tide_height_m to the survey_in_situ sheet."
       } else {
         sprintf("The %s model has no data. Add a %s sheet on the Data step.", model, components[[id]]$sheet)
       }),
@@ -283,9 +283,9 @@ estimate_availability <- function(id, statuses, sources, sheets, mismatches) {
     canopy <- sheets$canopy
     cover <- statuses$cover
     reason <- if (is.null(canopy)) {
-      "Canopy biomass needs a canopy sheet of canopy maps of whole sites. Add one on the Data step."
+      "Canopy biomass needs a survey_canopy sheet of canopy maps of whole sites. Add one on the Data step."
     } else if (!is.null(canopy$error)) {
-      "The canopy sheet failed its data check."
+      "The survey_canopy sheet failed its data check."
     } else if (cover$kind == "not-used") {
       "Canopy biomass needs the cover calibration. Choose a source for it on the Models step."
     } else if (cover$kind != "ready") {
@@ -297,10 +297,10 @@ estimate_availability <- function(id, statuses, sources, sheets, mismatches) {
     return(unavailable(sprintf("%s needs the weight and size models, each fitted to your data or pre-fit.", estimate_label(id))))
   }
   if (is.null(sheets$survey)) {
-    return(unavailable("In situ survey biomass needs a survey sheet. Add one on the Data step."))
+    return(unavailable("In situ survey biomass needs a survey_in_situ sheet. Add one on the Data step."))
   }
   if (!is.null(sheets$survey$error)) {
-    return(unavailable("The survey sheet failed its data check."))
+    return(unavailable("The survey_in_situ sheet failed its data check."))
   }
   blocking <- survey_ids[!vapply(statuses[survey_ids], is_ready_status, logical(1))]
   if (length(blocking) > 0) {
@@ -327,7 +327,7 @@ data_estimable <- function(sheets, sources, census, mismatches = character()) {
     list(possible = TRUE, prefit = Filter(function(id) is_prefit(sources[[id]]), ids))
   }
   survey <- if (!valid("survey")) {
-    if (is.null(sheets$survey)) "needs a survey sheet" else "the survey sheet fails its check"
+    if (is.null(sheets$survey)) "needs a survey_in_situ sheet" else "the survey_in_situ sheet fails its check"
   } else if (!usable("weight")) {
     "needs a weight sheet that passes its check, or a pre-fit weight model"
   } else if (!usable("size")) {
@@ -338,7 +338,7 @@ data_estimable <- function(sheets, sources, census, mismatches = character()) {
   # A pre-fit cover calibration needs only the canopy sheet; one fitted to your
   # data needs in situ survey biomass and canopy imagery on the surveys.
   canopy <- if (!valid("canopy")) {
-    if (is.null(sheets$canopy)) "needs a canopy sheet of canopy maps" else "the canopy sheet fails its check"
+    if (is.null(sheets$canopy)) "needs a survey_canopy sheet of canopy maps" else "the survey_canopy sheet fails its check"
   } else if (is_prefit(sources[["cover"]])) {
     NULL
   } else if (!is.null(survey)) {
@@ -803,7 +803,7 @@ new_store <- function(session, run_fit = mirai_fit_runner) {
     }
     if (length(rows) == 0) {
       s$notify(
-        sprintf("Name each sheet after its data: %s.", and_list(c(setdiff(sheet_ids, "size"), size_sheet_names))),
+        sprintf("Name each sheet after its data: %s.", and_list(c(vapply(setdiff(sheet_ids, "size"), sheet_name, ""), size_sheet_names))),
         type = "error", title = sprintf("%s has no sheet kelpbio reads", file), duration = 10
       )
       return()

@@ -11,15 +11,15 @@
 # Use cases:
 # 1-full: every sheet, so each model is fitted to the data through to canopy
 #   biomass. Nereocystis has a measured sample of plants, Macrocystis a census.
-# 2-prefit: size, survey and canopy sheets but no harvests or tissue samples,
+# 2-prefit: size, survey_in_situ and survey_canopy sheets but no harvests or tissue samples,
 #   so weight, wet:dry and carbon are pre-fit.
-# 3-census (Nereocystis only): weight, size and survey sheets, for surveys that
+# 3-census (Nereocystis only): weight, size and survey_in_situ sheets, for surveys that
 #   cover the whole area of interest, so survey biomass in total over the area
 #   surveyed is the estimate. Every counted plant is measured, each survey's
 #   plants drawn from the measured sample of its site-year (census_rows()).
-#   There are no canopy imagery columns or canopy sheet, so no cover calibration or
+#   There are no canopy imagery columns or survey_canopy sheet, so no cover calibration or
 #   canopy biomass; wet:dry and carbon are pre-fit.
-# 4-canopy-prefit: a canopy sheet alone, with canopy maps of the sites of the
+# 4-canopy-prefit: a survey_canopy sheet alone, with canopy maps of the sites of the
 #   pre-fit Hakai Institute cover calibration mapped again in a year after its
 #   data, so canopy biomass takes each site's effect but treats the year as new,
 #   and one map of a new site with the same areas as the first site's, whose
@@ -27,7 +27,7 @@
 #
 # Errors:
 # 5-bad-data: every sheet, with a weight sheet missing two years (a data
-#   error) and a survey sheet with three surveys whose area surveyed exceeds
+#   error) and a survey_in_situ sheet with three surveys whose area surveyed exceeds
 #   their plot (a warning).
 # 6-refit (Nereocystis only): a weight sheet of many plants from a few sites
 #   whose weights differ widely (refit_rows()), whose fit at the default

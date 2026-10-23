@@ -160,7 +160,7 @@ mod_model_server <- function(id, store) {
         notice(
           "minus-circle", sprintf("%s is not used in this run", def$label),
           if (cid == "cover") {
-            "Add canopy imagery columns to the in situ surveys and a canopy sheet of canopy maps to estimate canopy biomass."
+            "Add canopy imagery columns to the in situ surveys and a survey_canopy sheet of canopy maps to estimate canopy biomass."
           } else {
             sprintf("Estimates that need %s are unavailable.", tolower(def$label))
           },
