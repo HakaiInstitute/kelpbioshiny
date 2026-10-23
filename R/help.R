@@ -11,7 +11,7 @@ kelpbio_url <- "https://hakaiinstitute.github.io/kelpbio/"
 kelpbio_articles <- list(
   models = list(
     title = "The models",
-    summary = "What each model estimates, and how they combine into survey and canopy biomass.",
+    summary = "What each model estimates, and how they combine into in situ survey and canopy biomass.",
     path = "articles/models.html"
   ),
   priors = list(
@@ -36,7 +36,7 @@ kelpbio_articles <- list(
   ),
   canopy_biomass = list(
     title = "Canopy biomass",
-    summary = "Calibrating canopy cover on survey biomass, and scaling it to the canopy mapped over whole sites.",
+    summary = "Calibrating canopy cover on in situ survey biomass, and scaling it to the canopy mapped over whole sites.",
     path = "articles/canopy-biomass.html"
   )
 )
@@ -151,17 +151,17 @@ help_topics <- list(
   census = list(
     title = "Census",
     body = paste(
-      sprintf("With a sample of plants measured (a %s sheet), the surveys tally their plants and a size model is fitted to the plants measured.", size_sheet_names[["sample"]]),
-      sprintf("With all plants measured (a census, a %s sheet), the size sheet holds the plants of each survey, joined to it by survey_id, and the survey sheet has no plants column.", size_sheet_names[["census"]]),
-      "Survey biomass then sums the weights of the plants, and no size model is fitted. Macrocystis surveys are always a census."
+      sprintf("With a sample of plants measured (a %s sheet), the in situ surveys tally their plants and a size model is fitted to the plants measured.", size_sheet_names[["sample"]]),
+      sprintf("With all plants measured (a census, a %s sheet), the size sheet holds the plants of each in situ survey, joined to it by survey_id, and the survey sheet has no plants column.", size_sheet_names[["census"]]),
+      "In situ survey biomass then sums the weights of the plants, and no size model is fitted. Macrocystis in situ surveys are always a census."
     ),
     link = kelpbio_articles$models$path
   ),
   survey_biomass = list(
-    title = "Survey biomass",
+    title = "In situ survey biomass",
     body = paste(
       "The biomass of the plants counted in an in situ survey, per square metre of the area surveyed or in total over it.",
-      "By site and year, the surveys of a site-year are pooled: their summed biomass, divided by their summed area for biomass per square metre."
+      "By site and year, the in situ surveys of a site-year are pooled: their summed biomass, divided by their summed area for biomass per square metre."
     ),
     link = kelpbio_articles$models$path
   ),
@@ -184,7 +184,7 @@ help_topics <- list(
   canopy_biomass = list(
     title = "Canopy biomass",
     body = paste(
-      "The cover calibration relates the wet biomass of each survey to the tide-corrected canopy cover of its plot.",
+      "The cover calibration relates the wet biomass of each in situ survey to the tide-corrected canopy cover of its plot.",
       "Canopy biomass applies it to the canopy mapped over each site in a canopy map.",
       "The uncertainty in every model is carried through to the limits."
     ),

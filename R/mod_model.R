@@ -153,14 +153,14 @@ mod_model_server <- function(id, store) {
       } else if (mode == "census" && status$kind == "ready") {
         notice(
           "list-checks", with_help("Census of every counted plant", "census"),
-          "All plants measured, so survey biomass weighs each plant.",
+          "All plants measured, so in situ survey biomass weighs each plant.",
           action = button(ns("to_data"), "View data", variant = "outline", size = "sm")
         )
       } else if (mode == "none") {
         notice(
           "minus-circle", sprintf("%s is not used in this run", def$label),
           if (cid == "cover") {
-            "Add canopy imagery columns to the surveys and a canopy sheet of canopy maps to estimate canopy biomass."
+            "Add canopy imagery columns to the in situ surveys and a canopy sheet of canopy maps to estimate canopy biomass."
           } else {
             sprintf("Estimates that need %s are unavailable.", tolower(def$label))
           },
@@ -168,8 +168,8 @@ mod_model_server <- function(id, store) {
         )
       } else if (cid == "cover" && status$kind == "no-data" && mode == "user") {
         notice(
-          "minus-circle", "No surveys with canopy imagery",
-          "Add plot_area_m2, canopy_area_m2 and canopy_tide_height_m to the surveys with canopy imagery to fit the cover calibration.",
+          "minus-circle", "No in situ surveys with canopy imagery",
+          "Add plot_area_m2, canopy_area_m2 and canopy_tide_height_m to the in situ surveys with canopy imagery to fit the cover calibration.",
           tone = "muted", action = button(ns("to_data"), "View data", variant = "outline", size = "sm")
         )
       } else if (status$kind == "data-error") {
@@ -186,9 +186,9 @@ mod_model_server <- function(id, store) {
         notice("x-circle", warning_help$failed$title, status$message, tone = "warning")
       } else if (status$kind == "not-fitted" && status$blocked) {
         if (survey_possible(store$sources())) {
-          notice("clock", "Fitted once survey biomass is ready", "The weight and size models must be ready first.", tone = "muted")
+          notice("clock", "Fitted once in situ survey biomass is ready", "The weight and size models must be ready first.", tone = "muted")
         } else {
-          notice("minus-circle", "Needs survey biomass", "Survey biomass needs the weight and size models, each fitted to your data or pre-fit.", tone = "muted")
+          notice("minus-circle", "Needs in situ survey biomass", "In situ survey biomass needs the weight and size models, each fitted to your data or pre-fit.", tone = "muted")
         }
       } else if (mode == "user" && status$kind == "ready") {
         tagList(

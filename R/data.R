@@ -6,8 +6,8 @@
 # source is "prefit_" and the reference, e.g. "prefit_hakai"; the fit is the
 # kelpbiodata reference fit of that name (fit_weight_hakai_nereo).
 prefit_info <- list(
-  coastwide = list(label = "Pre-fit Coastwide", data = "data compiled from surveys along the coast"),
-  hakai = list(label = "Pre-fit Hakai Institute", data = "Hakai Institute survey data")
+  coastwide = list(label = "Pre-fit Coastwide", data = "data compiled from in situ surveys along the coast"),
+  hakai = list(label = "Pre-fit Hakai Institute", data = "Hakai Institute in situ survey data")
 )
 
 prefit_source <- function(reference) if (length(reference) > 0) paste0("prefit_", reference) else character()
@@ -53,7 +53,7 @@ sheet_info <- list(
     columns = list(nereo = c("site", "year", "survey_id", "diameter_mm", "partial"), macro = c("survey_id", "fronds", "partial"))
   ),
   survey = list(
-    label = "Survey", row = "In situ survey",
+    label = "In situ survey", row = "In situ survey",
     columns = list(
       nereo = c("survey_id", "site", "year", "survey_area_m2", "plants", "plot_area_m2", "canopy_area_m2", "canopy_tide_height_m"),
       macro = c("survey_id", "site", "year", "survey_area_m2", "plot_area_m2", "canopy_area_m2", "canopy_tide_height_m")
@@ -84,7 +84,7 @@ sheet_label <- function(id) sheet_info[[id]]$label
 # The kind of size data, chosen on the Data step: a measured sample of plants,
 # to which a size model is fitted while the surveys tally their plants, or a
 # census, which measures every counted plant, so the size sheet holds the
-# plants of each survey and survey biomass weighs each plant. Macrocystis
+# plants of each survey and in situ survey biomass weighs each plant. Macrocystis
 # surveys are always a census, as kelpbio has no Macrocystis size model.
 size_data_info <- list(
   sample = list(label = "Sample of plants measured", detail = "Size model fitted"),
@@ -150,24 +150,24 @@ components <- list(
     label = "Carbon", detail = "Carbon fraction of dry mass", sheet = "carbon",
     sources = c("user", "prefit", "none"), prefit = list(nereo = "hakai", macro = "hakai")
   ),
-  # Optional: scales survey biomass up to the mapped canopy. It is
-  # fitted to the survey biomass of the surveys with canopy imagery, once the
+  # Optional: scales in situ survey biomass up to the mapped canopy. It is
+  # fitted to the in situ survey biomass of the surveys with canopy imagery, once the
   # weight and size models are ready; a pre-fit calibration needs neither.
   cover = list(
-    label = "Cover calibration", detail = "Survey biomass by canopy cover",
+    label = "Cover calibration", detail = "In situ survey biomass by canopy cover",
     sheet = "survey", sources = c("user", "prefit", "none"), prefit = list(nereo = "hakai", macro = "hakai"),
     model = "cover_calibration"
   )
 )
 
-# The models whose results survey biomass combines; the cover calibration is
+# The models whose results in situ survey biomass combines; the cover calibration is
 # fitted to it, so a change to either makes the calibration out of date.
 survey_ids <- c("weight", "size")
 
 # The models by what they are for, in the order the Models and Estimates steps
 # list them.
 model_groups <- list(
-  survey = list(label = "For survey biomass", ids = survey_ids),
+  survey = list(label = "For in situ survey biomass", ids = survey_ids),
   canopy = list(label = "For canopy biomass", ids = "cover"),
   measure = list(label = "For dry and carbon biomass", ids = c("wetdry", "carbon"))
 )
@@ -180,7 +180,7 @@ sheet_component <- function(id) {
 }
 
 # The source of the model fitted to a sheet, which says whether the sheet is in
-# use. The survey sheet makes survey biomass whether or not the cover
+# use. The survey sheet makes in situ survey biomass whether or not the cover
 # calibration is fitted to it, and the canopy sheet is fitted by no model, so
 # both are always in use.
 sheet_source <- function(id, sources) {
@@ -198,7 +198,7 @@ sheet_errors <- function(sheets, sources) {
 shown_models <- function(census) if (census) setdiff(component_ids, "size") else component_ids
 shown_estimates <- function(census) if (census) setdiff(estimate_ids, "size") else estimate_ids
 
-# kelpbio has no Macrocystis size model: Macrocystis surveys are a census.
+# kelpbio has no Macrocystis size model: Macrocystis in situ surveys are a census.
 has_model <- function(id, species) !(id == "size" && species == "macro")
 
 # The sources a model offers for a species, its pre-fit models in place of
@@ -287,7 +287,7 @@ valid_sources <- function(sources, census, sheets, species = "nereo") {
 data_plot_info <- list(
   weight = list(caption = c(nereo = "Wet weight of each plant by diameter.", macro = "Wet weight of each plant by frond count."), aspect = 4 / 8),
   size = list(caption = c(nereo = "Distribution of plant diameter.", macro = "Distribution of frond counts."), aspect = 4 / 8),
-  survey = list(caption = "Canopy cover fraction of each plot with canopy imagery, by the plants counted in its survey.", aspect = 4 / 8),
+  survey = list(caption = "Canopy cover fraction of each in situ survey plot with canopy imagery, by the plants counted in it.", aspect = 4 / 8),
   canopy = list(caption = "Canopy area mapped at each site, by year.", aspect = 4 / 8),
   wetdry = list(caption = "Distribution of the ratio of dry to wet mass of the tissue samples.", aspect = 4 / 8),
   carbon = list(caption = "Distribution of the carbon fraction of dry mass of the tissue samples.", aspect = 4 / 8)
@@ -334,11 +334,11 @@ output_components <- list(wet = character(), dry = "wetdry", carbon = c("wetdry"
 # The estimates on the Estimates step: each model's predictions, then survey
 # biomass and canopy biomass from the combined models.
 estimate_ids <- c(component_ids, survey = "survey", canopy = "canopy")
-# Survey biomass first, as canopy biomass builds on it.
+# In situ survey biomass first, as canopy biomass builds on it.
 derived_ids <- c("survey", "canopy")
 estimate_label <- function(id) {
   switch(id,
-    survey = "Survey biomass",
+    survey = "In situ survey biomass",
     canopy = "Canopy biomass",
     label_of(id)
   )
@@ -445,8 +445,8 @@ as_sheet_rows <- function(rows) {
 # meaning differs by sheet.
 column_info <- list(
   site = c("Site name, spelled the same way in every sheet", "Text, without commas or square brackets"),
-  year = c("Year of the survey or harvest, in the peak season", "Year, e.g. 2024"),
-  survey_id = c("Survey identifier, unique to each survey, also of the same site on the same day", "Text or number"),
+  year = c("Year of the in situ survey or harvest, in the peak season", "Year, e.g. 2024"),
+  survey_id = c("In situ survey identifier, unique to each survey, also of the same site on the same day", "Text or number"),
   diameter_mm = c(
     "Diameter of the plant (mm): the maximum sub-bulb diameter, or another measure such as bulb diameter, the same in the weight and size sheets",
     "Greater than 0"
@@ -455,13 +455,13 @@ column_info <- list(
   weight_kg = c("Wet weight of the plant (kg)", "Greater than 0"),
   partial = c("Whether the plant counts as half, such as on the edge of a transect", "TRUE or FALSE; optional"),
   survey_area_m2 = c("Area surveyed, such as the transects of a dive (m\u00b2)", "Greater than 0, at most plot_area_m2"),
-  plants = c("Plants counted in the survey", "Whole number, 0 or more"),
-  plot_area_m2 = c("Area of the plot polygon the canopy is measured over in the canopy imagery (m\u00b2)", "Greater than 0; blank for a survey without canopy imagery"),
+  plants = c("Plants counted in the in situ survey", "Whole number, 0 or more"),
+  plot_area_m2 = c("Area of the plot polygon the canopy is measured over in the canopy imagery (m\u00b2)", "Greater than 0; blank for an in situ survey without canopy imagery"),
   canopy_area_m2 = c(
     "Canopy area the canopy imagery delineated within the plot (m\u00b2)",
-    "0 or more (0 for no canopy), at most plot_area_m2; blank for a survey without canopy imagery"
+    "0 or more (0 for no canopy), at most plot_area_m2; blank for an in situ survey without canopy imagery"
   ),
-  canopy_tide_height_m = c("Tide height when the canopy imagery of the plot was taken (drone or other remote sensing), chart datum (m)", "Number; blank for a survey without canopy imagery"),
+  canopy_tide_height_m = c("Tide height when the canopy imagery of the plot was taken (drone or other remote sensing), chart datum (m)", "Number; blank for an in situ survey without canopy imagery"),
   classified_area_m2 = c(
     "Water area the canopy classification covered within the site, including water where no canopy was found (m\u00b2)",
     "Greater than 0, at least canopy_area_m2"
@@ -473,7 +473,7 @@ column_info <- list(
 )
 
 sheet_column_info <- list(
-  size = list(survey_id = c("Survey the plant was counted in, as in the survey sheet", "Text or number")),
+  size = list(survey_id = c("In situ survey the plant was counted in, as in the survey sheet", "Text or number")),
   canopy = list(
     year = c("Year of the canopy map", "Year, e.g. 2024"),
     canopy_area_m2 = c("Canopy area mapped within the site from the canopy imagery (m\u00b2)", "0 or more (0 for no canopy)"),
@@ -483,12 +483,12 @@ sheet_column_info <- list(
 
 column_text <- function(sheet, column) sheet_column_info[[sheet]][[column]] %||% column_info[[column]]
 
-# Whether a run needs a sheet: weight, size and survey make survey biomass, a
+# Whether a run needs a sheet: weight, size and survey make in situ survey biomass, a
 # pre-fit model stands in for a missing model sheet, and a canopy sheet adds
 # canopy biomass.
 sheet_need <- function(id, species = "nereo") {
   if (id == "survey") {
-    return("Required for survey biomass and the cover calibration")
+    return("Required for in situ survey biomass and the cover calibration")
   }
   if (id == "canopy") {
     return("Optional: for canopy biomass")
@@ -517,7 +517,7 @@ template_readme <- function(species, census = is_census(species)) {
   all <- data.frame(
     sheet = "All sheets", needed = "", one_row_per = "", column = "Every column",
     description = paste(
-      "Fill every cell: a blank cell is an error, except in an optional column and the canopy imagery columns of a survey without canopy imagery.",
+      "Fill every cell: a blank cell is an error, except in an optional column and the canopy imagery columns of an in situ survey without canopy imagery.",
       "Other columns are ignored, except text columns of the canopy sheet, such as region or habitat, which canopy biomass can be totalled over by year."
     ),
     values = ""
@@ -839,9 +839,9 @@ prediction_caption <- function(id, grouping, species = "nereo") {
 survey_sums <- list(
   site_year = list(
     label = "By site and year", pool_by = c("site", "year"),
-    detail = list(area = "The surveys of each site-year pooled: their summed biomass over their summed area.", total = "")
+    detail = list(area = "The in situ surveys of each site-year pooled: their summed biomass over their summed area.", total = "")
   ),
-  survey = list(label = "Each survey", pool_by = NULL)
+  survey = list(label = "Each in situ survey", pool_by = NULL)
 )
 
 # The canopy sheet's own grouping columns (canopy_groups()), such as a region
@@ -882,7 +882,7 @@ example_rows <- function(species) {
 # Stand-in sites ------------------------------------------------------------------
 # A site that a model has no data for takes the effect of a new site (kelpbio's
 # new_levels) unless sites in the model's data stand in for it (kelpbio's
-# representative_site; several are averaged). Survey biomass takes stand-ins for
+# representative_site; several are averaged). In situ survey biomass takes stand-ins for
 # the weight and size fits, canopy biomass for the cover calibration, each from
 # the rows it predicts.
 stand_in_ids <- list(survey = survey_ids, canopy = "cover")
@@ -911,7 +911,7 @@ survey_biomass_args <- function(weight, size, sheets, census) {
 }
 
 # The cover calibration's fit, run in the background: kelpbio fits it to the
-# wet survey biomass per m2 (with its draws), so the survey biomass is
+# wet in situ survey biomass per m2 (with its draws), so the in situ survey biomass is
 # predicted first, in the same call.
 fit_cover_calibration <- function(species, weight, size, survey, ...) {
   biomass <- kb_predict_biomass_in_situ(weight, size, survey, progress = "none")

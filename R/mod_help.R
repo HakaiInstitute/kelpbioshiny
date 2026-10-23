@@ -114,7 +114,7 @@ guide_extras <- list(
         paste(
           "The columns of each sheet. Every sheet is optional, and other columns are ignored.",
           sprintf(
-            "The size sheet is %s for a sample of plants measured, or %s with %s, a census, when it holds every counted plant and the survey sheet has no plants column. Macrocystis surveys are always a census.",
+            "The size sheet is %s for a sample of plants measured, or %s with %s, a census, when it holds every counted plant and the survey sheet has no plants column. Macrocystis in situ surveys are always a census.",
             size_sheet_names[["sample"]], size_sheet_names[["census"]], tolower(size_data_info$census$label)
           )
         )
@@ -131,7 +131,7 @@ guide_extras <- list(
           "Open a model for its %s tabs. Check the Diagnostics tab before using its estimates; any warning there says what to do.",
           and_list(model_tabs)
         ),
-        sprintf("A pre-fit %s gives canopy biomass from a canopy sheet alone, without survey data.", lower_label("cover"))
+        sprintf("A pre-fit %s gives canopy biomass from a canopy sheet alone, without in situ survey data.", lower_label("cover"))
       ),
       div(class = "table-responsive", guide_sources())
     )

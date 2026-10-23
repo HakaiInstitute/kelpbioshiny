@@ -25,7 +25,7 @@ export_script <- function(species, sources, sheets, workbook, priors, samplers, 
   read_call <- function(id, call) sprintf("%s <- %s", id, call)
   read <- c(
     # File names are the user's, so they are quoted as R strings.
-    if (length(from_book) > 0) sprintf("path <- %s", encodeString(workbook %||% "kelp-survey.xlsx", quote = "\"")),
+    if (length(from_book) > 0) sprintf("path <- %s", encodeString(workbook %||% "kelp-data.xlsx", quote = "\"")),
     vapply(from_book, function(id) read_call(id, sprintf("readxl::read_excel(path, sheet = \"%s\")", sheet_name(id, census))), ""),
     vapply(from_csv, function(id) read_call(id, sprintf("readr::read_csv(%s)", encodeString(sheets[[id]]$file, quote = "\""))), ""),
     if (survey && census && "plants" %in% names(sheets$survey$rows)) {
@@ -94,7 +94,7 @@ export_script <- function(species, sources, sheets, workbook, priors, samplers, 
   canopy_site <- if (length(stand_ins$cover) > 0) sprintf("representative_site = %s", vector_code(stand_ins$cover))
   survey_call <- function(m) paste(c("fit_weight", size_arg, "survey", measure_args(m), survey_site), collapse = ", ")
   canopy_call <- function(m) paste(c("fit_cover_calibration", "canopy", measure_args(m), canopy_site), collapse = ", ")
-  # The weight and size models are read only for survey biomass or plant weights.
+  # The weight and size models are read only for in situ survey biomass or plant weights.
   in_models <- setdiff(used, c("cover", if (census) "size", if (!survey && !plants) survey_ids))
 
   paste(
@@ -116,7 +116,7 @@ export_script <- function(species, sources, sheets, workbook, priors, samplers, 
       if (survey) {
         c(
           "",
-          if (census) "# Survey biomass per m\u00b2 surveyed, weighing each counted plant" else "# Survey biomass per m\u00b2 surveyed",
+          if (census) "# In situ survey biomass per m\u00b2 surveyed, weighing each counted plant" else "# In situ survey biomass per m\u00b2 surveyed",
           sprintf("%sbiomass <- kb_predict_biomass_in_situ(%s)", prefix[measures], vapply(measures, survey_call, "")),
           "kb_plot_predictions(biomass)"
         )
@@ -124,9 +124,9 @@ export_script <- function(species, sources, sheets, workbook, priors, samplers, 
       if (cover) {
         c(
           "",
-          "# The cover calibration, fitted to the wet survey biomass of the surveys",
+          "# The cover calibration, fitted to the wet in situ survey biomass of the in situ surveys",
           "# with canopy imagery",
-          # The app fits it to survey biomass without stand-in sites.
+          # The app fits it to in situ survey biomass without stand-in sites.
           if (!is.null(survey_site)) sprintf("calibration_biomass <- kb_predict_biomass_in_situ(fit_weight, %s, survey)", size_arg),
           fit_lines("cover", if (is.null(survey_site)) "biomass" else "calibration_biomass")
         )

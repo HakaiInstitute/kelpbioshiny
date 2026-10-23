@@ -21,7 +21,7 @@ coverage_omitted <- function(sources, shown) {
 # for a model, its site, year and site-year effects. `gaps` are the surveyed
 # site-years that a model has no data for, so they borrow its estimate from
 # other sites and years, and `missing` those of each model; `unsurveyed` are
-# the other site-years of the models, which get no survey biomass, and
+# the other site-years of the models, which get no in situ survey biomass, and
 # `mapped_unsurveyed` the site-years with a canopy map but no in situ survey,
 # shown as a check of the data, and `uncalibrated` the canopy maps at a site or
 # in a year without calibration surveys (`calibration`), whose canopy biomass
@@ -69,13 +69,13 @@ coverage <- function(sheets, sources, species) {
 
 # A cell of a sheet's site-by-year grid: "data", "gap" (no data, so the
 # estimate is borrowed from other sites and years), "none" (not surveyed, so
-# no survey biomass) or "blank", with the text shown on hover.
+# no in situ survey biomass) or "blank", with the text shown on hover.
 coverage_cell <- function(cov, id, site, year) {
   key <- paste(site, year, sep = "|")
   model <- cov$models[[id]]
   surveyed <- if (is.null(cov$surveyed)) NA else key %in% cov$surveyed
   if (id == "survey") {
-    return(if (isTRUE(surveyed)) list(state = "data", text = "Surveyed") else list(state = "blank", text = "Not surveyed"))
+    return(if (isTRUE(surveyed)) list(state = "data", text = "Surveyed in situ") else list(state = "blank", text = "Not surveyed in situ"))
   }
   if (id == "canopy") {
     if (!key %in% model$keys) {
@@ -92,14 +92,14 @@ coverage_cell <- function(cov, id, site, year) {
   }
   if (key %in% model$keys) {
     text <- paste(sheet_label(id), "data")
-    if (isFALSE(surveyed)) text <- paste0(text, "; not surveyed, so no survey biomass")
+    if (isFALSE(surveyed)) text <- paste0(text, "; not surveyed, so no in situ survey biomass")
     return(list(state = "data", text = text))
   }
   if (isTRUE(surveyed)) {
     return(list(state = "gap", text = coverage_borrowed(model, lower_label(id), site, year)))
   }
   if (isFALSE(surveyed)) {
-    return(list(state = "none", text = "Not surveyed, so no survey biomass"))
+    return(list(state = "none", text = "Not surveyed, so no in situ survey biomass"))
   }
   list(state = "blank", text = "No data")
 }
@@ -114,7 +114,7 @@ uncalibrated_reason <- function(calibration, key) {
     return("")
   }
   sprintf(
-    "Canopy map, but no calibration surveys %s: estimated from other %s",
+    "Canopy map, but no in situ calibration surveys %s: estimated from other %s",
     if (site && year) "at this site or in this year" else if (site) "at this site" else "in this year",
     if (site && year) "sites and years" else if (site) "sites" else "years"
   )
@@ -133,7 +133,7 @@ coverage_borrowed <- function(model, label, site, year) {
 coverage_states <- list(
   data = "Data",
   gap = "No data: estimated from other sites and years",
-  none = "Not surveyed: no survey biomass"
+  none = "Not surveyed: no in situ survey biomass"
 )
 
 # Names for a fileInput's two fields: the file picker, which would otherwise be
@@ -158,7 +158,7 @@ mod_data_ui <- function(id) {
         tagAppendAttributes(class = "mb-0", `aria-labelledby` = ns("species_title")),
       id = ns("species_title")
     ),
-    # Macrocystis surveys are always a census, so only Nereocystis has the choice.
+    # Macrocystis in situ surveys are always a census, so only Nereocystis has the choice.
     conditionalPanel(
       "input.species == 'nereo'",
       ns = ns,
@@ -523,7 +523,7 @@ sheet_panel <- function(ns, sheet, source, species, facet = NULL) {
 
 # What the loaded data can estimate once the models are fitted, each with what
 # it still needs.
-estimable_labels <- c(survey = "Survey biomass", canopy = "Canopy biomass", dry = "Dry biomass", carbon = "Carbon")
+estimable_labels <- c(survey = "In situ survey biomass", canopy = "Canopy biomass", dry = "Dry biomass", carbon = "Carbon")
 
 # Under the sheets, in a muted box: each estimate as a check, with the pre-fit
 # models it relies on, or a dash, with what it still needs.
@@ -644,7 +644,7 @@ coverage_summary <- function(cov, omitted = NULL) {
     }),
     if (length(cov$uncalibrated) > 0) {
       maps <- length(cov$uncalibrated)
-      list(sprintf("%d canopy %s at sites or in years without calibration surveys", maps, if (maps == 1) "map" else "maps"))
+      list(sprintf("%d canopy %s at sites or in years without in situ calibration surveys", maps, if (maps == 1) "map" else "maps"))
     },
     if (length(cov$mapped_unsurveyed) > 0) list(sprintf("%s with a canopy map but no in situ survey", n(cov$mapped_unsurveyed)))
   )
@@ -693,10 +693,10 @@ coverage_legend <- function(cov, id) {
   })))
   states <- intersect(names(coverage_states), states)
   labels <- coverage_states
-  if (id == "survey") labels$data <- "Surveyed"
+  if (id == "survey") labels$data <- "Surveyed in situ"
   if (id == "canopy") {
     labels$data <- "Canopy map of the site"
-    labels$gap <- "Canopy map without calibration surveys at its site or in its year"
+    labels$gap <- "Canopy map without in situ calibration surveys at its site or in its year"
     labels$none <- "Canopy map; no in situ survey"
   }
   div(
@@ -747,7 +747,7 @@ coverage_list <- function(cov) {
   for (id in cov$ids) data[[id]] <- cov$keys %in% cov$models[[id]]$keys
   data$note <- ifelse(
     cov$keys %in% cov$mismatched_keys, "Site name differs across sheets only in case or spacing",
-    ifelse(cov$keys %in% cov$unsurveyed, "Not surveyed: no survey biomass", NA_character_)
+    ifelse(cov$keys %in% cov$unsurveyed, "Not surveyed: no in situ survey biomass", NA_character_)
   )
   data <- data[order(match(data$site, cov$sites), match(data$year, cov$years)), ]
   warning_rows <- !is.na(data$note)

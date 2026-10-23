@@ -31,8 +31,8 @@ idle_records <- function() lapply(component_ids, function(id) new_record())
 
 record_status <- function(records) vapply(records, `[[`, "", "status")
 
-# A change to a model in survey biomass makes the cover calibration fit, which
-# is fitted to the survey biomass, out of date. A queued cover fit stays queued:
+# A change to a model in in situ survey biomass makes the cover calibration fit, which
+# is fitted to the in situ survey biomass, out of date. A queued cover fit stays queued:
 # it runs after the models it needs.
 invalidate_cover <- function(records, ids) {
   if (any(ids %in% survey_ids) && records$cover$status %in% c("fitting", "fitted", "failed")) {
@@ -54,7 +54,7 @@ reset_records <- function(records, ids) {
 }
 
 # The fitted and running models a reset of `ids` discards: the ids and, for a
-# model in survey biomass, the cover calibration.
+# model in in situ survey biomass, the cover calibration.
 reset_ids <- function(records, ids) {
   affected <- unique(c(ids, if (any(ids %in% survey_ids)) "cover"))
   affected[record_status(records[affected]) %in% c("fitted", "fitting")]
@@ -74,7 +74,7 @@ cancel_records <- function(records) {
 }
 
 # Cancels one model's queued or running fit, and a queued cover fit, which waits
-# on the models in survey biomass.
+# on the models in in situ survey biomass.
 cancel_record <- function(records, id) {
   ids <- c(id, if (id %in% survey_ids) "cover")
   pending <- ids[record_status(records[ids]) %in% c("queued", "fitting")]
@@ -198,11 +198,11 @@ prior_flagged <- function(rows) !is.null(rows) && length(sensitivity_flags(rows)
 # kb_influence() rows flag an influence warning when any observation is influential.
 influence_flagged <- function(rows) !is.null(rows) && any(rows$influential)
 
-# Survey biomass needs the weight and size models, each in use.
+# In situ survey biomass needs the weight and size models, each in use.
 survey_possible <- function(sources) all(sources[survey_ids] != "none")
 
 # The models fitted to their own sheets first; the cover calibration can be
-# fitted once survey biomass can be predicted, and its data are the surveys with
+# fitted once in situ survey biomass can be predicted, and its data are the surveys with
 # canopy imagery (none counts as no data). prior_warnings flags, by model, a fit
 # whose priors influence its estimates, influence_warnings a fit with
 # influential observations, and settings each model's current settings.
@@ -224,7 +224,7 @@ component_statuses <- function(sources, sheets, records, prefits = list(), prior
 }
 
 # A model fitted to your data can be fitted now: it has checked data and, for the
-# cover calibration, the models in survey biomass are ready.
+# cover calibration, the models in in situ survey biomass are ready.
 can_fit <- function(status) {
   status$source == "user" && (status$kind %in% c("failed", "ready") || (status$kind == "not-fitted" && !status$blocked))
 }
@@ -251,7 +251,7 @@ fit_all_plan <- function(statuses, invalid = character()) {
 
 # Whether an estimate on the Estimates step can be shown, with the reason when
 # not: a model's predictions need the model ready (fitted to your data or
-# pre-fit); survey biomass needs the weight and size models ready and a survey
+# pre-fit); in situ survey biomass needs the weight and size models ready and a survey
 # sheet; canopy biomass needs a fitted cover calibration and a canopy sheet.
 estimate_availability <- function(id, statuses, sources, sheets, mismatches) {
   unavailable <- function(reason) list(available = FALSE, reason = reason)
@@ -259,13 +259,13 @@ estimate_availability <- function(id, statuses, sources, sheets, mismatches) {
     status <- statuses[[id]]
     model <- lower_label(id)
     if (status$source == "census" && status$kind == "ready") {
-      return(unavailable("The size sheet is a census of every counted plant, so no size model is fitted: survey biomass weighs each plant."))
+      return(unavailable("The size sheet is a census of every counted plant, so no size model is fitted: in situ survey biomass weighs each plant."))
     }
     return(switch(status$kind,
       "ready" = list(available = TRUE),
       "not-used" = unavailable(sprintf("The %s model is not used in this run.", model)),
       "no-data" = unavailable(if (id == "cover") {
-        "The cover calibration needs surveys with canopy imagery: add plot_area_m2, canopy_area_m2 and canopy_tide_height_m to the survey sheet."
+        "The cover calibration needs in situ surveys with canopy imagery: add plot_area_m2, canopy_area_m2 and canopy_tide_height_m to the survey sheet."
       } else {
         sprintf("The %s model has no data. Add a %s sheet on the Data step.", model, components[[id]]$sheet)
       }),
@@ -297,7 +297,7 @@ estimate_availability <- function(id, statuses, sources, sheets, mismatches) {
     return(unavailable(sprintf("%s needs the weight and size models, each fitted to your data or pre-fit.", estimate_label(id))))
   }
   if (is.null(sheets$survey)) {
-    return(unavailable("Survey biomass needs a survey sheet. Add one on the Data step."))
+    return(unavailable("In situ survey biomass needs a survey sheet. Add one on the Data step."))
   }
   if (!is.null(sheets$survey$error)) {
     return(unavailable("The survey sheet failed its data check."))
@@ -336,15 +336,15 @@ data_estimable <- function(sheets, sources, census, mismatches = character()) {
     "site names differ across sheets"
   }
   # A pre-fit cover calibration needs only the canopy sheet; one fitted to your
-  # data needs survey biomass and canopy imagery on the surveys.
+  # data needs in situ survey biomass and canopy imagery on the surveys.
   canopy <- if (!valid("canopy")) {
     if (is.null(sheets$canopy)) "needs a canopy sheet of canopy maps" else "the canopy sheet fails its check"
   } else if (is_prefit(sources[["cover"]])) {
     NULL
   } else if (!is.null(survey)) {
-    "needs survey biomass"
+    "needs in situ survey biomass"
   } else if (sources[["cover"]] == "none" || nrow(drone_surveys(sheets$survey$rows)) == 0) {
-    "needs canopy imagery on the surveys"
+    "needs canopy imagery on the in situ surveys"
   }
   dry <- if (!usable("wetdry")) "needs a wetdry sheet or a pre-fit wet:dry model"
   carbon <- dry %||% if (!usable("carbon")) "needs a carbon sheet or a pre-fit carbon model"
@@ -375,7 +375,7 @@ output_availability <- function(sources) {
 }
 
 # The kb_fit_*() call for a model fitted to your data, as list(fn, args). The
-# cover calibration is fitted to the survey biomass from the weight and size
+# cover calibration is fitted to the in situ survey biomass from the weight and size
 # models in use (`fits`) and the surveys (fit_cover_calibration()).
 fit_call <- function(id, species, sheets, priors, sampler, progress_dir, fits = list(), census = FALSE) {
   settings <- list(
@@ -594,7 +594,7 @@ new_store <- function(session, run_fit = mirai_fit_runner) {
     s$stand_ins_chosen(chosen)
   }
   # kelpbio's representative_site for a derived estimate: a list by fit for
-  # survey biomass, the cover calibration's sites for canopy biomass, or NULL.
+  # in situ survey biomass, the cover calibration's sites for canopy biomass, or NULL.
   s$representative_site <- function(eid) {
     sites <- s$stand_ins()[intersect(stand_in_ids[[eid]], names(s$stand_ins()))]
     if (length(sites) == 0) {
@@ -643,7 +643,7 @@ new_store <- function(session, run_fit = mirai_fit_runner) {
 
   s$has_data <- reactive(length(s$sheets()) > 0)
   s$mismatches <- reactive(site_mismatches(s$sheets()))
-  # Survey biomass can be predicted, so the cover calibration can be fitted.
+  # In situ survey biomass can be predicted, so the cover calibration can be fitted.
   s$survey_ready <- reactive(isTRUE(s$estimates()$survey$available))
   s$outputs <- reactive(output_availability(s$sources()))
   # Each estimate on the Estimates step: list(available, reason).
@@ -1011,14 +1011,14 @@ new_store <- function(session, run_fit = mirai_fit_runner) {
   # the runner is free; a fit whose call cannot be built (e.g. the cover model
   # without biomass) fails at once.
   #
-  # The cover calibration's job predicts the survey biomass it is fitted to
+  # The cover calibration's job predicts the in situ survey biomass it is fitted to
   # (fit_cover_calibration()), so that prediction runs in the background too.
   #
   # TODO: once the real kelpbio predictions replace the mocks, run the slow
   # ones in this queue too, so all waiting stays on the Models step:
-  # - Order: fit the weight and size models -> predict survey biomass -> fit
+  # - Order: fit the weight and size models -> predict in situ survey biomass -> fit
   #   the cover calibration to it -> predict canopy biomass, automatically,
-  #   and keep the survey biomass for the Estimates step rather than
+  #   and keep the in situ survey biomass for the Estimates step rather than
   #   predicting it again there. Wet, dry and carbon in one job, as they
   #   share draws.
   # - Each model's own predictions stay on demand on the Estimates step, cached
@@ -1041,7 +1041,7 @@ new_store <- function(session, run_fit = mirai_fit_runner) {
     call <- tryCatch(
       {
         if (id == "cover" && !s$survey_ready()) {
-          stop("Survey biomass is not available: the weight and size models must be ready first.", call. = FALSE)
+          stop("In situ survey biomass is not available: the weight and size models must be ready first.", call. = FALSE)
         }
         fit_call(
           id, s$species(), s$sheets(), s$priors()[[id]], s$samplers()[[id]], progress_dir,

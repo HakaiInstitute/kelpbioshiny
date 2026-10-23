@@ -22,7 +22,7 @@ mod_estimates_server <- function(id, store) {
 
     # The estimate shown: the one asked for, or else the first of the run's own
     # (a biomass estimate first, as most runs are for them, then a model fitted
-    # to its data), or else survey biomass, which says what it needs.
+    # to its data), or else in situ survey biomass, which says what it needs.
     shown <- reactive({
       chosen <- store$estimate()
       if (!is.null(chosen) && chosen %in% store$shown_estimates()) {
@@ -72,11 +72,11 @@ mod_estimates_server <- function(id, store) {
   })
 }
 
-# The header of an estimate's page: its name, a line under it, and an action.
+# The header of an estimate's page: its name, a line under it if any, and an action.
 estimate_header <- function(title, detail, action = NULL) {
   div(
     class = "d-flex flex-wrap align-items-start justify-content-between gap-3 mb-3",
-    div(h2(class = "fs-5 fw-semibold mb-1", title), div(class = "small text-body-secondary", detail)),
+    div(h2(class = "fs-5 fw-semibold mb-1", title), if (!is.null(detail)) div(class = "small text-body-secondary", detail)),
     action
   )
 }
@@ -205,7 +205,7 @@ mod_estimate_server <- function(id, store) {
 # The heading of an estimates table column; another column, such as a grouping
 # column of the canopy sheet, is named in sentence case.
 column_labels <- c(
-  site = "Site", year = "Year", survey_id = "Survey", survey_area_m2 = "Area surveyed (m\u00b2)",
+  site = "Site", year = "Year", survey_id = "In situ survey", survey_area_m2 = "Area surveyed (m\u00b2)",
   canopy_area_m2 = "Canopy area (m\u00b2)", plants = "Plants", diameter_mm = "diameter_mm",
   fronds = "Fronds", cover = "Tide-corrected cover", estimate = "Estimate", lower = "Lower", upper = "Upper", data_support = "Data support"
 )
@@ -339,15 +339,14 @@ predictions_panel <- function(ns, cid, prefit, species, plants, selected = NULL)
 }
 
 # Derived estimates -----------------------------------------------------------
-# Survey biomass and total biomass over the mapped canopy, for the
-# chosen measure (wet, dry or carbon) and rows; survey biomass per m\u00b2
+# In situ survey biomass and total biomass over the mapped canopy, for the
+# chosen measure (wet, dry or carbon) and rows; in situ survey biomass per m\u00b2
 # surveyed or in total over the area surveyed (for a census of whole sites,
 # the site's total). kelpbio offers more (mean plant weight, canopy biomass per
 # m\u00b2, any sum); the app keeps to those a report uses.
 
 derived_info <- list(
   survey = list(
-    detail = "Biomass of the area surveyed in situ.",
     help = "survey_biomass", scales = c(area = "Per m\u00b2 surveyed", total = "Total over the area surveyed")
   ),
   canopy = list(
@@ -621,7 +620,7 @@ mod_derived_estimate_server <- function(id, store) {
 derived_figure <- function(predictions, site = NULL) {
   if (!is.null(site)) {
     predictions <- predictions[predictions$site == site, ]
-    return(kb_plot_predictions(predictions, x = "survey_id", max_facets = Inf) + ggplot2::facet_wrap(~year, scales = "free_x") + ggplot2::labs(x = "Survey"))
+    return(kb_plot_predictions(predictions, x = "survey_id", max_facets = Inf) + ggplot2::facet_wrap(~year, scales = "free_x") + ggplot2::labs(x = "In situ survey"))
   }
   if (length(attr(predictions, "kb_group_vars")) == 0) {
     predictions$group <- "All"
@@ -644,7 +643,7 @@ derived_height <- function(rows, site = NULL, faceted = all(c("site", "year") %i
   60 + 170 * ggplot2::wrap_dims(length(unique(rows$site)))[1]
 }
 
-# The scale chosen for a derived estimate: survey biomass is per m\u00b2
+# The scale chosen for a derived estimate: in situ survey biomass is per m\u00b2
 # surveyed unless chosen otherwise, or in total in a census, where the area
 # surveyed is often the whole site; canopy biomass is in total.
 chosen_per_area <- function(eid, chosen, census) {
@@ -671,7 +670,7 @@ derived_labels <- function(eid, key, per_area) {
 # With `site`, the caption of the figure of that site's surveys.
 derived_caption <- function(eid, labels, sum_key, site = NULL) {
   by <- switch(sum_key,
-    survey = sprintf(" of each survey at %s, faceted by year", if (is.null(site)) "the chosen site" else site),
+    survey = sprintf(" of each in situ survey at %s, faceted by year", if (is.null(site)) "the chosen site" else site),
     site_year = if (eid == "canopy") " of each canopy map of a site by year, faceted by site" else " of each site-year by year, faceted by site",
     year = " summed over sites by year",
     sprintf(" summed by %s and year, faceted by %s", sum_key, sum_key)
