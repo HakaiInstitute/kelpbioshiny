@@ -55,13 +55,13 @@ sheet_info <- list(
   survey = list(
     label = "Survey", row = "In situ survey",
     columns = list(
-      nereo = c("survey_id", "site", "year", "survey_area_m2", "plants", "plot_area_m2", "canopy_area_m2", "tide_height_m"),
-      macro = c("survey_id", "site", "year", "survey_area_m2", "plot_area_m2", "canopy_area_m2", "tide_height_m")
+      nereo = c("survey_id", "site", "year", "survey_area_m2", "plants", "plot_area_m2", "canopy_area_m2", "canopy_tide_height_m"),
+      macro = c("survey_id", "site", "year", "survey_area_m2", "plot_area_m2", "canopy_area_m2", "canopy_tide_height_m")
     )
   ),
   canopy = list(
     label = "Canopy", row = "Canopy map of a site",
-    columns = c("site", "year", "canopy_area_m2", "tide_height_m", "classified_area_m2")
+    columns = c("site", "year", "canopy_area_m2", "canopy_tide_height_m", "classified_area_m2")
   ),
   wetdry = list(label = "Wet:dry", row = "Tissue sample", columns = c("wet_mass_g", "dry_mass_g")),
   carbon = list(label = "Carbon", row = "Dried tissue sample", columns = c("sample_mass_mg", "carbon_mass_ug"))
@@ -314,7 +314,7 @@ sheet_facets <- function(id, rows) {
 # survey figure counts each survey's plants in the size sheet (`size_census`).
 sheet_plot <- function(id, rows, species, facet = NULL, size_census = NULL) {
   switch(id,
-    survey = kb_plot_data_survey(rows, size_census = size_census, facet = facet),
+    survey = kb_plot_data_in_situ(rows, size_census = size_census, facet = facet),
     canopy = kb_plot_data_canopy(rows, facet = facet),
     kelpbio_fn("plot_data", id, species)(rows, facet = facet)
   )
@@ -403,7 +403,7 @@ check_sheet <- function(id, rows, species, census, size = NULL) {
     } else {
       kb_check_data_size_census_nereo(rows, x_name = x_name)
     },
-    survey = if (census) kb_check_data_survey(survey_rows(rows, TRUE), size_census = size, x_name = x_name) else kb_check_data_survey(rows, x_name = x_name),
+    survey = if (census) kb_check_data_in_situ(survey_rows(rows, TRUE), size_census = size, x_name = x_name) else kb_check_data_in_situ(rows, x_name = x_name),
     canopy = kb_check_data_canopy(rows, x_name = x_name),
     kelpbio_fn("check", id, species)(rows, x_name = x_name)
   )
@@ -461,7 +461,7 @@ column_info <- list(
     "Canopy area the canopy imagery delineated within the plot (m\u00b2)",
     "0 or more (0 for no canopy), at most plot_area_m2; blank for a survey without canopy imagery"
   ),
-  tide_height_m = c("Tide height when the canopy imagery of the plot was taken (drone or other remote sensing), chart datum (m)", "Number; blank for a survey without canopy imagery"),
+  canopy_tide_height_m = c("Tide height when the canopy imagery of the plot was taken (drone or other remote sensing), chart datum (m)", "Number; blank for a survey without canopy imagery"),
   classified_area_m2 = c(
     "Water area the canopy classification covered within the site, including water where no canopy was found (m\u00b2)",
     "Greater than 0, at least canopy_area_m2"
@@ -477,7 +477,7 @@ sheet_column_info <- list(
   canopy = list(
     year = c("Year of the canopy map", "Year, e.g. 2024"),
     canopy_area_m2 = c("Canopy area mapped within the site from the canopy imagery (m\u00b2)", "0 or more (0 for no canopy)"),
-    tide_height_m = c("Tide height when the imagery of the canopy map was taken, chart datum (m)", "Number")
+    canopy_tide_height_m = c("Tide height when the imagery of the canopy map was taken, chart datum (m)", "Number")
   )
 )
 
@@ -579,7 +579,7 @@ mismatch_advice <- "Rename the sites in the workbook so the names match exactly,
 
 # The surveys with canopy imagery, which the cover calibration is fitted to.
 drone_surveys <- function(rows) {
-  if (!all(c("plot_area_m2", "canopy_area_m2", "tide_height_m") %in% names(rows))) {
+  if (!all(c("plot_area_m2", "canopy_area_m2", "canopy_tide_height_m") %in% names(rows))) {
     return(rows[0, ])
   }
   rows[!is.na(rows$canopy_area_m2), ]
@@ -865,7 +865,13 @@ canopy_sums <- function(groups = character()) {
 # plants.
 example_rows <- function(species) {
   suffix <- species_info[[species]]$suffix
-  name <- function(id) if (id == "size") paste0("size_", if (species == "macro") "census" else "sample") else id
+  name <- function(id) {
+    switch(id,
+      size = paste0("size_", if (species == "macro") "census" else "sample"),
+      survey = "in_situ",
+      id
+    )
+  }
   lapply(sheet_ids, function(id) {
     rows <- as.data.frame(getExportedValue("kelpbio", sprintf("data_%s_sim_%s", name(id), suffix)))
     rows[] <- lapply(rows, function(x) if (is.factor(x)) as.character(x) else x)
@@ -898,7 +904,7 @@ stand_in_sites <- function(chosen, fits) {
   Filter(length, sites)
 }
 
-# The arguments of kb_predict_biomass_survey() for the run: the weight fit, the
+# The arguments of kb_predict_biomass_in_situ() for the run: the weight fit, the
 # size fit or, in a census, the size sheet's plants, and the surveys.
 survey_biomass_args <- function(weight, size, sheets, census) {
   list(weight = weight, size = if (census) sheets$size$rows else size, survey = survey_rows(sheets$survey$rows, census))
@@ -908,7 +914,7 @@ survey_biomass_args <- function(weight, size, sheets, census) {
 # wet survey biomass per m2 (with its draws), so the survey biomass is
 # predicted first, in the same call.
 fit_cover_calibration <- function(species, weight, size, survey, ...) {
-  biomass <- kb_predict_biomass_survey(weight, size, survey, progress = "none")
+  biomass <- kb_predict_biomass_in_situ(weight, size, survey, progress = "none")
   kelpbio_fn("fit", "cover", species)(data = biomass, ...)
 }
 

@@ -36,7 +36,7 @@ export_script <- function(species, sources, sheets, workbook, priors, samplers, 
   check <- function(id) {
     switch(id,
       size = if (census) sprintf("kb_check_data_size_census_%s(size)", sp) else "kb_check_data_size_sample_nereo(size)",
-      survey = if (census) "kb_check_data_survey(survey, size)" else "kb_check_data_survey(survey)",
+      survey = if (census) "kb_check_data_in_situ(survey, size)" else "kb_check_data_in_situ(survey)",
       canopy = "kb_check_data_canopy(canopy)",
       sprintf("kb_check_data_%s_%s(%s)", id, sp, id)
     )
@@ -117,7 +117,7 @@ export_script <- function(species, sources, sheets, workbook, priors, samplers, 
         c(
           "",
           if (census) "# Survey biomass per m\u00b2 surveyed, weighing each counted plant" else "# Survey biomass per m\u00b2 surveyed",
-          sprintf("%sbiomass <- kb_predict_biomass_survey(%s)", prefix[measures], vapply(measures, survey_call, "")),
+          sprintf("%sbiomass <- kb_predict_biomass_in_situ(%s)", prefix[measures], vapply(measures, survey_call, "")),
           "kb_plot_predictions(biomass)"
         )
       },
@@ -127,7 +127,7 @@ export_script <- function(species, sources, sheets, workbook, priors, samplers, 
           "# The cover calibration, fitted to the wet survey biomass of the surveys",
           "# with canopy imagery",
           # The app fits it to survey biomass without stand-in sites.
-          if (!is.null(survey_site)) sprintf("calibration_biomass <- kb_predict_biomass_survey(fit_weight, %s, survey)", size_arg),
+          if (!is.null(survey_site)) sprintf("calibration_biomass <- kb_predict_biomass_in_situ(fit_weight, %s, survey)", size_arg),
           fit_lines("cover", if (is.null(survey_site)) "biomass" else "calibration_biomass")
         )
       },

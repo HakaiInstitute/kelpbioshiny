@@ -169,7 +169,7 @@ mod_model_server <- function(id, store) {
       } else if (cid == "cover" && status$kind == "no-data" && mode == "user") {
         notice(
           "minus-circle", "No surveys with canopy imagery",
-          "Add plot_area_m2, canopy_area_m2 and tide_height_m to the surveys with canopy imagery to fit the cover calibration.",
+          "Add plot_area_m2, canopy_area_m2 and canopy_tide_height_m to the surveys with canopy imagery to fit the cover calibration.",
           tone = "muted", action = button(ns("to_data"), "View data", variant = "outline", size = "sm")
         )
       } else if (status$kind == "data-error") {

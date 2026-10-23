@@ -265,7 +265,7 @@ estimate_availability <- function(id, statuses, sources, sheets, mismatches) {
       "ready" = list(available = TRUE),
       "not-used" = unavailable(sprintf("The %s model is not used in this run.", model)),
       "no-data" = unavailable(if (id == "cover") {
-        "The cover calibration needs surveys with canopy imagery: add plot_area_m2, canopy_area_m2 and tide_height_m to the survey sheet."
+        "The cover calibration needs surveys with canopy imagery: add plot_area_m2, canopy_area_m2 and canopy_tide_height_m to the survey sheet."
       } else {
         sprintf("The %s model has no data. Add a %s sheet on the Data step.", model, components[[id]]$sheet)
       }),
@@ -609,7 +609,7 @@ new_store <- function(session, run_fit = mirai_fit_runner) {
     a <- survey_inputs()
     sites <- s$representative_site("survey")
     survey_cache(a, list(measure, per_area, pool_by, sites), function() {
-      kb_predict_biomass_survey(
+      kb_predict_biomass_in_situ(
         a$weight, a$size, a$survey, a$wetdry, a$carbon,
         measure = measure, per_area = per_area, pool_by = pool_by,
         representative_site = sites, progress = "none"
@@ -1031,7 +1031,7 @@ new_store <- function(session, run_fit = mirai_fit_runner) {
   #   and Continue to estimates waits for the predictions.
   # - A refit, source change or new data marks the dependent predictions stale
   #   and queues them again.
-  # - kb_predict_biomass_survey() records progress
+  # - kb_predict_biomass_in_situ() records progress
   #   in a progress_dir for kb_progress(), as the fits do. Needs from kelpbio:
   #   pre-fit models shipped with their predictions.
 

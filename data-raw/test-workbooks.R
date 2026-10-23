@@ -68,7 +68,7 @@ census_rows <- function(survey, size) {
 canopy_prefit_rows <- function(species, canopy) {
   fit <- prefit_fit("cover", species, "hakai")
   sites <- fit_sites(fit)
-  maps <- canopy[sample.int(nrow(canopy), length(sites)), c("canopy_area_m2", "tide_height_m", "classified_area_m2")]
+  maps <- canopy[sample.int(nrow(canopy), length(sites)), c("canopy_area_m2", "canopy_tide_height_m", "classified_area_m2")]
   rows <- data.frame(site = sites, year = max(as.integer(fit$meta$year_levels)) + 1L, maps, row.names = NULL)
   if (species == "macro") rows <- rows[!rows$site %in% c("Manley", "Triquetta", "Golden", "Womanley"), ]
   rbind(rows, transform(rows[1, ], site = "New site"))
@@ -103,7 +103,7 @@ for (species in names(species_info)) {
   if (species == "nereo") {
     census <- full[c("weight", "size", "survey")]
     census$size <- census_rows(full$survey, full$size)
-    census$survey <- census$survey[setdiff(names(census$survey), c("plants", "plot_area_m2", "canopy_area_m2", "tide_height_m"))]
+    census$survey <- census$survey[setdiff(names(census$survey), c("plants", "plot_area_m2", "canopy_area_m2", "canopy_tide_height_m"))]
     write_workbook(census, "3-census", species, census = TRUE)
   }
   write_workbook(list(canopy = canopy_prefit_rows(species, full$canopy)), "4-canopy-prefit", species)
