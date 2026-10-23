@@ -160,7 +160,7 @@ mod_model_server <- function(id, store) {
         notice(
           "minus-circle", sprintf("%s is not used in this run", def$label),
           if (cid == "cover") {
-            "Add drone flights to the surveys and a canopy sheet of drone maps to estimate canopy biomass."
+            "Add canopy imagery columns to the surveys and a canopy sheet of canopy maps to estimate canopy biomass."
           } else {
             sprintf("Estimates that need %s are unavailable.", tolower(def$label))
           },
@@ -168,8 +168,8 @@ mod_model_server <- function(id, store) {
         )
       } else if (cid == "cover" && status$kind == "no-data" && mode == "user") {
         notice(
-          "minus-circle", "No surveys with a drone flight",
-          "Add plot_area_m2, canopy_area_m2 and tide_height_m to the surveys flown by drone to fit the cover calibration.",
+          "minus-circle", "No surveys with canopy imagery",
+          "Add plot_area_m2, canopy_area_m2 and tide_height_m to the surveys with canopy imagery to fit the cover calibration.",
           tone = "muted", action = button(ns("to_data"), "View data", variant = "outline", size = "sm")
         )
       } else if (status$kind == "data-error") {

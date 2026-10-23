@@ -60,7 +60,7 @@ sheet_info <- list(
     )
   ),
   canopy = list(
-    label = "Canopy", row = "Drone map of a site",
+    label = "Canopy", row = "Canopy map of a site",
     columns = c("site", "year", "canopy_area_m2", "tide_height_m", "classified_area_m2")
   ),
   wetdry = list(label = "Wet:dry", row = "Tissue sample", columns = c("wet_mass_g", "dry_mass_g")),
@@ -150,11 +150,11 @@ components <- list(
     label = "Carbon", detail = "Carbon fraction of dry mass", sheet = "carbon",
     sources = c("user", "prefit", "none"), prefit = list(nereo = "hakai", macro = "hakai")
   ),
-  # Optional: scales survey biomass up to the canopy mapped by drone. It is
-  # fitted to the survey biomass of the surveys with a drone flight, once the
+  # Optional: scales survey biomass up to the mapped canopy. It is
+  # fitted to the survey biomass of the surveys with canopy imagery, once the
   # weight and size models are ready; a pre-fit calibration needs neither.
   cover = list(
-    label = "Cover calibration", detail = "Survey biomass by drone canopy cover",
+    label = "Cover calibration", detail = "Survey biomass by canopy cover",
     sheet = "survey", sources = c("user", "prefit", "none"), prefit = list(nereo = "hakai", macro = "hakai"),
     model = "cover_calibration"
   )
@@ -259,7 +259,7 @@ default_source <- function(id, has_sheet, census = FALSE, species = "nereo") {
   options[[length(options)]]
 }
 
-# The cover calibration has data once some surveys have a drone flight.
+# The cover calibration has data once some surveys have canopy imagery.
 model_has_data <- function(id, sheets) {
   sheet <- sheets[[components[[id]]$sheet]]
   !is.null(sheet) && (id != "cover" || nrow(drone_surveys(sheet$rows)) > 0)
@@ -287,7 +287,7 @@ valid_sources <- function(sources, census, sheets, species = "nereo") {
 data_plot_info <- list(
   weight = list(caption = c(nereo = "Wet weight of each plant by diameter.", macro = "Wet weight of each plant by frond count."), aspect = 4 / 8),
   size = list(caption = c(nereo = "Distribution of plant diameter.", macro = "Distribution of frond counts."), aspect = 4 / 8),
-  survey = list(caption = "Canopy cover fraction of each plot flown by drone, by the plants counted in its survey.", aspect = 4 / 8),
+  survey = list(caption = "Canopy cover fraction of each plot with canopy imagery, by the plants counted in its survey.", aspect = 4 / 8),
   canopy = list(caption = "Canopy area mapped at each site, by year.", aspect = 4 / 8),
   wetdry = list(caption = "Distribution of the ratio of dry to wet mass of the tissue samples.", aspect = 4 / 8),
   carbon = list(caption = "Distribution of the carbon fraction of dry mass of the tissue samples.", aspect = 4 / 8)
@@ -298,7 +298,7 @@ data_plot_caption <- function(id, species) {
   if (length(caption) > 1) caption[[species]] else caption
 }
 
-# Whether a sheet has a figure: the survey figure shows the surveys flown by drone.
+# Whether a sheet has a figure: the survey figure shows the surveys with canopy imagery.
 sheet_has_plot <- function(id, rows) id != "survey" || nrow(drone_surveys(rows)) > 0
 
 # The panels a sheet's figure can be split into, by kelpbio's `facet`: a site
@@ -456,12 +456,12 @@ column_info <- list(
   partial = c("Whether the plant counts as half, such as on the edge of a transect", "TRUE or FALSE; optional"),
   survey_area_m2 = c("Area surveyed, such as the transects of a dive (m\u00b2)", "Greater than 0, at most plot_area_m2"),
   plants = c("Plants counted in the survey", "Whole number, 0 or more"),
-  plot_area_m2 = c("Area of the plot polygon the drone canopy is measured over (m\u00b2)", "Greater than 0; blank for a survey without a drone flight"),
+  plot_area_m2 = c("Area of the plot polygon the canopy is measured over in the canopy imagery (m\u00b2)", "Greater than 0; blank for a survey without canopy imagery"),
   canopy_area_m2 = c(
-    "Canopy area the drone imagery delineated within the plot (m\u00b2)",
-    "0 or more (0 for no canopy), at most plot_area_m2; blank for a survey without a drone flight"
+    "Canopy area the canopy imagery delineated within the plot (m\u00b2)",
+    "0 or more (0 for no canopy), at most plot_area_m2; blank for a survey without canopy imagery"
   ),
-  tide_height_m = c("Tide height at the drone flight, chart datum (m)", "Number; blank for a survey without a drone flight"),
+  tide_height_m = c("Tide height when the canopy imagery of the plot was taken (drone or other remote sensing), chart datum (m)", "Number; blank for a survey without canopy imagery"),
   classified_area_m2 = c(
     "Water area the canopy classification covered within the site, including water where no canopy was found (m\u00b2)",
     "Greater than 0, at least canopy_area_m2"
@@ -475,9 +475,9 @@ column_info <- list(
 sheet_column_info <- list(
   size = list(survey_id = c("Survey the plant was counted in, as in the survey sheet", "Text or number")),
   canopy = list(
-    year = c("Year of the drone map", "Year, e.g. 2024"),
-    canopy_area_m2 = c("Canopy area mapped within the site from the drone imagery (m\u00b2)", "0 or more (0 for no canopy)"),
-    tide_height_m = c("Tide height at the flight, chart datum (m)", "Number")
+    year = c("Year of the canopy map", "Year, e.g. 2024"),
+    canopy_area_m2 = c("Canopy area mapped within the site from the canopy imagery (m\u00b2)", "0 or more (0 for no canopy)"),
+    tide_height_m = c("Tide height when the imagery of the canopy map was taken, chart datum (m)", "Number")
   )
 )
 
@@ -517,7 +517,7 @@ template_readme <- function(species, census = is_census(species)) {
   all <- data.frame(
     sheet = "All sheets", needed = "", one_row_per = "", column = "Every column",
     description = paste(
-      "Fill every cell: a blank cell is an error, except in an optional column and the drone columns of a survey without a flight.",
+      "Fill every cell: a blank cell is an error, except in an optional column and the canopy imagery columns of a survey without canopy imagery.",
       "Other columns are ignored, except text columns of the canopy sheet, such as region or habitat, which canopy biomass can be totalled over by year."
     ),
     values = ""
@@ -577,7 +577,7 @@ site_mismatches <- function(sheets) {
 
 mismatch_advice <- "Rename the sites in the workbook so the names match exactly, then upload again."
 
-# The surveys with a drone flight, which the cover calibration is fitted to.
+# The surveys with canopy imagery, which the cover calibration is fitted to.
 drone_surveys <- function(rows) {
   if (!all(c("plot_area_m2", "canopy_area_m2", "tide_height_m") %in% names(rows))) {
     return(rows[0, ])
@@ -832,7 +832,7 @@ prediction_caption <- function(id, grouping, species = "nereo") {
 # Derived estimates ----------------------------------------------------------------
 # The rows survey and canopy biomass are shown in: each choice's label, a note
 # where the label does not say what the rows are, and its kelpbio pool_by value
-# (NULL keeps one row per survey or drone map). Biomass is a standing stock in
+# (NULL keeps one row per survey or canopy map). Biomass is a standing stock in
 # the peak season, so sums stay within a year. kelpbio pools by any grouping;
 # the app offers the ones a report uses.
 
@@ -849,7 +849,7 @@ survey_sums <- list(
 canopy_sums <- function(groups = character()) {
   c(
     list(
-      site_year = list(label = "Total by drone map", pool_by = NULL),
+      site_year = list(label = "Total by canopy map", pool_by = NULL),
       year = list(label = "Total by year", pool_by = "year")
     ),
     stats::setNames(lapply(groups, function(g) {

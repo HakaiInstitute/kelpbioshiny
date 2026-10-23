@@ -22,8 +22,8 @@ coverage_omitted <- function(sources, shown) {
 # site-years that a model has no data for, so they borrow its estimate from
 # other sites and years, and `missing` those of each model; `unsurveyed` are
 # the other site-years of the models, which get no survey biomass, and
-# `mapped_unsurveyed` the site-years with a drone map but no in situ survey,
-# shown as a check of the data, and `uncalibrated` the drone maps at a site or
+# `mapped_unsurveyed` the site-years with a canopy map but no in situ survey,
+# shown as a check of the data, and `uncalibrated` the canopy maps at a site or
 # in a year without calibration surveys (`calibration`), whose canopy biomass
 # borrows from other sites or years.
 coverage <- function(sheets, sources, species) {
@@ -50,7 +50,7 @@ coverage <- function(sheets, sources, species) {
     keys[keys %in% surveyed & !vapply(keys, function(k) all(vapply(borrowing, function(id) k %in% models[[id]]$keys, NA)), NA)]
   }
   missing <- lapply(stats::setNames(nm = borrowing), function(id) setdiff(surveyed, models[[id]]$keys))
-  # The sites and years of the surveys flown by drone, which the cover
+  # The sites and years of the surveys with canopy imagery, which the cover
   # calibration is fitted to: its site and year effects.
   flown <- if (!is.null(sheets$survey)) drone_surveys(sheets$survey$rows)
   calibration <- list(sites = unique(flown$site), years = if (!is.null(flown) && nrow(flown) > 0) unique(as.character(flown$year)) else character())
@@ -79,16 +79,16 @@ coverage_cell <- function(cov, id, site, year) {
   }
   if (id == "canopy") {
     if (!key %in% model$keys) {
-      return(list(state = "blank", text = "No drone map, so no canopy biomass"))
+      return(list(state = "blank", text = "No canopy map, so no canopy biomass"))
     }
     reason <- uncalibrated_reason(cov$calibration, key)
     if (reason != "") {
       return(list(state = "gap", text = reason))
     }
     if (isFALSE(surveyed)) {
-      return(list(state = "none", text = "Drone map; no in situ survey this site-year"))
+      return(list(state = "none", text = "Canopy map; no in situ survey this site-year"))
     }
-    return(list(state = "data", text = "Drone map of the site"))
+    return(list(state = "data", text = "Canopy map of the site"))
   }
   if (key %in% model$keys) {
     text <- paste(sheet_label(id), "data")
@@ -104,7 +104,7 @@ coverage_cell <- function(cov, id, site, year) {
   list(state = "blank", text = "No data")
 }
 
-# Why a drone map's canopy biomass borrows from other sites or years: no
+# Why a canopy map's canopy biomass borrows from other sites or years: no
 # calibration surveys at its site, in its year or both; "" when it has both.
 uncalibrated_reason <- function(calibration, key) {
   parts <- strsplit(key, "|", fixed = TRUE)[[1]]
@@ -114,7 +114,7 @@ uncalibrated_reason <- function(calibration, key) {
     return("")
   }
   sprintf(
-    "Drone map, but no calibration surveys %s: estimated from other %s",
+    "Canopy map, but no calibration surveys %s: estimated from other %s",
     if (site && year) "at this site or in this year" else if (site) "at this site" else "in this year",
     if (site && year) "sites and years" else if (site) "sites" else "years"
   )
@@ -631,8 +631,8 @@ coverage_panel <- function(ns, sources, species, cov, view) {
 }
 
 # What the site-years lack, as bullets: the surveyed site-years without each
-# model's data, the drone maps without calibration surveys at their site or in
-# their year, and the drone maps of site-years without an in situ survey; then what
+# model's data, the canopy maps without calibration surveys at their site or in
+# their year, and the canopy maps of site-years without an in situ survey; then what
 # that means, with a help icon that explains the borrowing and names the
 # models in use the grids leave out (`omitted`).
 coverage_summary <- function(cov, omitted = NULL) {
@@ -644,9 +644,9 @@ coverage_summary <- function(cov, omitted = NULL) {
     }),
     if (length(cov$uncalibrated) > 0) {
       maps <- length(cov$uncalibrated)
-      list(sprintf("%d drone %s at sites or in years without calibration surveys", maps, if (maps == 1) "map" else "maps"))
+      list(sprintf("%d canopy %s at sites or in years without calibration surveys", maps, if (maps == 1) "map" else "maps"))
     },
-    if (length(cov$mapped_unsurveyed) > 0) list(sprintf("%s with a drone map but no in situ survey", n(cov$mapped_unsurveyed)))
+    if (length(cov$mapped_unsurveyed) > 0) list(sprintf("%s with a canopy map but no in situ survey", n(cov$mapped_unsurveyed)))
   )
   items <- Filter(Negate(is.null), items)
   if (length(items) == 0) {
@@ -695,9 +695,9 @@ coverage_legend <- function(cov, id) {
   labels <- coverage_states
   if (id == "survey") labels$data <- "Surveyed"
   if (id == "canopy") {
-    labels$data <- "Drone map of the site"
-    labels$gap <- "Drone map without calibration surveys at its site or in its year"
-    labels$none <- "Drone map; no in situ survey"
+    labels$data <- "Canopy map of the site"
+    labels$gap <- "Canopy map without calibration surveys at its site or in its year"
+    labels$none <- "Canopy map; no in situ survey"
   }
   div(
     class = "d-flex flex-wrap column-gap-3 row-gap-1 small",

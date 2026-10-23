@@ -36,7 +36,7 @@ kelpbio_articles <- list(
   ),
   canopy_biomass = list(
     title = "Canopy biomass",
-    summary = "Calibrating drone canopy cover on survey biomass, and scaling it to the canopy mapped over whole sites.",
+    summary = "Calibrating canopy cover on survey biomass, and scaling it to the canopy mapped over whole sites.",
     path = "articles/canopy-biomass.html"
   )
 )
@@ -168,15 +168,15 @@ help_topics <- list(
   canopy_area = list(
     title = "Canopy area",
     body = paste(
-      "The area of kelp canopy the drone imagery delineated within a plot polygon, or mapped over a whole site, in square metres.",
-      "A flight with no canopy has a canopy area of 0."
+      "The area of kelp canopy the canopy imagery delineated within a plot polygon, or mapped over a whole site, in square metres.",
+      "Imagery with no canopy gives a canopy area of 0."
     ),
     link = kelpbio_articles$canopy_biomass$path
   ),
   tide_cover = list(
     title = "Tide-corrected cover",
     body = paste(
-      "Less of the canopy shows at the surface at higher tides, so the cover calibration corrects the canopy area for the tide height at the flight.",
+      "Less of the canopy shows at the surface at higher tides, so the cover calibration corrects the canopy area for the tide height when the imagery was taken.",
       "Cover is the corrected canopy area as a proportion of the plot area, from 0 to 1."
     ),
     link = kelpbio_articles$canopy_biomass$path
@@ -184,8 +184,8 @@ help_topics <- list(
   canopy_biomass = list(
     title = "Canopy biomass",
     body = paste(
-      "The cover calibration relates the wet biomass of each survey to the tide-corrected drone canopy cover of its plot.",
-      "Canopy biomass applies it to the canopy mapped over each site in a drone map.",
+      "The cover calibration relates the wet biomass of each survey to the tide-corrected canopy cover of its plot.",
+      "Canopy biomass applies it to the canopy mapped over each site in a canopy map.",
       "The uncertainty in every model is carried through to the limits."
     ),
     link = kelpbio_articles$canopy_biomass$path

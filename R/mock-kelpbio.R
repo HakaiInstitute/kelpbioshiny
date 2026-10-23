@@ -32,7 +32,7 @@ NULL
 # Planned; the names are a proposal, following kb_check_data_<model>_<species>().
 # A figure of a sheet's data, to look at before fitting: weight by size, the
 # size distribution, the dry:wet ratio and carbon fraction of the samples, the
-# canopy cover fraction of each plot flown by drone by the plants counted, and
+# canopy cover fraction of each plot with canopy imagery by the plants counted, and
 # the canopy area mapped at each site by year. All the data in one panel, or a
 # panel per site or year (`facet`).
 .mock_plot_data <- function(data, sheet, species, facet = NULL) {
@@ -77,7 +77,7 @@ kb_plot_data_wetdry_nereo <- function(data, facet = NULL) .mock_plot_data(data, 
 kb_plot_data_wetdry_macro <- function(data, facet = NULL) .mock_plot_data(data, "wetdry", "macro", facet)
 kb_plot_data_carbon_nereo <- function(data, facet = NULL) .mock_plot_data(data, "carbon", "nereo", facet)
 kb_plot_data_carbon_macro <- function(data, facet = NULL) .mock_plot_data(data, "carbon", "macro", facet)
-# Planned. Of the surveys flown by drone, as kb_check_data_survey() is for both
+# Planned. Of the surveys with canopy imagery, as kb_check_data_survey() is for both
 # species: the canopy cover fraction of each survey's plot by the plants
 # counted, from its plants tally or, in a census, its rows of `size_census`.
 kb_plot_data_survey <- function(data, size_census = NULL, facet = NULL) {

@@ -125,7 +125,7 @@ export_script <- function(species, sources, sheets, workbook, priors, samplers, 
         c(
           "",
           "# The cover calibration, fitted to the wet survey biomass of the surveys",
-          "# with a drone flight",
+          "# with canopy imagery",
           # The app fits it to survey biomass without stand-in sites.
           if (!is.null(survey_site)) sprintf("calibration_biomass <- kb_predict_biomass_survey(fit_weight, %s, survey)", size_arg),
           fit_lines("cover", if (is.null(survey_site)) "biomass" else "calibration_biomass")
@@ -135,7 +135,7 @@ export_script <- function(species, sources, sheets, workbook, priors, samplers, 
         c(
           "",
           if (cover_prefit) c(fit_lines("cover"), ""),
-          "# Biomass over the canopy mapped in each drone map of a site",
+          "# Biomass over the canopy mapped in each canopy map of a site",
           sprintf("%stotals <- kb_predict_biomass_canopy(%s)", prefix[measures], vapply(measures, canopy_call, "")),
           "kb_plot_predictions(totals)"
         )

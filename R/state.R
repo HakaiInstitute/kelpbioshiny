@@ -203,7 +203,7 @@ survey_possible <- function(sources) all(sources[survey_ids] != "none")
 
 # The models fitted to their own sheets first; the cover calibration can be
 # fitted once survey biomass can be predicted, and its data are the surveys with
-# a drone flight (none counts as no data). prior_warnings flags, by model, a fit
+# canopy imagery (none counts as no data). prior_warnings flags, by model, a fit
 # whose priors influence its estimates, influence_warnings a fit with
 # influential observations, and settings each model's current settings.
 component_statuses <- function(sources, sheets, records, prefits = list(), prior_warnings = list(),
@@ -265,7 +265,7 @@ estimate_availability <- function(id, statuses, sources, sheets, mismatches) {
       "ready" = list(available = TRUE),
       "not-used" = unavailable(sprintf("The %s model is not used in this run.", model)),
       "no-data" = unavailable(if (id == "cover") {
-        "The cover calibration needs surveys with a drone flight: add plot_area_m2, canopy_area_m2 and tide_height_m to the survey sheet."
+        "The cover calibration needs surveys with canopy imagery: add plot_area_m2, canopy_area_m2 and tide_height_m to the survey sheet."
       } else {
         sprintf("The %s model has no data. Add a %s sheet on the Data step.", model, components[[id]]$sheet)
       }),
@@ -283,7 +283,7 @@ estimate_availability <- function(id, statuses, sources, sheets, mismatches) {
     canopy <- sheets$canopy
     cover <- statuses$cover
     reason <- if (is.null(canopy)) {
-      "Canopy biomass needs a canopy sheet of drone maps of whole sites. Add one on the Data step."
+      "Canopy biomass needs a canopy sheet of canopy maps of whole sites. Add one on the Data step."
     } else if (!is.null(canopy$error)) {
       "The canopy sheet failed its data check."
     } else if (cover$kind == "not-used") {
@@ -336,15 +336,15 @@ data_estimable <- function(sheets, sources, census, mismatches = character()) {
     "site names differ across sheets"
   }
   # A pre-fit cover calibration needs only the canopy sheet; one fitted to your
-  # data needs survey biomass and drone flights on the surveys.
+  # data needs survey biomass and canopy imagery on the surveys.
   canopy <- if (!valid("canopy")) {
-    if (is.null(sheets$canopy)) "needs a canopy sheet of drone maps" else "the canopy sheet fails its check"
+    if (is.null(sheets$canopy)) "needs a canopy sheet of canopy maps" else "the canopy sheet fails its check"
   } else if (is_prefit(sources[["cover"]])) {
     NULL
   } else if (!is.null(survey)) {
     "needs survey biomass"
   } else if (sources[["cover"]] == "none" || nrow(drone_surveys(sheets$survey$rows)) == 0) {
-    "needs drone flights on the surveys"
+    "needs canopy imagery on the surveys"
   }
   dry <- if (!usable("wetdry")) "needs a wetdry sheet or a pre-fit wet:dry model"
   carbon <- dry %||% if (!usable("carbon")) "needs a carbon sheet or a pre-fit carbon model"
@@ -570,7 +570,7 @@ new_store <- function(session, run_fit = mirai_fit_runner) {
 
   # The derived estimates, from the fits in use and the sheets, for the
   # Estimates step: the biomass of each survey, and biomass over the canopy
-  # mapped in each drone map of a site. Each is
+  # mapped in each canopy map of a site. Each is
   # called from a reactive, so it reruns when its inputs change.
   fits <- dedupe(reactive(lapply(component_ids, s$fit_of)))
   survey_inputs <- dedupe(reactive({

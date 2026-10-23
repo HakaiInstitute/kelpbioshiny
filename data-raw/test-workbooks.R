@@ -17,10 +17,10 @@
 #   cover the whole area of interest, so survey biomass in total over the area
 #   surveyed is the estimate. Every counted plant is measured, each survey's
 #   plants drawn from the measured sample of its site-year (census_rows()).
-#   There are no drone columns or canopy sheet, so no cover calibration or
+#   There are no canopy imagery columns or canopy sheet, so no cover calibration or
 #   canopy biomass; wet:dry and carbon are pre-fit.
-# 4-canopy-prefit: a canopy sheet alone, with drone maps of the sites of the
-#   pre-fit Hakai Institute cover calibration flown again in a year after its
+# 4-canopy-prefit: a canopy sheet alone, with canopy maps of the sites of the
+#   pre-fit Hakai Institute cover calibration mapped again in a year after its
 #   data, so canopy biomass takes each site's effect but treats the year as new,
 #   and one map of a new site with the same areas as the first site's, whose
 #   limits are wider as the site is new too.
@@ -58,7 +58,7 @@ census_rows <- function(survey, size) {
   do.call(rbind, plants)
 }
 
-# Drone maps of each site of the pre-fit cover calibration in the year after
+# Canopy maps of each site of the pre-fit cover calibration in the year after
 # its data, with canopy, tide and classified areas from the simulated maps,
 # and a map of a site the calibration has no data for ("New site") with the
 # areas and tide of the first site's map, so the two can be compared. The

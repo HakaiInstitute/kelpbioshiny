@@ -339,7 +339,7 @@ predictions_panel <- function(ns, cid, prefit, species, plants, selected = NULL)
 }
 
 # Derived estimates -----------------------------------------------------------
-# Survey biomass and total biomass over the canopy mapped by drone, for the
+# Survey biomass and total biomass over the mapped canopy, for the
 # chosen measure (wet, dry or carbon) and rows; survey biomass per m\u00b2
 # surveyed or in total over the area surveyed (for a census of whole sites,
 # the site's total). kelpbio offers more (mean plant weight, canopy biomass per
@@ -672,7 +672,7 @@ derived_labels <- function(eid, key, per_area) {
 derived_caption <- function(eid, labels, sum_key, site = NULL) {
   by <- switch(sum_key,
     survey = sprintf(" of each survey at %s, faceted by year", if (is.null(site)) "the chosen site" else site),
-    site_year = if (eid == "canopy") " of each drone map of a site by year, faceted by site" else " of each site-year by year, faceted by site",
+    site_year = if (eid == "canopy") " of each canopy map of a site by year, faceted by site" else " of each site-year by year, faceted by site",
     year = " summed over sites by year",
     sprintf(" summed by %s and year, faceted by %s", sum_key, sum_key)
   )
