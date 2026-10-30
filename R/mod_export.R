@@ -1,4 +1,4 @@
-# Export step: downloads of the results, figures, fits and report, and an R
+# Export step: downloads of the results, figures and fits, and an R
 # script that reproduces the run.
 
 # `stand_ins` are the sites standing in for sites a model has no data for, by
@@ -146,18 +146,16 @@ export_script <- function(species, sources, sheets, workbook, priors, samplers, 
 }
 
 # Downloads ---------------------------------------------------------------------
-# The results workbook, the figures and the report hold each estimate the run
+# The results workbook and the figures hold each estimate the run
 # shows that is available, at the choices made on its page on the Estimates
 # step: each model's predictions, and survey and canopy biomass in every
 # measure available. The fit bundle holds what the Data step needs to resume
-# the run. The report (R/report.R) needs the Quarto command-line tool.
+# the run.
 
 download_items <- list(
   results = list(label = "Results workbook", detail = "Excel: every available estimate, with the settings and sources", file = "kelpbio-results-%s.xlsx", icon = "file-spreadsheet"),
   figures = list(label = "Figures", detail = "ZIP of PNG and PDF figures", file = "kelpbio-figures-%s.zip", icon = "file-image"),
   bundle = list(label = "Fit bundle", detail = "RDS: add it on the Data step to resume this run", file = "kelpbio-fits-%s.rds", icon = "database")
-  # The report is hidden for now.
-  # report = list(label = "Report", detail = "PDF with methods, diagnostics and results", file = "kelpbio-report-%s.pdf", icon = "file-text")
 )
 
 # The width of an exported figure, in inches, and half that for an overall
@@ -463,17 +461,14 @@ mod_export_server <- function(id, store) {
   moduleServer(id, function(input, output, session) {
     any_fitted <- reactive(any(record_status(store$records()) == "fitted"))
     suffix <- reactive(species_info[[store$species()]]$suffix)
-    # quarto <- report_available()
     enabled <- reactive(c(results = store$any_estimate(), figures = store$any_estimate(), bundle = any_fitted()))
-    # enabled <- reactive(c(results = store$any_estimate(), figures = store$any_estimate(), bundle = any_fitted(), report = store$any_estimate() && quarto))
 
-    # The estimates are computed once for the workbook, figures and report.
+    # The estimates are computed once for the workbook and figures.
     estimates <- reactive(export_estimates(store))
     files <- list(
       results = cached_file(function(path) write_results(estimates(), settings_rows(store), path), ".xlsx"),
       figures = cached_file(function(path) write_figures(estimates(), path), ".zip"),
       bundle = cached_file(function(path) saveRDS(run_bundle(store), path), ".rds")
-      # report = cached_file(function(path) write_report(report_content(store), estimates(), path), ".pdf")
     )
 
     # A download button while there is something to download.
@@ -511,11 +506,6 @@ mod_export_server <- function(id, store) {
     })
 
     output$downloads_note <- renderText({
-      # if (store$any_estimate()) {
-      #   if (quarto) "" else "The report needs Quarto installed where the app runs."
-      # } else {
-      #   "Results, figures and the report become available once there is an estimate to save."
-      # }
       if (!store$any_estimate()) "Results and figures become available once there is an estimate to save."
     })
 

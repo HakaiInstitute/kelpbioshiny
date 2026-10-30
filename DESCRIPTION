@@ -26,7 +26,6 @@ Imports:
     mirai,
     posterior,
     priorsense,
-    quarto,
     reactable,
     readxl,
     rlang,
@@ -35,7 +34,6 @@ Imports:
     utils,
     withr,
     writexl
-SystemRequirements: Quarto command-line tool, for the report
 Suggests:
     codetools,
     pkgload,
