@@ -12,7 +12,7 @@ coverage_models <- function(sheets, sources, species) {
 # The models in use that the coverage card leaves out: pre-fit, or with no site
 # or year effects. A census has no size model to leave out.
 coverage_omitted <- function(sources, shown) {
-  ids <- setdiff(c(survey_ids, "wetdry", "carbon"), shown)
+  ids <- setdiff(c(survey_ids, "wetdry", "carbon", "nitrogen"), shown)
   ids[vapply(ids, function(id) !sources[[id]] %in% c("none", "census"), NA)]
 }
 
@@ -526,7 +526,7 @@ sheet_panel <- function(ns, sheet, source, species, facet = NULL) {
 
 # What the loaded data can estimate once the models are fitted, each with what
 # it still needs.
-estimable_labels <- c(survey = "In situ survey biomass", canopy = "Canopy biomass", dry = "Dry biomass", carbon = "Carbon")
+estimable_labels <- c(survey = "In situ survey biomass", canopy = "Canopy biomass", dry = "Dry biomass", carbon = "Carbon", nitrogen = "Nitrogen")
 
 # Under the sheets, in a muted box: each estimate as a check, with the pre-fit
 # models it relies on, or a dash, with what it still needs.

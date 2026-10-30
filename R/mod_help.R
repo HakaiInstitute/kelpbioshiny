@@ -140,9 +140,10 @@ guide_extras <- list(
     tagList(
       guide_points(
         sprintf(
-          "Each estimate has a figure and a table, in %s, %s with a %s model, or %s with the %s and %s models.",
+          "Each estimate has a figure and a table, in %s, %s with a %s model, or %s or %s with the %s model and a %s or %s model.",
           tolower(output_info$wet$label), tolower(output_info$dry$label), lower_label("wetdry"),
-          tolower(output_info$carbon$label), lower_label("wetdry"), lower_label("carbon")
+          tolower(output_info$carbon$label), tolower(output_info$nitrogen$label), lower_label("wetdry"),
+          lower_label("carbon"), lower_label("nitrogen")
         ),
         "Where a model has no data for a site predicted, optionally choose sites in its data with similar conditions under Representative site."
       ),
@@ -231,9 +232,13 @@ guide_workflow <- function() {
       flow_group(
         list(
           list(from = flow_sheet("wetdry"), model = flow_model("wetdry")),
-          list(from = flow_sheet("carbon"), model = flow_model("carbon"))
+          list(from = flow_sheet("carbon"), model = flow_model("carbon")),
+          list(from = flow_sheet("nitrogen"), model = flow_model("nitrogen"))
         ),
-        flow_node("estimate", sprintf("%s and %s", output_info$dry$label, tolower(output_info$carbon$label)), "Of either estimate")
+        flow_node(
+          "estimate", sprintf("%s, %s and %s", output_info$dry$label, tolower(output_info$carbon$label), tolower(output_info$nitrogen$label)),
+          "Of either estimate"
+        )
       )
     )
   )

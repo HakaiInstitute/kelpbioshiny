@@ -340,7 +340,7 @@ predictions_panel <- function(ns, cid, prefit, species, plants, selected = NULL)
 
 # Derived estimates -----------------------------------------------------------
 # In situ survey biomass and total biomass over the mapped canopy, for the
-# chosen measure (wet, dry or carbon) and rows; in situ survey biomass per m\u00b2
+# chosen measure (wet, dry, carbon or nitrogen) and rows; in situ survey biomass per m\u00b2
 # surveyed or in total over the area surveyed (for a census of whole sites,
 # the site's total). kelpbio offers more (mean plant weight, canopy biomass per
 # m\u00b2, any sum); the app keeps to those a report uses.

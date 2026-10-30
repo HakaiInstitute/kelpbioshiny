@@ -76,10 +76,10 @@ export_script <- function(species, sources, sheets, workbook, priors, samplers, 
   }
 
   measures <- names(output_info)[vapply(output_availability(sources), `[[`, logical(1), "available")]
-  prefix <- c(wet = "", dry = "dry_", carbon = "carbon_")
+  prefix <- c(wet = "", dry = "dry_", carbon = "carbon_", nitrogen = "nitrogen_")
   measure_args <- function(m) {
     c(
-      if (m != "wet") "fit_wetdry", if (m == "carbon") "fit_carbon",
+      if (m != "wet") "fit_wetdry", if (m == "carbon") "fit_carbon", if (m == "nitrogen") "nitrogen = fit_nitrogen",
       if (m != "wet") sprintf("measure = \"%s\"", m)
     )
   }

@@ -40,7 +40,7 @@ species_info <- list(
 # the data of one model (components); the survey sheet is the cover
 # calibration's.
 
-sheet_ids <- c("weight", "size", "survey", "canopy", "wetdry", "carbon")
+sheet_ids <- c("weight", "size", "survey", "canopy", "wetdry", "carbon", "nitrogen")
 names(sheet_ids) <- sheet_ids
 
 sheet_info <- list(
@@ -64,7 +64,8 @@ sheet_info <- list(
     columns = c("site", "year", "canopy_area_m2", "canopy_tide_height_m", "classified_area_m2")
   ),
   wetdry = list(label = "Wet:dry", row = "Tissue sample", columns = c("wet_mass_g", "dry_mass_g")),
-  carbon = list(label = "Carbon", row = "Dried tissue sample", columns = c("sample_mass_mg", "carbon_mass_ug"))
+  carbon = list(label = "Carbon", row = "Dried tissue sample", columns = c("sample_mass_mg", "carbon_mass_ug")),
+  nitrogen = list(label = "Nitrogen", row = "Dried tissue sample", columns = c("sample_mass_mg", "nitrogen_mass_ug"))
 )
 
 # A sheet's columns for a species and kind of size data: a census has no
@@ -130,7 +131,7 @@ empty_plants <- function(species) {
 
 # Models ------------------------------------------------------------------------------
 
-component_ids <- c("weight", "size", "wetdry", "carbon", "cover")
+component_ids <- c("weight", "size", "wetdry", "carbon", "nitrogen", "cover")
 names(component_ids) <- component_ids
 
 # A model's sources: "user" (your data), its pre-fit sources, "census" (the size
@@ -158,6 +159,10 @@ components <- list(
     label = "Carbon", detail = "Carbon fraction of dry mass", sheet = "carbon",
     sources = c("user", "prefit", "none"), prefit = list(nereo = "hakai", macro = "hakai")
   ),
+  nitrogen = list(
+    label = "Nitrogen", detail = "Nitrogen fraction of dry mass", sheet = "nitrogen",
+    sources = c("user", "prefit", "none"), prefit = list(nereo = "hakai", macro = "hakai")
+  ),
   # Optional: scales in situ survey biomass up to the mapped canopy. It is
   # fitted to the in situ survey biomass of the surveys with canopy imagery, once the
   # weight and size models are ready; a pre-fit calibration needs neither.
@@ -177,7 +182,7 @@ survey_ids <- c("weight", "size")
 model_groups <- list(
   survey = list(label = "For in situ survey biomass", ids = survey_ids),
   canopy = list(label = "For canopy biomass", ids = "cover"),
-  measure = list(label = "For dry and carbon biomass", ids = c("wetdry", "carbon"))
+  measure = list(label = "For dry, carbon and nitrogen biomass", ids = c("wetdry", "carbon", "nitrogen"))
 )
 model_order <- unlist(lapply(model_groups, `[[`, "ids"), use.names = FALSE)
 
@@ -298,7 +303,8 @@ data_plot_info <- list(
   survey = list(caption = "Canopy cover fraction of each in situ survey plot with canopy imagery, by the plants counted in it.", aspect = 4 / 8),
   canopy = list(caption = "Canopy area mapped at each site, by year.", aspect = 4 / 8),
   wetdry = list(caption = "Distribution of the ratio of dry to wet mass of the tissue samples.", aspect = 4 / 8),
-  carbon = list(caption = "Distribution of the carbon fraction of dry mass of the tissue samples.", aspect = 4 / 8)
+  carbon = list(caption = "Distribution of the carbon fraction of dry mass of the tissue samples.", aspect = 4 / 8),
+  nitrogen = list(caption = "Distribution of the nitrogen fraction of dry mass of the tissue samples.", aspect = 4 / 8)
 )
 
 data_plot_caption <- function(id, species) {
@@ -333,11 +339,12 @@ sheet_plot <- function(id, rows, species, facet = NULL, size_census = NULL) {
 output_info <- list(
   wet = list(label = "Wet biomass", unit = c(area = "kg/m\u00b2", total = "kg")),
   dry = list(label = "Dry biomass", unit = c(area = "kg/m\u00b2", total = "kg")),
-  carbon = list(label = "Carbon", unit = c(area = "g C/m\u00b2", total = "kg C"))
+  carbon = list(label = "Carbon", unit = c(area = "g C/m\u00b2", total = "kg C")),
+  nitrogen = list(label = "Nitrogen", unit = c(area = "g N/m\u00b2", total = "kg N"))
 )
 
 # The models a measure needs besides those of the biomass itself.
-output_components <- list(wet = character(), dry = "wetdry", carbon = c("wetdry", "carbon"))
+output_components <- list(wet = character(), dry = "wetdry", carbon = c("wetdry", "carbon"), nitrogen = c("wetdry", "nitrogen"))
 
 # The estimates on the Estimates step: each model's predictions, then survey
 # biomass and canopy biomass from the combined models.
@@ -477,7 +484,8 @@ column_info <- list(
   wet_mass_g = c("Mass of the tissue sample before drying (g)", "Greater than 0"),
   dry_mass_g = c("Mass of the same sample after drying (g)", "Greater than 0, less than wet_mass_g"),
   sample_mass_mg = c("Mass of the dried sample analysed, as the lab reports it (mg)", "Greater than 0"),
-  carbon_mass_ug = c("Carbon measured in the sample (\u00b5g)", "Greater than 0, less than the sample mass")
+  carbon_mass_ug = c("Carbon measured in the sample (\u00b5g)", "Greater than 0, less than the sample mass"),
+  nitrogen_mass_ug = c("Nitrogen measured in the sample (\u00b5g)", "Greater than 0, less than the sample mass")
 )
 
 sheet_column_info <- list(
@@ -616,7 +624,7 @@ prior_labels <- c(
 )
 
 prior_label <- function(id, name) {
-  if (name == "intercept" && id %in% c("wetdry", "carbon")) {
+  if (name == "intercept" && id %in% c("wetdry", "carbon", "nitrogen")) {
     return("Intercept (logit)")
   }
   if (name %in% names(prior_labels)) prior_labels[[name]] else name
@@ -735,6 +743,7 @@ prediction_info <- list(
   ),
   wetdry = list(response = "ratio of dry to wet mass", table = "Ratio of dry to wet mass"),
   carbon = list(response = "carbon fraction of dry mass", table = "Carbon fraction of dry mass"),
+  nitrogen = list(response = "nitrogen fraction of dry mass", table = "Nitrogen fraction of dry mass"),
   cover = list(
     response = "wet biomass per square metre", along = "tide-corrected cover", at = "a tide-corrected cover of 0.5",
     value = list(cover = 0.5), table = "Wet biomass (kg/m\u00b2) at a tide-corrected cover of 0.5",
@@ -787,8 +796,8 @@ model_predictions <- function(id, fit, grouping, species, at = FALSE, plants = N
   if (grouping == "plant") {
     return(kb_predict_weight(fit, new_data = plants))
   }
-  if (id %in% c("wetdry", "carbon")) {
-    return(if (id == "wetdry") kb_predict_wetdry(fit) else kb_predict_carbon(fit))
+  if (id %in% c("wetdry", "carbon", "nitrogen")) {
+    return(switch(id, wetdry = kb_predict_wetdry(fit), carbon = kb_predict_carbon(fit), nitrogen = kb_predict_nitrogen(fit)))
   }
   value <- prediction_info[[id]]$value
   if (id == "weight") value <- value[[species]]

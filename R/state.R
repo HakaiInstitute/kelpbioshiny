@@ -315,7 +315,7 @@ estimate_availability <- function(id, statuses, sources, sheets, mismatches) {
 # What the loaded data can estimate once the models are fitted, for the Data
 # step: each biomass estimate, list(possible, reason, prefit), `prefit` naming
 # the pre-fit models a possible estimate relies on (the conversion models for
-# dry biomass and carbon). A model can be used when it is pre-fit, or its sheet
+# dry biomass, carbon and nitrogen). A model can be used when it is pre-fit, or its sheet
 # passes its check.
 data_estimable <- function(sheets, sources, census, mismatches = character()) {
   valid <- function(id) !is.null(sheets[[id]]) && is.null(sheets[[id]]$error)
@@ -348,9 +348,11 @@ data_estimable <- function(sheets, sources, census, mismatches = character()) {
   }
   dry <- if (!usable("wetdry")) "needs a wetdry sheet or a pre-fit wet:dry model"
   carbon <- dry %||% if (!usable("carbon")) "needs a carbon sheet or a pre-fit carbon model"
+  nitrogen <- dry %||% if (!usable("nitrogen")) "needs a nitrogen sheet or a pre-fit nitrogen model"
   list(
     survey = result(survey, survey_ids), canopy = result(canopy, if (is_prefit(sources[["cover"]])) "cover" else survey_ids),
-    dry = result(dry, "wetdry"), carbon = result(carbon, c("wetdry", "carbon"))
+    dry = result(dry, "wetdry"), carbon = result(carbon, c("wetdry", "carbon")),
+    nitrogen = result(nitrogen, c("wetdry", "nitrogen"))
   )
 }
 
@@ -368,6 +370,13 @@ output_availability <- function(sources) {
       unavailable("Carbon unavailable: no carbon model")
     } else if (sources[["wetdry"]] == "none") {
       unavailable("Carbon unavailable: carbon needs the wet:dry model")
+    } else {
+      available()
+    },
+    nitrogen = if (sources[["nitrogen"]] == "none") {
+      unavailable("Nitrogen unavailable: no nitrogen model")
+    } else if (sources[["wetdry"]] == "none") {
+      unavailable("Nitrogen unavailable: nitrogen needs the wet:dry model")
     } else {
       available()
     }
@@ -575,11 +584,11 @@ new_store <- function(session, run_fit = mirai_fit_runner) {
   fits <- dedupe(reactive(lapply(component_ids, s$fit_of)))
   survey_inputs <- dedupe(reactive({
     f <- fits()
-    c(survey_biomass_args(f$weight, f$size, s$sheets(), s$census()), list(wetdry = f$wetdry, carbon = f$carbon))
+    c(survey_biomass_args(f$weight, f$size, s$sheets(), s$census()), list(wetdry = f$wetdry, carbon = f$carbon, nitrogen = f$nitrogen))
   }))
   canopy_inputs <- dedupe(reactive({
     f <- fits()
-    list(fit = f$cover, canopy = s$sheets()$canopy$rows, wetdry = f$wetdry, carbon = f$carbon)
+    list(fit = f$cover, canopy = s$sheets()$canopy$rows, wetdry = f$wetdry, carbon = f$carbon, nitrogen = f$nitrogen)
   }))
   # The sites chosen to stand in for sites a model has no data for, by model
   # (stand_in_sites()), and those of them that are sites of the fits in use.
@@ -610,7 +619,7 @@ new_store <- function(session, run_fit = mirai_fit_runner) {
     sites <- s$representative_site("survey")
     survey_cache(a, list(measure, per_area, pool_by, sites), function() {
       kb_predict_biomass_in_situ(
-        a$weight, a$size, a$survey, a$wetdry, a$carbon,
+        a$weight, a$size, a$survey, a$wetdry, a$carbon, a$nitrogen,
         measure = measure, per_area = per_area, pool_by = pool_by,
         representative_site = sites, progress = "none"
       )
@@ -622,7 +631,7 @@ new_store <- function(session, run_fit = mirai_fit_runner) {
     sites <- s$representative_site("canopy")
     canopy_cache(a, list(measure, pool_by, sites), function() {
       kb_predict_biomass_canopy(
-        a$fit, a$canopy, a$wetdry, a$carbon,
+        a$fit, a$canopy, a$wetdry, a$carbon, a$nitrogen,
         measure = measure, pool_by = pool_by, representative_site = sites
       )
     })
@@ -1019,7 +1028,7 @@ new_store <- function(session, run_fit = mirai_fit_runner) {
   # - Order: fit the weight and size models -> predict in situ survey biomass -> fit
   #   the cover calibration to it -> predict canopy biomass, automatically,
   #   and keep the in situ survey biomass for the Estimates step rather than
-  #   predicting it again there. Wet, dry and carbon in one job, as they
+  #   predicting it again there. Wet, dry, carbon and nitrogen in one job, as they
   #   share draws.
   # - Each model's own predictions stay on demand on the Estimates step, cached
   #   with bindCache(), unless timing with kelpbio shows them slow; then run

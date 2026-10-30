@@ -11,8 +11,8 @@ test_that("each download writes its file, and the fit bundle resumes the run", {
 
     results <- output$`export-download_results`
     expect_identical(readxl::excel_sheets(results), c(
-      "contents", "survey_wet", "survey_dry", "survey_carbon", "canopy_wet", "canopy_dry", "canopy_carbon",
-      "weight", "size", "cover_calibration", "wetdry", "carbon", "settings"
+      "contents", "survey_wet", "survey_dry", "survey_carbon", "survey_nitrogen", "canopy_wet", "canopy_dry", "canopy_carbon",
+      "canopy_nitrogen", "weight", "size", "cover_calibration", "wetdry", "carbon", "nitrogen", "settings"
     ))
     contents <- readxl::read_excel(results, "contents")
     expect_identical(contents$rows[contents$sheet == "survey_wet"], "Each in situ survey")
@@ -30,8 +30,8 @@ test_that("each download writes its file, and the fit bundle resumes the run", {
     store$resume("kelpbio-fits-nereo.rds", bundle)
     session$flushReact()
 
-    expect_named(store$sheets(), c("weight", "size", "survey", "canopy", "wetdry", "carbon"))
-    expect_identical(unname(record_status(store$records())), rep("fitted", 5))
+    expect_named(store$sheets(), c("weight", "size", "survey", "canopy", "wetdry", "carbon", "nitrogen"))
+    expect_identical(unname(record_status(store$records())), rep("fitted", 6))
     expect_true(all(vapply(store$statuses(), `[[`, "", "kind") == "ready"))
     expect_identical(store$estimate_choices()$survey$sum, "survey")
   })
@@ -61,6 +61,6 @@ test_that("a file that is not a fit bundle, or a damaged one, is not resumed", {
     saveRDS(bundle, path)
     expect_error(read_bundle(path), "damaged or from another version")
     store$resume("damaged.rds", path)
-    expect_named(store$sheets(), c("weight", "size", "survey", "canopy", "wetdry", "carbon"))
+    expect_named(store$sheets(), c("weight", "size", "survey", "canopy", "wetdry", "carbon", "nitrogen"))
   })
 })

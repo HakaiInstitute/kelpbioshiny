@@ -31,7 +31,7 @@ NULL
 
 # Planned; the names are a proposal, following kb_check_data_<model>_<species>().
 # A figure of a sheet's data, to look at before fitting: weight by size, the
-# size distribution, the dry:wet ratio and carbon fraction of the samples, the
+# size distribution, the dry:wet ratio and carbon and nitrogen fractions of the samples, the
 # canopy cover fraction of each plot with canopy imagery by the plants counted, and
 # the canopy area mapped at each site by year. All the data in one panel, or a
 # panel per site or year (`facet`).
@@ -57,6 +57,10 @@ NULL
       data$fraction <- data$carbon_mass_ug / 1000 / data$sample_mass_mg
       ggplot(data, aes(.data$fraction)) + histogram() + labs(x = "Carbon fraction of dry mass", y = "Samples")
     },
+    nitrogen = {
+      data$fraction <- data$nitrogen_mass_ug / 1000 / data$sample_mass_mg
+      ggplot(data, aes(.data$fraction)) + histogram() + labs(x = "Nitrogen fraction of dry mass", y = "Samples")
+    },
     survey = {
       data <- data[!is.na(data$canopy_area_m2), ]
       data$cover <- data$canopy_area_m2 / data$plot_area_m2
@@ -77,6 +81,8 @@ kb_plot_data_wetdry_nereo <- function(data, facet = NULL) .mock_plot_data(data, 
 kb_plot_data_wetdry_macro <- function(data, facet = NULL) .mock_plot_data(data, "wetdry", "macro", facet)
 kb_plot_data_carbon_nereo <- function(data, facet = NULL) .mock_plot_data(data, "carbon", "nereo", facet)
 kb_plot_data_carbon_macro <- function(data, facet = NULL) .mock_plot_data(data, "carbon", "macro", facet)
+kb_plot_data_nitrogen_nereo <- function(data, facet = NULL) .mock_plot_data(data, "nitrogen", "nereo", facet)
+kb_plot_data_nitrogen_macro <- function(data, facet = NULL) .mock_plot_data(data, "nitrogen", "macro", facet)
 # Planned. Of the surveys with canopy imagery, as kb_check_data_in_situ() is for both
 # species: the canopy cover fraction of each survey's plot by the plants
 # counted, from its plants tally or, in a census, its rows of `size_census`.
