@@ -40,8 +40,8 @@ step_marker <- function(number, state = c("todo", "done", "warning", "busy"), cl
   add <- function(x) paste(c("kb-step-marker", x, class), collapse = " ")
   hidden <- function(text) span(class = "visually-hidden", text)
   switch(state,
-    # A white disc with a slate tick stands out on the slate navbar.
-    done = span(class = add("bg-white text-secondary-emphasis"), lucide("check"), hidden("complete")),
+    # A filled accent disc with a white tick, as in a stepper.
+    done = span(class = add("bg-primary text-white"), lucide("check"), hidden("complete")),
     warning = span(class = add("bg-warning text-white"), lucide("alert-triangle"), hidden("complete with warnings")),
     busy = span(class = add("bg-primary-subtle text-primary-emphasis"), lucide("loader-2", "kb-spin"), hidden("fitting")),
     todo = span(class = add("kb-step-todo"), `aria-hidden` = "true", number)
@@ -288,14 +288,15 @@ progress_bar <- function(value) {
 }
 
 # A figure and its table as two pills, so the table is one click away rather
-# than below the figure.
-plot_table_nav <- function(id, plot, table, selected = NULL) {
-  navset_pill(
-    id = id,
-    selected = selected,
-    nav_panel("Plot", value = "plot", div(class = "pt-3", plot)),
-    nav_panel("Table", value = "table", div(class = "pt-3", table))
+# than below the figure. The first pill opens first: the figure, or the table
+# where `table_first` (a sheet's data).
+plot_table_nav <- function(id, plot, table, selected = NULL, table_first = FALSE) {
+  panels <- list(
+    plot = nav_panel("Plot", value = "plot", div(class = "pt-3", plot)),
+    table = nav_panel("Table", value = "table", div(class = "pt-3", table))
   )
+  if (table_first) panels <- rev(panels)
+  navset_pill(id = id, selected = selected, !!!unname(panels))
 }
 
 # Figures render at more than the 96 dpi screen default, so their text is legible;

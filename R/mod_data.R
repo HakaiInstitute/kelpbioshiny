@@ -351,7 +351,10 @@ mod_data_server <- function(id, store) {
       output[[paste0("table_", sid)]] <- reactable::renderReactable({
         app_table(
           sheet()$rows,
-          page_size = 8,
+          # Every row, scrolling under a sticky header, at the height the
+          # search box and eight rows took when the table was paged.
+          pagination = FALSE,
+          height = 440,
           searchable = TRUE,
           filterable = TRUE,
           defaultColDef = reactable::colDef(
@@ -516,7 +519,7 @@ sheet_panel <- function(ns, sheet, source, species, facet = NULL) {
     div(
       class = "d-flex flex-column gap-3",
       if (more > 0) div(class = "d-flex flex-column gap-1", lapply(sheet$warnings[-1], warning_line)),
-      if (!is.null(sheet$error) || !sheet_has_plot(id, sheet$rows)) table else plot_table_nav(ns(paste0("view_", id)), plot, table)
+      if (!is.null(sheet$error) || !sheet_has_plot(id, sheet$rows)) table else plot_table_nav(ns(paste0("view_", id)), plot, table, table_first = TRUE)
     )
   )
 }
