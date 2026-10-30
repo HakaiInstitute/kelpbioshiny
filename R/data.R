@@ -611,7 +611,8 @@ prior_labels <- c(
   fronds_slope = "Fronds slope", precision = "Precision", cover_slope = "Cover slope", biomass_floor = "Biomass floor",
   tide_height_slope = "Tide height slope", cv_residual = "Residual coefficient of variation",
   sd_site = "SD of site effect", sd_year = "SD of year effect", sd_site_year = "SD of site-year effect",
-  sd_residual = "Residual SD"
+  sd_residual = "Residual SD", presence_intercept = "Presence intercept (logit)",
+  presence_cover_slope = "Presence cover slope (logit)"
 )
 
 prior_label <- function(id, name) {
