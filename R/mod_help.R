@@ -157,6 +157,88 @@ guide_extras <- list(
   }
 )
 
+# The workflow: which sheets feed which models, and how the models combine
+# into the estimates, in three columns. Each group is one estimate, its inputs
+# stacked on the left and the estimate spanning them on the right.
+flow_node <- function(kind, title, detail = NULL) {
+  div(
+    class = paste0("kb-flow-node kb-flow-", kind),
+    div(class = "fw-medium", title),
+    if (!is.null(detail)) div(class = "text-body-secondary", detail)
+  )
+}
+
+flow_sheet <- function(id, name = tags$code(sheet_name(id))) {
+  row <- sheet_info[[id]]$row
+  flow_node("sheet", name, paste0("One row per ", tolower(substr(row, 1, 1)), substring(row, 2)))
+}
+
+flow_model <- function(id, detail = components[[id]]$detail) flow_node("model", paste(label_of(id), "model"), detail)
+
+flow_arrow <- function() div(class = "kb-flow-arrow", lucide("arrow-right"))
+
+# One input row: a sheet or estimate, then its model, or a line straight to the
+# estimate where nothing is fitted to it.
+flow_group <- function(inputs, estimate) {
+  div(
+    class = "kb-flow-group",
+    unlist(lapply(seq_along(inputs), function(i) {
+      row <- inputs[[i]]
+      list(
+        tagAppendAttributes(row$from, style = sprintf("grid-area: %d / 1", i)),
+        if (is.null(row$model)) {
+          div(class = "kb-flow-line", style = sprintf("grid-area: %d / 2 / %d / 4", i, i))
+        } else {
+          list(
+            tagAppendAttributes(flow_arrow(), style = sprintf("grid-area: %d / 2", i)),
+            tagAppendAttributes(row$model, style = sprintf("grid-area: %d / 3", i))
+          )
+        }
+      )
+    }), recursive = FALSE),
+    tagAppendAttributes(flow_arrow(), style = sprintf("grid-area: 1 / 4 / span %d", length(inputs))),
+    tagAppendAttributes(estimate, style = sprintf("grid-area: 1 / 5 / span %d", length(inputs)))
+  )
+}
+
+guide_workflow <- function() {
+  size_names <- tagList(tags$code(size_sheet_names[["sample"]]), " or ", tags$code(size_sheet_names[["census"]]))
+  div(
+    class = "overflow-x-auto",
+    div(
+      class = "kb-flow small",
+      div(class = "kb-flow-heading", style = "grid-column: 1", "Sheets"),
+      div(class = "kb-flow-heading", style = "grid-column: 3", "Models"),
+      div(class = "kb-flow-heading", style = "grid-column: 5", "Estimates"),
+      flow_group(
+        list(
+          list(from = flow_sheet("weight"), model = flow_model("weight")),
+          list(from = flow_sheet("size", size_names), model = flow_model("size", sprintf("%s; none in a census", components$size$detail))),
+          list(from = flow_sheet("survey"))
+        ),
+        flow_node("estimate", estimate_label("survey"))
+      ),
+      flow_group(
+        list(
+          list(
+            from = flow_node("estimate", estimate_label("survey"), sprintf("Of the %s rows with canopy imagery", sheet_name("survey"))),
+            model = flow_model("cover")
+          ),
+          list(from = flow_sheet("canopy"))
+        ),
+        flow_node("estimate", estimate_label("canopy"))
+      ),
+      flow_group(
+        list(
+          list(from = flow_sheet("wetdry"), model = flow_model("wetdry")),
+          list(from = flow_sheet("carbon"), model = flow_model("carbon"))
+        ),
+        flow_node("estimate", sprintf("%s and %s", output_info$dry$label, tolower(output_info$carbon$label)), "Of either estimate")
+      )
+    )
+  )
+}
+
 guide_glossary <- function() {
   tags$dl(
     class = "row mb-0",
@@ -211,7 +293,7 @@ guide_plant_weights <- function() {
 }
 
 # The guide's sections, by anchor id, as titled on the page and in its contents.
-guide_sections <- c(guide_steps = "Steps", guide_warnings = "Warnings and notes", guide_glossary = "Glossary")
+guide_sections <- c(guide_workflow = "Workflow", guide_steps = "Steps", guide_warnings = "Warnings and notes", guide_glossary = "Glossary")
 
 help_pages <- c(guide = "User guide", methods = "Methods", about = "About")
 help_page_icons <- c(guide = "book-open", methods = "sigma", about = "info")
@@ -274,6 +356,12 @@ help_guide_ui <- function() {
     page_header(help_pages[["guide"]], "How to use the app, step by step."),
     div(
       class = "d-flex flex-column gap-3",
+      panel(
+        guide_sections[["guide_workflow"]],
+        id = "guide_workflow", class = "kb-anchor",
+        description = "Which sheets feed which models, and how the models combine into the estimates. Any model can be pre-fit instead of fitted to a sheet.",
+        guide_workflow()
+      ),
       panel(
         guide_sections[["guide_steps"]],
         id = "guide_steps", class = "kb-anchor",

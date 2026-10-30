@@ -276,3 +276,60 @@
 [data-shiny-busy-spinners] .recalculating.shiny-html-output:not(.shiny-table-output) {
   min-height: 0;
 }
+
+/* The workflow diagram in the user guide: sheets, models and estimates in
+   columns, an arrow between each, one group per estimate. */
+.kb-flow {
+  display: grid;
+  grid-template-columns: minmax(10rem, 1fr) 2rem minmax(10rem, 1fr) 2rem minmax(10rem, 1fr);
+  row-gap: 0.75rem;
+  min-width: 40rem;
+}
+
+.kb-flow-heading {
+  font-weight: 500;
+  color: var(--bs-secondary-color);
+}
+
+.kb-flow-group {
+  grid-column: 1 / -1;
+  display: grid;
+  grid-template-columns: subgrid;
+  row-gap: 0.5rem;
+  padding-top: 0.75rem;
+  border-top: var(--bs-border-width) solid var(--bs-border-color);
+}
+
+.kb-flow-node {
+  border: var(--bs-border-width) solid var(--bs-border-color);
+  border-radius: var(--bs-border-radius);
+  padding: 0.5rem 0.75rem;
+}
+
+.kb-flow-sheet {
+  background-color: var(--bs-tertiary-bg);
+}
+
+.kb-flow-model {
+  background-color: var(--bs-primary-bg-subtle);
+  border-color: var(--bs-primary-border-subtle);
+}
+
+.kb-flow-estimate {
+  background-color: var(--bs-success-bg-subtle);
+  border-color: var(--bs-success-border-subtle);
+  align-self: center;
+}
+
+.kb-flow-arrow {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--bs-secondary-color);
+}
+
+.kb-flow-line {
+  align-self: center;
+  border-top: var(--bs-border-width) dashed var(--bs-border-color);
+  margin-left: 0.5rem;
+}
