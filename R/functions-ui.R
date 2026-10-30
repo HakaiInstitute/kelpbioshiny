@@ -393,6 +393,10 @@ warning_help <- list(
     title = "Divergent transitions",
     advice = "The sampler could not explore part of the posterior. Raise adapt_delta on the Settings tab, for example to 0.99, and refit."
   ),
+  fit = list(
+    title = "Warning from the fit",
+    advice = "Check the data and settings the warning names, and refit if you change them."
+  ),
   prior = list(
     title = "Prior sensitivity", note = TRUE,
     advice = "If the flagged prior was not chosen on purpose, make it less informative on the Settings tab and refit."
@@ -413,16 +417,17 @@ warning_help <- list(
   mismatch = list(title = "Site names differ across sheets", advice = mismatch_advice)
 )
 
-# The warnings of each model in `ids`, in words: "convergence" and "divergent
-# transitions" for a ready model, "fit failed"
-# for a failed one.
+# The warnings of each model in `ids`, in words: "convergence", "divergent
+# transitions" and "fit" (a warning kelpbio gave while fitting) for a ready
+# model, "fit failed" for a failed one.
 model_warnings <- function(statuses, ids = component_ids) {
   warnings <- lapply(ids, function(id) {
     status <- statuses[[id]]
     c(
       if (status$kind == "failed") "fit failed",
       if (isTRUE(status$convergence)) "convergence",
-      if (isTRUE(status$divergence)) "divergent transitions"
+      if (isTRUE(status$divergence)) "divergent transitions",
+      if (length(status$fit_warnings) > 0) "fit"
     )
   })
   Filter(length, stats::setNames(warnings, ids))
@@ -508,6 +513,11 @@ settings_link <- function(text, settings_id) {
 
 # A convergence or divergence warning (`warning`), its advice linking to the
 # Settings tab.
+# A warning kelpbio gave while fitting, as kelpbio words it.
+fit_warning_notice <- function(text) {
+  notice("alert-triangle", warning_help$fit$title, text, warning_help$fit$advice, tone = "warning")
+}
+
 convergence_notice <- function(settings_id, warning = "convergence") {
   notice(
     "alert-triangle", warning_help[[warning]]$title,

@@ -195,6 +195,7 @@ mod_model_server <- function(id, store) {
           if (isTRUE(status$outdated)) notice("refresh-cw", warning_help$outdated$title, warning_help$outdated$advice, tone = "warning"),
           if (isTRUE(status$convergence)) convergence_notice(ns("settings_convergence")),
           if (isTRUE(status$divergence)) convergence_notice(ns("settings_divergence"), "divergence"),
+          lapply(status$fit_warnings, fit_warning_notice),
           prior_notice(store$sensitivity[[cid]](), prior_summary(fit()), ns("settings_prior"))
           # Influential observations are hidden for now.
           # influence_notice(store$influence[[cid]](), ns("diagnostics_influence"))
@@ -456,12 +457,15 @@ mod_model_server <- function(id, store) {
     output$sensitivity_note <- renderUI(data_strength_notice(sensitivity()))
 
     # One line per check, from the same kelpbio results as the panels below,
-    # each linking to its panel.
+    # each linking to its panel; a warning from the fit, which has no panel, is
+    # shown in full at the top of the page.
     output$verdict <- renderUI({
-      line <- function(ok, text, target, tone = if (ok) "ok" else "warning") {
+      line <- function(ok, text, target = NULL, tone = if (ok) "ok" else "warning") {
         icon <- switch(tone, ok = lucide("check-circle-2", "text-success"), warning = lucide("alert-triangle", "text-warning"), info = lucide("info", "text-body-secondary"))
-        tags$li(class = "d-flex align-items-center gap-2", icon, tags$a(href = paste0("#", ns(target)), class = "link-body-emphasis", text))
+        label <- if (is.null(target)) span(text) else tags$a(href = paste0("#", ns(target)), class = "link-body-emphasis", text)
+        tags$li(class = "d-flex align-items-center gap-2", icon, label)
       }
+      fit_warnings <- store$statuses()[[cid]]$fit_warnings
       fit_summary <- summary(fitted_fit())
       unconverged <- fit_summary$coefficients$term[!fit_summary$coefficients$converged]
       divergent <- fit_convergence(fitted_fit())$divergence
@@ -473,6 +477,10 @@ mod_model_server <- function(id, store) {
         class = "list-unstyled d-flex flex-column gap-2 mb-0 small",
         line(length(unconverged) == 0, if (length(unconverged) == 0) "All parameters converged" else sprintf("Not converged: %s", and_list(unconverged)), "diag_convergence"),
         if (divergent) line(FALSE, sprintf("Divergent transitions: %s%% of draws", format(fit_summary$perc_divergent)), "diag_convergence"),
+        if (length(fit_warnings) > 0) {
+          n <- length(fit_warnings)
+          line(FALSE, if (n == 1) "Warning from the fit: see the notice at the top of the page" else sprintf("%d warnings from the fit: see the notices at the top of the page", n))
+        },
         if (length(influencing) > 0) {
           line(TRUE, sprintf("Prior influencing the estimate: %s", and_list(influencing)), "diag_sensitivity", tone = "info")
         } else if (length(weak_data) > 0) {

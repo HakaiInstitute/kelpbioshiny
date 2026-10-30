@@ -30,7 +30,8 @@ report_content <- function(store) {
     diagnostics = lapply(stats::setNames(nm = fitted), function(id) {
       fit_diagnostics(records[[id]]$fit, store$sensitivity[[id]](), store$influence[[id]]())
     }),
-    warnings = model_warnings(store$statuses(), fitted)
+    warnings = model_warnings(store$statuses(), fitted),
+    fit_warnings = lapply(stats::setNames(nm = fitted), function(id) store$statuses()[[id]]$fit_warnings)
   )
 }
 
@@ -174,11 +175,13 @@ report_markdown <- function(content, estimates, figures) {
       c(
         "Warnings, and what to do about them:", "",
         unlist(lapply(names(content$warnings), function(id) {
-          keys <- c(`fit failed` = "failed", convergence = "convergence", `divergent transitions` = "divergence", `prior sensitivity` = "prior")
-          vapply(content$warnings[[id]], function(w) {
+          keys <- c(`fit failed` = "failed", convergence = "convergence", `divergent transitions` = "divergence", fit = "fit", `prior sensitivity` = "prior")
+          unlist(lapply(content$warnings[[id]], function(w) {
             help <- warning_help[[keys[[w]]]]
-            sprintf("- %s model, %s: %s", label_of(id), tolower(help$title), help$advice)
-          }, "")
+            # A warning from the fit is given as kelpbio words it.
+            advice <- if (w == "fit") md_escape(content$fit_warnings[[id]]) else help$advice
+            sprintf("- %s model, %s: %s", label_of(id), tolower(help$title), advice)
+          }))
         })),
         ""
       )

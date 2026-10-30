@@ -7,12 +7,13 @@ TICK_MS <- 200
 
 # Fit records -------------------------------------------------------------------
 # Each model's fit to your data is a record: its status ("idle", "queued",
-# "fitting", "fitted" or "failed"), the kelpbio fit once fitted, the error
-# message once failed, and the settings it was fitted with once it starts. The
-# transitions below are pure, so they can be tested without a session.
+# "fitting", "fitted" or "failed"), the kelpbio fit and the warnings kelpbio
+# gave while fitting it once fitted, the error message once failed, and the
+# settings it was fitted with once it starts. The transitions below are pure, so
+# they can be tested without a session.
 
-new_record <- function(status = "idle", fit = NULL, error = NULL, settings = NULL) {
-  list(status = status, fit = fit, error = error, settings = settings)
+new_record <- function(status = "idle", fit = NULL, error = NULL, settings = NULL, warnings = NULL) {
+  list(status = status, fit = fit, error = error, settings = settings, warnings = warnings)
 }
 
 # A model's prior and sampler settings, as recorded with its fit.
@@ -89,8 +90,10 @@ start_record <- function(records, id, settings = NULL) {
 
 # A result applies only while its record is still fitting: a fit that was
 # cancelled or reset in the meantime is discarded.
-finish_record <- function(records, id, fit) {
-  if (records[[id]]$status == "fitting") records[[id]] <- new_record("fitted", fit = fit, settings = records[[id]]$settings)
+finish_record <- function(records, id, fit, warnings = NULL) {
+  if (records[[id]]$status == "fitting") {
+    records[[id]] <- new_record("fitted", fit = fit, settings = records[[id]]$settings, warnings = warnings)
+  }
   records
 }
 
@@ -117,7 +120,8 @@ fitting_id <- function(records) {
 # a census whose size sheet passes its check, or fitted) and "failed". A fitted
 # model carries two warnings: `convergence` when parameters did not converge
 # and `divergence` when the sampler had too many divergent transitions (both
-# from fit_convergence()); two notes: `prior` (prior_warning, from its prior
+# from fit_convergence()) and `fit_warnings`, the warnings kelpbio gave while
+# fitting it; two notes: `prior` (prior_warning, from its prior
 # sensitivity) when a prior is influencing an estimate, and `influence`
 # (influence_warning, from kb_influence()) when observations strongly
 # influence the fit; and `outdated` when its current `settings` differ from
@@ -150,7 +154,7 @@ component_status <- function(source, sheet, record, prefit = NULL, cover_blocked
     fitting = list(kind = "fitting", source = source),
     fitted = list(
       kind = "ready", source = source, convergence = convergence$convergence,
-      divergence = convergence$divergence, prior = prior_warning,
+      divergence = convergence$divergence, fit_warnings = record$warnings, prior = prior_warning,
       influence = influence_warning,
       outdated = !is.null(record$settings) && !is.null(settings) && settings_changed(record$settings, settings)
     ),
@@ -161,9 +165,9 @@ component_status <- function(source, sheet, record, prefit = NULL, cover_blocked
 
 is_ready_status <- function(status) status$kind %in% c("ready", "not-used")
 is_pending_status <- function(status) status$kind %in% c("queued", "fitting")
-# Only a fit that did not converge has a warning: prior sensitivity and
-# influential observations are notes to check a valid fit.
-has_warning <- function(status) isTRUE(status$convergence) || isTRUE(status$divergence)
+# Only a fit that did not converge or that kelpbio warned about has a warning:
+# prior sensitivity and influential observations are notes to check a valid fit.
+has_warning <- function(status) isTRUE(status$convergence) || isTRUE(status$divergence) || length(status$fit_warnings) > 0
 
 # Why a fit did not converge, by kelpbio's kb_converged() verdict:
 # `divergence` when its divergent transitions exceed kelpbio's limit, which a
@@ -400,7 +404,7 @@ fit_call <- function(id, species, sheets, priors, sampler, progress_dir, fits = 
 # Fit runners -------------------------------------------------------------------
 # A runner runs one kb_fit_*() call at a time in the background: invoke(fn, args)
 # starts it, status() is "initial", "running", "success" or "error", result() is
-# list(fit) or list(error), and cancel() stops it. The default runs each fit on a
+# fit_job()'s list(fit, warnings) or list(error), and cancel() stops it. The default runs each fit on a
 # mirai daemon through an ExtendedTask. Tests pass a runner that runs in the
 # session.
 
@@ -439,13 +443,30 @@ stop_daemons <- function() {
   invisible()
 }
 
+# One kb_fit_*() call, as a runner runs it: list(fit, warnings), the warnings
+# kelpbio gave in words (rstan's sampler warnings are muffled by kelpbio, as
+# the diagnostics report them), or list(error).
+fit_job <- function(fn, args) {
+  warnings <- character()
+  tryCatch(
+    {
+      fit <- withCallingHandlers(do.call(fn, args), warning = function(w) {
+        warnings <<- c(warnings, condition_text(w))
+        invokeRestart("muffleWarning")
+      })
+      list(fit = fit, warnings = if (length(warnings) > 0) unique(warnings))
+    },
+    error = function(e) list(error = condition_text(e))
+  )
+}
+
 mirai_fit_runner <- function() {
   current <- NULL
   task <- ExtendedTask$new(function(fn, args) {
     start_daemons()
     current <<- mirai::mirai(
-      tryCatch(list(fit = do.call(fn, args)), error = function(e) list(error = condition_text(e))),
-      .args = list(fn = fn, args = args, condition_text = condition_text),
+      fit_job(fn, args),
+      .args = list(fn = fn, args = args, fit_job = fit_job),
       .compute = compute_profile
     )
     current
@@ -865,7 +886,10 @@ new_store <- function(session, run_fit = mirai_fit_runner) {
     s$priors(bundle$priors)
     s$samplers(bundle$samplers)
     records <- idle_records()
-    for (id in names(bundle$fits)) records[[id]] <- new_record("fitted", fit = bundle$fits[[id]]$fit, settings = bundle$fits[[id]]$settings)
+    for (id in names(bundle$fits)) {
+      fit <- bundle$fits[[id]]
+      records[[id]] <- new_record("fitted", fit = fit$fit, settings = fit$settings, warnings = fit$warnings)
+    }
     update_records(function(old) records)
     s$stand_ins_chosen(bundle$stand_ins)
     s$estimate_choices(bundle$estimate_choices)
@@ -1078,7 +1102,7 @@ new_store <- function(session, run_fit = mirai_fit_runner) {
     s$notify(message, type = "error", title = sprintf("%s model failed", label_of(id)), duration = 10)
   }
 
-  fit_done <- function(id, fit) set_records(finish_record(s$records(), id, fit))
+  fit_done <- function(id, fit, warnings) set_records(finish_record(s$records(), id, fit, warnings))
 
   observe({
     records <- s$records()
@@ -1100,7 +1124,7 @@ new_store <- function(session, run_fit = mirai_fit_runner) {
       id <- running$id
       result <- tryCatch(runner$result(), error = function(e) list(error = condition_text(e)))
       stop_running()
-      if (is.null(result$error)) fit_done(id, result$fit) else fit_failed(id, result$error)
+      if (is.null(result$error)) fit_done(id, result$fit, result$warnings) else fit_failed(id, result$error)
     })
   })
 

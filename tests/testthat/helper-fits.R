@@ -31,7 +31,8 @@ local_stub_fits <- function(env = parent.frame()) {
 fitted_models <- function(log) vapply(log$calls, `[[`, "", "model")
 
 # A fit runner that runs nothing until complete() is called, which runs the
-# invoked call in the session; the mirai runner's interface otherwise.
+# invoked call in the session as a daemon does (fit_job()); the mirai runner's
+# interface otherwise.
 test_runner <- function() {
   status <- reactiveVal("initial")
   call <- NULL
@@ -48,7 +49,7 @@ test_runner <- function() {
       status("error")
     },
     complete = function() {
-      value <<- tryCatch(list(fit = do.call(call$fn, call$args)), error = function(e) list(error = conditionMessage(e)))
+      value <<- fit_job(call$fn, call$args)
       status("success")
     },
     running = function() isolate(status()) == "running"

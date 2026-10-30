@@ -319,7 +319,7 @@ save_figure <- function(figure, dir, ext) {
 }
 
 # A fit bundle: the run's data, sources, settings, fits to your data (with the
-# settings each was fitted with), stand-in sites and estimate choices. Pre-fit
+# settings each was fitted with and the warnings kelpbio gave), stand-in sites and estimate choices. Pre-fit
 # models are kelpbio's, so they are not saved.
 run_bundle <- function(store) {
   records <- store$records()
@@ -330,7 +330,7 @@ run_bundle <- function(store) {
       species = store$species(), size_data = store$size_data(), workbook = store$workbook(),
       sheets = lapply(store$sheets(), function(sheet) list(rows = sheet$rows, file = sheet$file)),
       sources = store$sources(), priors = store$priors(), samplers = store$samplers(),
-      fits = lapply(records[fitted], function(record) list(fit = record$fit, settings = record$settings)),
+      fits = lapply(records[fitted], function(record) list(fit = record$fit, settings = record$settings, warnings = record$warnings)),
       stand_ins = store$stand_ins_chosen(), estimate_choices = store$estimate_choices()
     ),
     class = "kelpbioshiny_bundle"
@@ -393,7 +393,8 @@ valid_bundle <- function(bundle) {
     valid_by_id(bundle$priors, component_ids, function(priors, id) valid_priors(priors, id, species)) &&
     valid_by_id(bundle$samplers, component_ids, function(sampler, id) valid_sampler(sampler)) &&
     valid_by_id(bundle$fits, component_ids, function(fit, id) {
-      inherits(fit$fit, "kb_fit") && valid_priors(fit$settings$priors, id, species) && valid_sampler(fit$settings$sampler)
+      inherits(fit$fit, "kb_fit") && valid_priors(fit$settings$priors, id, species) && valid_sampler(fit$settings$sampler) &&
+        (is.null(fit$warnings) || is.character(fit$warnings))
     }, all = FALSE) &&
     valid_by_id(bundle$stand_ins, component_ids, function(sites, id) is.character(sites), all = FALSE) &&
     valid_by_id(bundle$estimate_choices, estimate_ids, function(choices, id) {
