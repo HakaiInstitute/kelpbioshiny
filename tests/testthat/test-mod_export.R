@@ -15,7 +15,7 @@ test_that("each download writes its file, and the fit bundle resumes the run", {
       "weight", "size", "cover_calibration", "wetdry", "carbon", "settings"
     ))
     contents <- readxl::read_excel(results, "contents")
-    expect_identical(contents$rows[contents$sheet == "survey_wet"], "Each survey")
+    expect_identical(contents$rows[contents$sheet == "survey_wet"], "Each in situ survey")
 
     figures <- utils::unzip(output$`export-download_figures`, list = TRUE)$Name
     expect_true(all(c("captions.txt", "weight.png", "weight.pdf", "canopy_carbon.png") %in% figures))
