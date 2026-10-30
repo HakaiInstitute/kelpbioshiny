@@ -33,14 +33,11 @@ kelp_art_switch <- function() {
 }
 
 # Inline-flex and vertically centred, so the brand sits on the navbar's centre
-# line with the step tabs rather than at the top of an inline line box. The logo
-# shows from the lg breakpoint and the subtitle from xl, so the brand leaves the
-# step tabs room on one line.
+# line with the step tabs rather than at the top of an inline line box. The
+# subtitle shows from xl, so the brand leaves the step tabs room on one line.
 brand <- function() {
   div(
     class = "d-inline-flex align-items-center align-middle gap-3",
-    tags$img(src = "hakai.png", alt = "Hakai Institute", class = "kb-brand-logo d-none d-lg-inline"),
-    span(class = "kb-brand-divider d-none d-lg-inline", `aria-hidden` = "true"),
     kelp_art_switch(),
     div(
       class = "lh-sm",
@@ -82,7 +79,7 @@ app_ui <- function() {
     fillable = FALSE,
     window_title = "kelpbio",
     lang = "en",
-    navbar_options = navbar_options(collapsible = TRUE),
+    navbar_options = navbar_options(theme = "light", collapsible = TRUE),
     # Shiny's busy pulse would flash at the top of the page on every tick of a
     # fit; the fit progress shows in the app instead. Outputs keep full opacity
     # while they recalculate, so the text and controls around a slow figure

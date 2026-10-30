@@ -97,23 +97,12 @@
 
 /* Navbar: the brand and the not-yet-done step markers take the navbar's own
    text colour. */
-.kb-brand-logo {
-  height: 2.25rem;
-  width: auto;
-}
-
 /* Block, so the drawing adds no line-box space below it. */
 .kb-kelp-art {
   display: block;
   width: 1.75rem;
   height: 2.25rem;
   flex-shrink: 0;
-}
-
-.kb-brand-divider {
-  align-self: stretch;
-  border-left: 1px solid currentColor;
-  opacity: 0.35;
 }
 
 .kb-brand-subtitle {

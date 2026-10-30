@@ -1,21 +1,22 @@
-# The theme: the Hakai palette of the kelpbio pkgdown site (Hakai red on a dark
-# slate navbar) expressed as Bootstrap Sass variables. Everything else in the app
-# reads colours from var(--bs-*) rather than from this palette.
+# The theme: a neutral analytic palette (cool greys, a white navbar and cards)
+# with one blue accent, expressed as Bootstrap Sass variables. Everything else in
+# the app reads colours from var(--bs-*) rather than from this palette.
 #
-# Hakai red is Bootstrap's primary: primary and soft buttons, links, the active
-# tab and pill, checked radios and progress bars. Errors use the brighter danger
-# red, always with an icon and text.
+# Blue is Bootstrap's primary: primary and soft buttons, links, the active tab
+# and pill, checked radios and progress bars. Green, amber and red are kept for
+# status (ready, warning, error), always with an icon and text.
 
 app_palette <- list(
-  bg = "#f6f7f9", fg = "#1d2733", card = "#ffffff",
-  primary = "#aa2025", muted = "#eef1f4", muted_fg = "#5a6672",
-  accent = "#fbeced", accent_fg = "#7c161a", accent_border = "#efc3c5",
-  secondary_fg = "#2c3e50",
-  info = "#3b6a8c", info_bg = "#eaf0f5", info_border = "#cddae5", info_fg = "#24455e",
+  bg = "#f5f6f8", fg = "#1b2430", card = "#ffffff",
+  primary = "#1f5fa6", muted = "#eef0f3", muted_fg = "#57616d",
+  accent = "#e8f0f9", accent_fg = "#16467c", accent_border = "#c4d6ec",
+  secondary_fg = "#2b3542",
+  # info shares the accent's blue: informational notes and data coverage.
+  info = "#1f5fa6", info_bg = "#e8f0f9", info_border = "#c4d6ec", info_fg = "#16467c",
   # input: the border of inputs, selects and radios, at 3:1 contrast on white (WCAG 1.4.11).
-  border = "#e1e5ea", input = "#8a949e", ring = "#c9484d", ring_rgb = "201, 72, 77",
-  navbar_bg = "#2c3e50", navbar_fg = "rgba(255, 255, 255, 0.72)", navbar_hover = "#ffffff",
-  navbar_active = "#ffffff", navbar_brand = "#ffffff"
+  border = "#e1e4e8", input = "#8a939d", ring = "#3b7bc8", ring_rgb = "59, 123, 200",
+  navbar_bg = "#ffffff", navbar_fg = "#57616d", navbar_hover = "#1b2430",
+  navbar_active = "#1b2430", navbar_brand = "#1b2430"
 )
 
 app_status_colours <- list(
@@ -23,7 +24,7 @@ app_status_colours <- list(
   # warning_fg keeps small warning text (badges, notices) at WCAG AA contrast on
   # warning_muted and white.
   warning = "#a76100", warning_fg = "#8a5000", warning_muted = "#fff0cc", warning_border = "#f3d68f",
-  danger = "#e7000b"
+  danger = "#c62a1f"
 )
 
 app_theme <- function() {
@@ -96,8 +97,7 @@ app_theme <- function() {
     "badge-border-radius" = "0.375rem",
     "progress-bg" = col$muted,
     "progress-height" = "0.5rem",
-    # Navigation: the navbar colours are set directly so the dark navbar keeps
-    # readable text.
+    # Navigation: a white navbar with dark text, its colours set directly.
     "navbar-bg" = col$navbar_bg,
     # The underlined step tabs get extra bottom padding equal to the navbar's,
     # so equal top padding keeps their labels on the navbar's centre line.
@@ -135,7 +135,11 @@ app_theme <- function() {
     "table-border-color" = col$border,
     "table-th-font-weight" = 500,
     "table-bg" = "transparent"
-  )
+  ) |>
+    # The one rule on a Bootstrap class: Bootstrap has no variable for a
+    # navbar border, and the white navbar needs a hairline to stand apart
+    # from the page. The selector matches bslib's own, which removes it.
+    bslib::bs_add_rules(".bslib-page-navbar .navbar { border-bottom: var(--bs-border-width) solid var(--bs-border-color); }")
 }
 
 # reactable styles from the theme's CSS variables.
