@@ -20,3 +20,6 @@ tests/testthat/testthat-problems.rds
 
 # script run logs
 scripts/*.log
+
+# shinyapps.io deployment records (scripts/deploy.R)
+rsconnect/
