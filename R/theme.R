@@ -8,13 +8,13 @@
 
 app_palette <- list(
   bg = "#f5f6f8", fg = "#1b2430", card = "#ffffff",
-  primary = "#1f5fa6", muted = "#eef0f3", muted_fg = "#57616d",
-  accent = "#e8f0f9", accent_fg = "#16467c", accent_border = "#c4d6ec",
+  primary = "#326093", muted = "#eef0f3", muted_fg = "#57616d",
+  accent = "#eaf0f7", accent_fg = "#24476e", accent_border = "#cad7e6",
   secondary_fg = "#2b3542",
   # info shares the accent's blue: informational notes and data coverage.
-  info = "#1f5fa6", info_bg = "#e8f0f9", info_border = "#c4d6ec", info_fg = "#16467c",
+  info = "#326093", info_bg = "#eaf0f7", info_border = "#cad7e6", info_fg = "#24476e",
   # input: the border of inputs, selects and radios, at 3:1 contrast on white (WCAG 1.4.11).
-  border = "#e1e4e8", input = "#8a939d", ring = "#3b7bc8", ring_rgb = "59, 123, 200",
+  border = "#e1e4e8", input = "#8a939d", ring = "#4f7db4", ring_rgb = "79, 125, 180",
   navbar_bg = "#ffffff", navbar_fg = "#57616d", navbar_hover = "#1b2430",
   navbar_active = "#1b2430", navbar_brand = "#1b2430"
 )

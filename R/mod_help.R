@@ -112,7 +112,7 @@ guide_extras <- list(
       div(
         class = "small text-body-secondary",
         paste(
-          "The columns of each sheet. Every sheet is optional, and other columns are ignored.",
+          "The columns of each sheet. Other columns are ignored.",
           sprintf(
             "The size sheet is %s for a sample of plants measured, or %s with %s, a census, when it holds every counted plant and the %s sheet has no plants column. Macrocystis in situ surveys are always a census.",
             size_sheet_names[["sample"]], size_sheet_names[["census"]], tolower(size_data_info$census$label), sheet_name("survey")
@@ -298,7 +298,7 @@ guide_plant_weights <- function() {
 }
 
 # The guide's sections, by anchor id, as titled on the page and in its contents.
-guide_sections <- c(guide_workflow = "Workflow", guide_steps = "Steps", guide_warnings = "Warnings and notes", guide_glossary = "Glossary")
+guide_sections <- c(guide_steps = "Steps", guide_workflow = "Workflow", guide_warnings = "Warnings and notes", guide_glossary = "Glossary")
 
 help_pages <- c(guide = "User guide", methods = "Methods", about = "About")
 help_page_icons <- c(guide = "book-open", methods = "sigma", about = "info")
@@ -362,15 +362,12 @@ help_guide_ui <- function() {
     div(
       class = "d-flex flex-column gap-3",
       panel(
-        guide_sections[["guide_workflow"]],
-        id = "guide_workflow", class = "kb-anchor",
-        description = "Which sheets feed which models, and how the models combine into the estimates. Any model can be pre-fit instead of fitted to a sheet.",
-        guide_workflow()
-      ),
-      panel(
         guide_sections[["guide_steps"]],
         id = "guide_steps", class = "kb-anchor",
-        description = "A run moves through four steps in the navbar. A step's marker shows a check mark once its task is done: data loaded, every model in use ready, or a download made or the R script copied. A warning sign flags a sheet that failed its check or a model with a warning.",
+        description = paste(
+          "Not every sheet is needed: a run uses only the sheets of the estimates it makes, and any model can be pre-fit instead of fitted to a sheet.",
+          "A run moves through four steps in the navbar. A step's marker shows a check mark once its task is done: data loaded, every model in use ready, or a download made or the R script copied. A warning sign flags a sheet that failed its check or a model with a warning."
+        ),
         div(
           class = "d-flex flex-column gap-4",
           lapply(names(steps), function(value) {
@@ -378,6 +375,12 @@ help_guide_ui <- function() {
           })
         ),
         guide_plant_weights()
+      ),
+      panel(
+        guide_sections[["guide_workflow"]],
+        id = "guide_workflow", class = "kb-anchor",
+        description = "Which sheets feed which models, and how the models combine into the estimates. Any model can be pre-fit instead of fitted to a sheet.",
+        guide_workflow()
       ),
       panel(
         guide_sections[["guide_warnings"]],

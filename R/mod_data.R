@@ -226,7 +226,7 @@ mod_data_ui <- function(id) {
           ),
           # The example with every sheet; the other examples are workbooks in
           # data-raw/workbooks/, for uploading.
-          button(ns("example"), "Use example workbook", variant = "outline")
+          button(ns("example"), "Use example workbook", variant = "soft")
         ),
         # In conditional panels rather than outputs that render nothing, which
         # would hold the space of a busy spinner until the server first responds.
