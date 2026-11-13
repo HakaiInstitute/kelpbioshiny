@@ -21,14 +21,15 @@ mod_estimates_server <- function(id, store) {
     for (eid in derived_ids) mod_derived_estimate_server(eid, store)
 
     # The estimate shown: the one asked for, or else the first of the run's own
-    # (a biomass estimate first, as most runs are for them, then a model fitted
-    # to its data), or else in situ survey biomass, which says what it needs.
+    # (canopy biomass first, as the run's result, then in situ survey biomass,
+    # then a model fitted to its data), or else in situ survey biomass, which
+    # says what it needs.
     shown <- reactive({
       chosen <- store$estimate()
       if (!is.null(chosen) && chosen %in% store$shown_estimates()) {
         return(chosen)
       }
-      first <- intersect(c("survey", "canopy", component_ids), store$own_estimates())
+      first <- intersect(c("canopy", "survey", component_ids), store$own_estimates())
       if (length(first) > 0) first[[1]] else "survey"
     })
     observe(nav_select("view", shown(), session = session))
