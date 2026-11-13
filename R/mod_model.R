@@ -62,7 +62,17 @@ mod_model_server <- function(id, store) {
     page <- dedupe(reactive({
       source <- store$sources()[[cid]]
       sheet <- sheet()
-      mode <- if (is_prefit(source)) "prefit" else if (source == "none") "none" else if (is.null(sheet)) "no-sheet" else source
+      mode <- if (is_prefit(source)) {
+        "prefit"
+      } else if (source == "none") {
+        "none"
+      } else if (is.null(sheet)) {
+        "no-sheet"
+      } else if (fits_here(source)) {
+        "user"
+      } else {
+        source
+      }
       reference <- if (is_prefit(source)) prefit_reference(source)
       list(mode = mode, reference = reference, name = sheet$name, file = sheet$file, error = !is.null(sheet$error), warnings = sheet$warnings)
     }))

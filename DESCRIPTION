@@ -18,6 +18,7 @@ Imports:
     bslib,
     chk,
     cli,
+    dplyr,
     generics,
     ggplot2,
     htmltools,

@@ -7,7 +7,7 @@ export_script <- function(species, sources, sheets, workbook, priors, samplers, 
                           stand_ins = list()) {
   sp <- species_info[[species]]$suffix
   used <- component_ids[sources != "none"]
-  from_data <- Filter(function(id) sources[[id]] == "user" && !is.null(sheets[[components[[id]]$sheet]]), used)
+  from_data <- Filter(function(id) fits_here(sources[[id]]) && !is.null(sheets[[components[[id]]$sheet]]), used)
   valid <- function(id) !is.null(sheets[[id]]) && is.null(sheets[[id]]$error)
   # The weight of each plant in the size sheet, read even when the size model is
   # not fitted to it.
@@ -55,7 +55,7 @@ export_script <- function(species, sources, sheets, workbook, priors, samplers, 
     changed <- priors[[id]][format_prior(priors[[id]]) != format_prior(default_priors(id, species)), ]
     sampler <- samplers[[id]]
     args <- c(
-      data,
+      if (is_combined(sources[[id]])) paste0(data, "_combined") else data,
       if (nrow(changed) > 0) sprintf("priors = priors_%s", model),
       if (sampler$nthin != default_sampler()$nthin) sprintf("nthin = %s", sampler$nthin),
       if (sampler$adapt_delta != default_sampler()$adapt_delta) sprintf("control = list(adapt_delta = %s)", sampler$adapt_delta)
@@ -72,7 +72,17 @@ export_script <- function(species, sources, sheets, workbook, priors, samplers, 
         sprintf("priors_%s$%s <- %s", model, changed$name, calls)
       )
     }
-    c(prior_lines, sprintf("%s <- kb_fit_%s_%s(%s)", fit_name(id), model, sp, paste(args, collapse = ", ")))
+    combined <- if (is_combined(sources[[id]])) {
+      c(
+        sprintf("# Your %s data with the %s reference data", data, prefit_info[[prefit_reference(sources[[id]])]]$name),
+        # readxl reads years as numbers, the reference data hold them as a factor.
+        sprintf(
+          "%s_combined <- dplyr::bind_rows(dplyr::mutate(%s, year = factor(year)), kelpbiodata::%s)",
+          data, data, reference_data_name(id, species, prefit_reference(sources[[id]]))
+        )
+      )
+    }
+    c(combined, prior_lines, sprintf("%s <- kb_fit_%s_%s(%s)", fit_name(id), model, sp, paste(args, collapse = ", ")))
   }
 
   measures <- names(output_info)[vapply(output_availability(sources), `[[`, logical(1), "available")]
@@ -269,7 +279,7 @@ settings_rows <- function(store) {
     sampler <- settings[[id]]$sampler
     rbind(
       row(label, "Source", source_label(source)),
-      if (source == "user") {
+      if (fits_here(source)) {
         row(
           label, c(paste("Prior:", priors$label), "Thinning (nthin)", "adapt_delta"),
           c(format_prior(priors), format(sampler$nthin), format(sampler$adapt_delta))

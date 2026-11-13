@@ -230,7 +230,7 @@ component_statuses <- function(sources, sheets, records, prefits = list(), prior
 # A model fitted to your data can be fitted now: it has checked data and, for the
 # cover calibration, the models in in situ survey biomass are ready.
 can_fit <- function(status) {
-  status$source == "user" && (status$kind %in% c("failed", "ready") || (status$kind == "not-fitted" && !status$blocked))
+  fits_here(status$source) && (status$kind %in% c("failed", "ready") || (status$kind == "not-fitted" && !status$blocked))
 }
 
 # The models Fit all queues: those not yet fitted, failed, or fitted with
@@ -240,7 +240,7 @@ can_fit <- function(status) {
 fit_all_plan <- function(statuses, invalid = character()) {
   candidates <- Filter(function(id) {
     status <- statuses[[id]]
-    status$source == "user" && (status$kind %in% c("not-fitted", "failed") || isTRUE(status$outdated))
+    fits_here(status$source) && (status$kind %in% c("not-fitted", "failed") || isTRUE(status$outdated))
   }, component_ids)
   skipped <- intersect(candidates, invalid)
   ids <- setdiff(candidates, invalid)
@@ -323,7 +323,7 @@ estimate_availability <- function(id, statuses, sources, sheets, mismatches) {
 # passes its check.
 data_estimable <- function(sheets, sources, census, mismatches = character()) {
   valid <- function(id) !is.null(sheets[[id]]) && is.null(sheets[[id]]$error)
-  usable <- function(id) is_prefit(sources[[id]]) || (sources[[id]] %in% c("user", "census") && valid(components[[id]]$sheet))
+  usable <- function(id) is_prefit(sources[[id]]) || (uses_sheet(sources[[id]]) && valid(components[[id]]$sheet))
   result <- function(reason, ids) {
     if (!is.null(reason)) {
       return(list(possible = FALSE, reason = reason))
@@ -387,10 +387,11 @@ output_availability <- function(sources) {
   )
 }
 
-# The kb_fit_*() call for a model fitted to your data, as list(fn, args). The
+# The kb_fit_*() call for a model fitted to your data, bound to a reference
+# dataset for a combined `source` (fit_rows()), as list(fn, args). The
 # cover calibration is fitted to the in situ survey biomass from the weight and size
 # models in use (`fits`) and the surveys (fit_cover_calibration()).
-fit_call <- function(id, species, sheets, priors, sampler, progress_dir, fits = list(), census = FALSE) {
+fit_call <- function(id, species, sheets, priors, sampler, progress_dir, fits = list(), census = FALSE, source = "user") {
   settings <- list(
     priors = prior_list(priors), chains = fit_draws$chains, niters = fit_draws$niters, nthin = sampler$nthin,
     control = list(adapt_delta = sampler$adapt_delta), progress = "none", progress_dir = progress_dir
@@ -398,7 +399,8 @@ fit_call <- function(id, species, sheets, priors, sampler, progress_dir, fits = 
   if (id == "cover") {
     return(list(fn = fit_cover_calibration, args = c(list(species = species), survey_biomass_args(fits$weight, fits$size, sheets, census), settings)))
   }
-  list(fn = kelpbio_fn("fit", id, species), args = c(list(data = sheets[[components[[id]]$sheet]]$rows), settings))
+  rows <- fit_rows(id, species, sheets[[components[[id]]$sheet]]$rows, source)
+  list(fn = kelpbio_fn("fit", id, species), args = c(list(data = rows), settings))
 }
 
 # Fit runners -------------------------------------------------------------------
@@ -579,7 +581,7 @@ new_store <- function(session, run_fit = mirai_fit_runner) {
     if (is_prefit(source)) {
       return(s$prefit(id)$fit)
     }
-    if (source == "user") s$records()[[id]]$fit
+    if (fits_here(source)) s$records()[[id]]$fit
   }
 
   # Each kelpbio result below is a reactive on the fits it uses, routed through
@@ -687,7 +689,7 @@ new_store <- function(session, run_fit = mirai_fit_runner) {
   s$own_estimates <- reactive({
     estimates <- s$estimates()
     statuses <- s$statuses()
-    own <- Filter(function(id) statuses[[id]]$source == "user", component_ids)
+    own <- Filter(function(id) fits_here(statuses[[id]]$source), component_ids)
     ids <- c(derived_ids, own)
     ids[vapply(estimates[ids], `[[`, logical(1), "available")]
   })
@@ -861,7 +863,9 @@ new_store <- function(session, run_fit = mirai_fit_runner) {
     sheets <- check_sheets(all_rows, files, isolate(s$species()), isolate(s$census()))
     s$sheets(sheets)
     sources <- isolate(s$sources())
-    if (!is.null(cid) && "user" %in% components[[cid]]$sources && model_has_data(cid, sheets)) sources[[cid]] <- "user"
+    if (!is.null(cid) && "user" %in% components[[cid]]$sources && model_has_data(cid, sheets) && !fits_here(sources[[cid]])) {
+      sources[[cid]] <- "user"
+    }
     s$sources(valid_sources(sources, isolate(s$census()), sheets, isolate(s$species())))
   }
 
@@ -1078,7 +1082,8 @@ new_store <- function(session, run_fit = mirai_fit_runner) {
         }
         fit_call(
           id, s$species(), s$sheets(), s$priors()[[id]], s$samplers()[[id]], progress_dir,
-          fits = if (id == "cover") list(weight = s$fit_of("weight"), size = s$fit_of("size")), census = s$census()
+          fits = if (id == "cover") list(weight = s$fit_of("weight"), size = s$fit_of("size")), census = s$census(),
+          source = s$sources()[[id]]
         )
       },
       error = function(e) e

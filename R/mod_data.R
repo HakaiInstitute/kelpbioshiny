@@ -5,7 +5,7 @@
 # estimate depends on which sites and years their sheets hold.
 coverage_models <- function(sheets, sources, species) {
   Filter(function(id) {
-    !is.null(sheets[[id]]) && sources[[id]] == "user" && any(has_effect(id, c("site", "year"), species))
+    !is.null(sheets[[id]]) && fits_here(sources[[id]]) && any(has_effect(id, c("site", "year"), species))
   }, survey_ids)
 }
 
@@ -451,7 +451,7 @@ sheets_description <- "One sheet per kind of data; leave out those you do not ha
 # shows only its table, where missing values are marked.
 sheet_panel <- function(ns, sheet, source, species, facet = NULL) {
   id <- sheet$component
-  used <- source %in% c("user", "census")
+  used <- uses_sheet(source)
   model <- sheet_component(id)
   unused_note <- if (!used) {
     sprintf(
@@ -567,7 +567,7 @@ estimable_list <- function(estimable) {
 issues_summary <- function(ns, sheets, cov, sources) {
   present <- sheets[sheet_ids[sheet_ids %in% names(sheets)]]
   used <- function(field) {
-    sum(vapply(names(present), function(id) !is.null(present[[id]][[field]]) && sheet_source(id, sources) %in% c("user", "census"), logical(1)))
+    sum(vapply(names(present), function(id) !is.null(present[[id]][[field]]) && uses_sheet(sheet_source(id, sources)), logical(1)))
   }
   count <- function(n, one, many = paste0(one, "s")) sprintf("%d %s", n, if (n == 1) one else many)
   site_years <- function(n, what) paste(count(n, "site-year"), what)

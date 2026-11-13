@@ -4,7 +4,7 @@
 source_choices <- function(id, has_sheet, census = FALSE, species = "nereo") {
   options <- model_sources(id, census, species)
   labels <- vapply(options, source_label, character(1))
-  if (!has_sheet) labels[options == "user"] <- "Your data (no sheet)"
+  if (!has_sheet) labels[fits_here(options)] <- paste(labels[fits_here(options)], "(no sheet)")
   stats::setNames(options, labels)
 }
 
@@ -13,7 +13,7 @@ source_select <- function(input_id, id) {
     return(span(source_label(components[[id]]$sources)))
   }
   initial <- default_source(id, FALSE)
-  selectInput(input_id, NULL, choices = source_choices(id, FALSE), selected = initial, selectize = FALSE, width = "12rem") |>
+  selectInput(input_id, NULL, choices = source_choices(id, FALSE), selected = initial, selectize = FALSE, width = "14rem") |>
     tagAppendAttributes(class = "mb-0") |>
     tagAppendAttributes(.cssSelector = "select", `aria-label` = sprintf("Source of the %s model", lower_label(id)))
 }
@@ -116,7 +116,7 @@ mod_models_ui <- function(id) {
               # Fixed widths, so the columns stay put as the status badges change.
               tags$thead(tags$tr(
                 head_cell(class = "ps-4", "Model"),
-                head_cell(class = "d-none d-sm-table-cell", style = "width: 14rem", with_help("Source", "prefit")),
+                head_cell(class = "d-none d-sm-table-cell", style = "width: 15rem", with_help("Source", "prefit")),
                 head_cell(style = "width: 13rem", "Status"),
                 head_cell(class = "pe-4 d-none d-sm-table-cell", style = "width: 9rem", span(class = "visually-hidden", "Fit"))
               )),
@@ -280,7 +280,7 @@ fit_all_reason <- function(statuses, plan) {
   if (length(plan$skipped) > 0) {
     return("Fix the settings marked in red")
   }
-  own <- Filter(function(status) status$source == "user", statuses)
+  own <- Filter(function(status) fits_here(status$source), statuses)
   if (all(vapply(own, function(status) status$kind == "ready", logical(1)))) {
     return("All models are fitted")
   }

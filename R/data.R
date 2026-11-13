@@ -6,13 +6,38 @@
 # source is "prefit_" and the reference, e.g. "prefit_hakai"; the fit is the
 # kelpbiodata reference fit of that name (fit_weight_hakai_nereo).
 prefit_info <- list(
-  coastwide = list(label = "Pre-fit Coastwide", data = "data compiled from in situ surveys along the coast"),
-  hakai = list(label = "Pre-fit Hakai Institute", data = "Hakai Institute in situ survey data")
+  coastwide = list(label = "Pre-fit Coastwide", name = "Coastwide", data = "data compiled from in situ surveys along the coast"),
+  hakai = list(label = "Pre-fit Hakai Institute", name = "Hakai Institute", data = "Hakai Institute in situ survey data")
 )
 
 prefit_source <- function(reference) if (length(reference) > 0) paste0("prefit_", reference) else character()
 is_prefit <- function(source) startsWith(source, "prefit_")
-prefit_reference <- function(source) sub("^prefit_", "", source)
+# The reference of a pre-fit or combined source.
+prefit_reference <- function(source) sub("^(prefit|combined)_", "", source)
+
+# A combined source fits the model to your data bound to the rows of a
+# kelpbiodata reference dataset, e.g. "combined_hakai" binds
+# data_weight_hakai_nereo; the cover calibration has none. A model fitted to
+# your data or a combined source is fitted in the app (fits_here()).
+combined_source <- function(reference) if (length(reference) > 0) paste0("combined_", reference) else character()
+is_combined <- function(source) startsWith(source, "combined_")
+fits_here <- function(source) source == "user" | is_combined(source)
+
+# The name of the kelpbiodata reference dataset of a model, by reference.
+reference_data_name <- function(id, species, reference) {
+  name <- if (id == "size") "size_sample" else id
+  sprintf("data_%s_%s_%s", name, reference, species_info[[species]]$suffix)
+}
+
+# The rows a model is fitted to: the sheet's rows, bound to the reference
+# dataset's for a combined source.
+fit_rows <- function(id, species, rows, source) {
+  if (!is_combined(source)) {
+    return(rows)
+  }
+  reference <- getExportedValue("kelpbiodata", reference_data_name(id, species, prefit_reference(source)))
+  dplyr::bind_rows(rows, reference)
+}
 
 # The name of the kelpbiodata reference fit of a model to a reference dataset.
 prefit_name <- function(id, species, reference) {
@@ -21,7 +46,7 @@ prefit_name <- function(id, species, reference) {
 
 prefit_fit <- function(id, species, reference) getExportedValue("kelpbiodata", prefit_name(id, species, reference))
 
-# The reference fits the installed kelpbiodata holds, read once.
+# The reference fits and datasets the installed kelpbiodata holds, read once.
 reference_fits <- local({
   names <- NULL
   function() names <<- names %||% utils::data(package = "kelpbiodata")$results[, "Item"]
@@ -134,7 +159,8 @@ empty_plants <- function(species) {
 component_ids <- c("weight", "size", "wetdry", "carbon", "nitrogen", "cover")
 names(component_ids) <- component_ids
 
-# A model's sources: "user" (your data), its pre-fit sources, "census" (the size
+# A model's sources: "user" (your data), "combined" (your data with each
+# reference dataset kelpbiodata holds for it; not the cover calibration), its pre-fit sources, "census" (the size
 # model only: the size sheet's plants are weighed directly) and "none" (not
 # used). Your data is the default when there is a sheet; otherwise the first
 # pre-fit source, or none. No model is required: a run can, for example, use
@@ -145,23 +171,23 @@ names(component_ids) <- component_ids
 components <- list(
   weight = list(
     label = "Weight", detail = "Wet weight by plant size", sheet = "weight",
-    sources = c("user", "prefit"), prefit = list(nereo = c("coastwide", "hakai"), macro = "hakai")
+    sources = c("user", "combined", "prefit"), prefit = list(nereo = c("coastwide", "hakai"), macro = "hakai")
   ),
   size = list(
     label = "Size", detail = "Distribution of plant size by site-year", sheet = "size",
-    sources = c("user", "prefit", "none"), prefit = list(nereo = "hakai")
+    sources = c("user", "combined", "prefit", "none"), prefit = list(nereo = "hakai")
   ),
   wetdry = list(
     label = "Wet:dry", detail = "Ratio of dry to wet mass", sheet = "wetdry",
-    sources = c("user", "prefit", "none"), prefit = list(nereo = "hakai", macro = "hakai")
+    sources = c("user", "combined", "prefit", "none"), prefit = list(nereo = "hakai", macro = "hakai")
   ),
   carbon = list(
     label = "Carbon", detail = "Carbon fraction of dry mass", sheet = "carbon",
-    sources = c("user", "prefit", "none"), prefit = list(nereo = "hakai", macro = "hakai")
+    sources = c("user", "combined", "prefit", "none"), prefit = list(nereo = "hakai", macro = "hakai")
   ),
   nitrogen = list(
     label = "Nitrogen", detail = "Nitrogen fraction of dry mass", sheet = "nitrogen",
-    sources = c("user", "prefit", "none"), prefit = list(nereo = "hakai", macro = "hakai")
+    sources = c("user", "combined", "prefit", "none"), prefit = list(nereo = "hakai", macro = "hakai")
   ),
   # Optional: scales in situ survey biomass up to the mapped canopy. It is
   # fitted to the in situ survey biomass of the surveys with canopy imagery, once the
@@ -201,9 +227,12 @@ sheet_source <- function(id, sources) {
   if (is.null(model) || id == "survey") "user" else sources[[model]]
 }
 
+# A source that uses its model's sheet.
+uses_sheet <- function(source) fits_here(source) | source == "census"
+
 # The sheets in use that fail their check.
 sheet_errors <- function(sheets, sources) {
-  Filter(function(id) !is.null(sheets[[id]]$error) && sheet_source(id, sources) %in% c("user", "census"), names(sheets))
+  Filter(function(id) !is.null(sheets[[id]]$error) && uses_sheet(sheet_source(id, sources)), names(sheets))
 }
 
 # The models and estimates a run shows: a census has no size model, so no size
@@ -221,8 +250,10 @@ model_sources <- function(id, census = FALSE, species = "nereo") {
     return("census")
   }
   references <- components[[id]]$prefit[[species]]
+  datasets <- references[reference_data_name(id, species, references) %in% reference_fits()]
   references <- references[prefit_name(id, species, references) %in% reference_fits()]
   sources <- as.list(components[[id]]$sources)
+  sources[sources == "combined"] <- list(combined_source(datasets))
   sources[sources == "prefit"] <- list(prefit_source(references))
   unlist(sources)
 }
@@ -244,6 +275,9 @@ lower_label <- function(id) tolower(label_of(id))
 source_label <- function(source) {
   if (is_prefit(source)) {
     return(prefit_info[[prefit_reference(source)]]$label)
+  }
+  if (is_combined(source)) {
+    return(paste("Your data +", prefit_info[[prefit_reference(source)]]$name))
   }
   switch(source,
     user = "Your data",

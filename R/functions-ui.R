@@ -231,7 +231,7 @@ subnav_link <- function(input_id, active, icon, label, hidden = NULL) {
 # invalid. `model`, when given, names the model for screen readers, where
 # several controls share a page.
 fit_control <- function(fit_id, cancel_id, status, invalid, fit_label = "Fit", variant = "primary", size = NULL, model = NULL) {
-  if (status$source != "user" || status$kind %in% c("no-data", "data-error")) {
+  if (!fits_here(status$source) || status$kind %in% c("no-data", "data-error")) {
     return(NULL)
   }
   aria <- function(label) if (!is.null(model)) sprintf("%s the %s model", label, lower_label(model))

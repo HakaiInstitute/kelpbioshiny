@@ -135,7 +135,8 @@ help_topics <- list(
         prefit_info$coastwide$label, prefit_info$coastwide$data, prefit_info$hakai$label, prefit_info$hakai$data
       ),
       "They need no data or fitting here.",
-      "Sites in the reference data get their own estimates."
+      "Sites in the reference data get their own estimates.",
+      sprintf("A Your data + %s source instead fits the model here to your data together with that reference data.", prefit_info$hakai$name)
     ),
     link = kelpbio_articles$prefit$path
   ),

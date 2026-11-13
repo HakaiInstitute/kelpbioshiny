@@ -125,7 +125,8 @@ guide_extras <- list(
   models = function() {
     tagList(
       guide_points(
-        "Choose a source for each model: your data, a pre-fit model, or none. With all plants measured (a census) there is no size model.",
+        "Choose a source for each model: your data, your data with a reference dataset, a pre-fit model, or none. With all plants measured (a census) there is no size model.",
+        "A source such as Your data + Hakai Institute fits the model to the rows of your sheet together with those of the reference dataset; its estimates include the reference sites.",
         sprintf("Fit all fits every model that uses your data, in the background; the %s is fitted once the %s and %s models are ready.", lower_label("cover"), lower_label("weight"), lower_label("size")),
         sprintf(
           "Open a model for its %s tabs. Check the Diagnostics tab before using its estimates; any warning there says what to do.",
