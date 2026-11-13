@@ -821,12 +821,18 @@ plant_rows <- function(sheets) {
 
 prediction_by <- list(population = NULL, site = "site", year = "year", site_year = c("site", "year"))
 
+# The rows of your data in a fit with a combined source, whose predictions show
+# only your sites and years; NULL for any other source.
+own_rows <- function(id, source, sheets) if (is_combined(source)) sheets[[components[[id]]$sheet]]$rows
+
 # A model's predictions at a grouping: curves along the predictor for the figure
 # and the overall table, or, for the other tables (at = TRUE) and the
 # by-site-and-year figure, the value at a reference predictor value: a 50 mm
 # plant, a cover of 0.5. The rows to predict at come from kb_new_data(); the
-# plant grouping predicts the weight of each row of `plants`.
-model_predictions <- function(id, fit, grouping, species, at = FALSE, plants = NULL) {
+# plant grouping predicts the weight of each row of `plants`. `own`, for a fit
+# to your data with a reference dataset (own_rows()), keeps only the sites and
+# years of your data, so the reference sites are not shown.
+model_predictions <- function(id, fit, grouping, species, at = FALSE, plants = NULL, own = NULL) {
   if (grouping == "plant") {
     return(kb_predict_weight(fit, new_data = plants))
   }
@@ -837,6 +843,11 @@ model_predictions <- function(id, fit, grouping, species, at = FALSE, plants = N
   if (id == "weight") value <- value[[species]]
   at <- at || grouping == "site_year"
   new_data <- do.call(kb_new_data, c(list(fit, by = prediction_by[[grouping]]), if (at) value))
+  if (!is.null(own)) {
+    for (column in intersect(c("site", "year"), names(new_data))) {
+      new_data <- new_data[as.character(new_data[[column]]) %in% as.character(own[[column]]), , drop = FALSE]
+    }
+  }
   switch(id,
     size = kb_predict_size(fit, new_data),
     weight = kb_predict_weight(fit, new_data),

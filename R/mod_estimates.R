@@ -168,8 +168,9 @@ mod_estimate_server <- function(id, store) {
     })
 
     # The predictions for the figure, and for the table.
-    predictions <- reactive(model_predictions(cid, req(fit()), grouping(), page()$species, plants = plants()))
-    predictions_at <- reactive(table_predictions(cid, req(fit()), grouping(), page()$species, predictions()))
+    own <- reactive(own_rows(cid, store$sources()[[cid]], store$sheets()))
+    predictions <- reactive(model_predictions(cid, req(fit()), grouping(), page()$species, plants = plants(), own = own()))
+    predictions_at <- reactive(table_predictions(cid, req(fit()), grouping(), page()$species, predictions(), own()))
 
     output$plot <- render_figure(
       function() prediction_figure(cid, predictions(), grouping(), page()$species),
@@ -214,11 +215,11 @@ column_label <- function(name) if (name %in% names(column_labels)) column_labels
 # The predictions for a model's table: those of the figure unless the model
 # predicts along a predictor and the table is by group, where it is at the
 # reference value.
-table_predictions <- function(cid, fit, grouping, species, predictions) {
+table_predictions <- function(cid, fit, grouping, species, predictions, own = NULL) {
   if (shows_predictor(cid, grouping) || is.null(prediction_info[[cid]]$along)) {
     return(predictions)
   }
-  model_predictions(cid, fit, grouping, species, at = TRUE)
+  model_predictions(cid, fit, grouping, species, at = TRUE, own = own)
 }
 
 # Whether a model's table has a row per predictor value: each plant's weight,

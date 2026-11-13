@@ -203,10 +203,11 @@ model_export <- function(store, cid, choice) {
   plants <- if (cid == "weight") plant_rows(store$sheets())
   choices <- prediction_choices(cid, is_prefit(store$sources()[[cid]]), species, !is.null(plants))
   grouping <- chosen_grouping(choice$grouping, choices)
-  predictions <- model_predictions(cid, fit, grouping, species, plants = plants)
+  own <- own_rows(cid, store$sources()[[cid]], store$sheets())
+  predictions <- model_predictions(cid, fit, grouping, species, plants = plants, own = own)
   caption <- prediction_caption(cid, grouping, species)
   width <- if (grouping == "population") export_width / 2 else export_width
-  table <- prediction_table(table_predictions(cid, fit, grouping, species, predictions), cid, grouping)
+  table <- prediction_table(table_predictions(cid, fit, grouping, species, predictions, own), cid, grouping)
   list(
     name = model_name(cid),
     title = prediction_title(cid, grouping),
