@@ -178,6 +178,8 @@ figure_theme <- function() {
       panel.grid.minor = ggplot2::element_blank(),
       strip.background = ggplot2::element_rect(fill = col$muted, colour = col$border),
       strip.text = ggplot2::element_text(colour = col$fg),
-      legend.key = ggplot2::element_blank()
+      legend.key = ggplot2::element_blank(),
+      # The fill of columns and interval ribbons that set none of their own.
+      geom = ggplot2::element_geom(fill = col$primary)
     )
 }

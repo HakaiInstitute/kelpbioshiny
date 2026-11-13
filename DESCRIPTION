@@ -20,7 +20,7 @@ Imports:
     cli,
     dplyr,
     generics,
-    ggplot2,
+    ggplot2 (>= 4.0.0),
     htmltools,
     kelpbio,
     kelpbiodata,
