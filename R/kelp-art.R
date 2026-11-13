@@ -118,3 +118,136 @@ kelp_art <- function(species, class = NULL) {
     kelp_paths[[species]]
   ))
 }
+
+# The footer's seabed: a band of seabed along the foot of the page, with
+# pebbles and half-buried rocks, and a young kelp bed of the species, short
+# plants with their holdfasts on the seabed. Drawn on a 1200 x 48 grid in px; the
+# drawing is cropped at the sides on narrow screens, not squashed. The
+# placement is fixed: noise() is a hash of its index, so the drawing is the
+# same on every load.
+noise <- function(i, salt = 0) {
+  v <- sin((i + salt * 97.13) * 12.9898) * 43758.5453
+  v - floor(v)
+}
+
+seabed_width <- 1200
+seabed_height <- 48
+seabed_y <- function(x) 34 + 2.5 * sin(x / 90) + 1.5 * sin(x / 37 + 1)
+
+seabed_ground <- function() {
+  x <- seq(0, seabed_width, by = 20)
+  points <- lapply(x, function(x) c(x, seabed_y(x)))
+  sprintf(
+    '<path class="kb-seabed-ground" d="M%s%sL%d %dL0 %dZ"/>',
+    xy(points[[1]]), smooth_segments(points), seabed_width, seabed_height, seabed_height
+  )
+}
+
+# Pebbles scattered through the seabed, smaller and sparser with depth.
+seabed_pebbles <- function(n = 90) {
+  circles <- vapply(seq_len(n), function(i) {
+    x <- noise(i, 1) * seabed_width
+    depth <- noise(i, 2)^1.5
+    y <- seabed_y(x) + 2.5 + depth * (seabed_height - seabed_y(x) - 3.5)
+    sprintf('<circle cx="%.1f" cy="%.1f" r="%.1f"/>', x, y, 0.5 + 1.3 * noise(i, 3) * (1 - 0.5 * depth))
+  }, "")
+  sprintf('<g class="kb-seabed-pebbles">%s</g>', paste(circles, collapse = ""))
+}
+
+# Rocks sitting half-buried on the seabed: an irregular dome.
+seabed_rocks <- function(n = 11) {
+  rocks <- vapply(seq_len(n), function(i) {
+    x <- (i - 0.5 + 0.8 * (noise(i, 4) - 0.5)) * seabed_width / n
+    w <- 4 + 6 * noise(i, 5)
+    h <- 4 + 5 * noise(i, 6)
+    y <- seabed_y(x) + 1.2
+    sprintf(
+      '<path d="M%sC%s %s %sC%s %s %sZ"/>',
+      xy(c(x - w, y)), xy(c(x - w * 1.05, y - h * 0.9)), xy(c(x - w * 0.35, y - h * 1.15)), xy(c(x + w * 0.15, y - h)),
+      xy(c(x + w * 0.75, y - h * 0.9)), xy(c(x + w * 1.1, y - h * 0.5)), xy(c(x + w, y))
+    )
+  }, "")
+  sprintf('<g class="kb-seabed-rocks">%s</g>', paste(rocks, collapse = ""))
+}
+
+# A young bull kelp plant: a holdfast on the seabed at `x`, a thin stipe
+# leaning with the current to a small float at height `h`, and a few short
+# blades trailing from the float to the right.
+young_nereo <- function(i, x, h) {
+  base <- c(x, seabed_y(x) - 0.4)
+  lean <- (0.15 + 0.25 * noise(i, 7)) * h
+  float_r <- 1.1 + 0.08 * h
+  top <- base + c(lean, -h)
+  stipe <- sprintf(
+    '<path d="M%sC%s %s %s"/>',
+    xy(base), xy(base + c(-0.15 * lean, -0.45 * h)), xy(top + c(-0.5 * lean, 0.3 * h)), xy(top + c(0, float_r))
+  )
+  float <- sprintf('<circle cx="%.1f" cy="%.1f" r="%.1f"/>', top[1], top[2], float_r)
+  n_blades <- 2 + floor(3 * noise(i, 8))
+  blades <- vapply(seq_len(n_blades), function(j) {
+    len <- (0.35 + 0.35 * noise(i * 10 + j, 9)) * h
+    rise <- (j - (n_blades + 1) / 2) * 0.12 * len - 0.15 * len
+    start <- top + c(float_r * 0.7, -float_r * 0.4)
+    end <- start + c(len, rise)
+    sprintf(
+      '<path d="M%sC%s %s %s"/>',
+      xy(start), xy(start + c(0.35 * len, rise - 0.2 * len)), xy(start + c(0.7 * len, rise + 0.12 * len)), xy(end)
+    )
+  }, "")
+  paste0(young_holdfast(base), stipe, float, paste(blades, collapse = ""))
+}
+
+# A young plant's holdfast: four haptera arching out and down from `base`.
+young_holdfast <- function(base) {
+  sprintf(
+    '<path d="M%sc-1.2.2-2.4.9-3 2.1M%sc-.4.6-.7 1.3-.8 2.1M%sc.4.6.7 1.3.8 2.1M%sc1.2.2 2.4.9 3 2.1"/>',
+    xy(base), xy(base), xy(base), xy(base)
+  )
+}
+
+# A young giant kelp plant: one or two short fronds from a holdfast on the
+# seabed at `x`, leaning with the current to height `h`, each with a few small
+# blades alternating along it and a blade at its tip (macro_blade(), without
+# the float, which is too small to show at this size).
+young_macro <- function(i, x, h) {
+  base <- c(x, seabed_y(x) - 0.4)
+  n_fronds <- 1 + floor(2 * noise(i, 13))
+  fronds <- vapply(seq_len(n_fronds), function(j) {
+    height <- h * (1 - 0.3 * (j - 1))
+    lean <- (0.2 + 0.25 * noise(i * 10 + j, 14)) * height
+    p <- list(base, base + c(-0.1 * lean, -0.5 * height), base + c(0.4 * lean, -0.95 * height), base + c(lean, -height))
+    frond <- do.call(bezier, p)
+    len <- 0.28 * height
+    blades <- vapply(c(0.4, 0.6, 0.8), function(t) {
+      macro_blade(frond(t), if (t == 0.6) -40 else 45, len, w = 0.45, bend = 0.1, float = FALSE)
+    }, "")
+    paste0(
+      sprintf('<path d="M%sC%s %s %s"/>', xy(p[[1]]), xy(p[[2]]), xy(p[[3]]), xy(p[[4]])),
+      paste(blades, collapse = ""),
+      macro_blade(frond(1), 4, 0.32 * height, w = 0.5, bend = 0.06, float = FALSE)
+    )
+  }, "")
+  paste0(young_holdfast(base), paste(fronds, collapse = ""))
+}
+
+# `n` plants, one in each stretch of seabed at an uneven spot within it, kept
+# low below the footer text.
+young_bed <- function(species, n = 6) {
+  spacing <- seabed_width / n
+  plants <- vapply(seq_len(n), function(i) {
+    x <- (i - 0.5) * spacing + 0.7 * spacing * (noise(i, 10) - 0.5)
+    plant <- if (species == "macro") young_macro else young_nereo
+    plant(i, x, 9 + 13 * noise(i, 11)^1.3)
+  }, "")
+  sprintf('<g class="kb-seabed-kelp">%s</g>', paste(plants, collapse = ""))
+}
+
+seabed_art <- function(species) {
+  HTML(sprintf(
+    paste0(
+      '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 %d %d" preserveAspectRatio="xMidYMax slice" ',
+      'class="kb-seabed" aria-hidden="true" focusable="false">%s%s%s%s</svg>'
+    ),
+    seabed_width, seabed_height, seabed_ground(), seabed_pebbles(), seabed_rocks(), young_bed(species)
+  ))
+}
