@@ -128,7 +128,7 @@ export_script <- function(species, sources, sheets, workbook, priors, samplers, 
           "",
           if (census) "# In situ survey biomass per m\u00b2 surveyed, weighing each counted plant" else "# In situ survey biomass per m\u00b2 surveyed",
           sprintf("%sbiomass <- kb_predict_biomass_in_situ(%s)", prefix[measures], vapply(measures, survey_call, "")),
-          "kb_plot_predictions(biomass)"
+          "kb_plot_predictions(biomass, geom = \"bar\")"
         )
       },
       if (cover) {
@@ -147,7 +147,7 @@ export_script <- function(species, sources, sheets, workbook, priors, samplers, 
           if (cover_prefit) c(fit_lines("cover"), ""),
           "# Biomass over the canopy mapped in each canopy map of a site",
           sprintf("%stotals <- kb_predict_biomass_canopy(%s)", prefix[measures], vapply(measures, canopy_call, "")),
-          "kb_plot_predictions(totals)"
+          "kb_plot_predictions(totals, geom = \"bar\")"
         )
       }
     ),

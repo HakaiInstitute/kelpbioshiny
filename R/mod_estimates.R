@@ -619,16 +619,17 @@ mod_derived_estimate_server <- function(id, store) {
 # figure grows with the rows of facets (kb_plot_predictions() uses
 # facet_wrap()'s default layout); summed over every row, the one estimate gets
 # a label on the x-axis. With `site`, each survey of that site, by year.
+# Biomass is drawn as columns, as a stock measured from zero.
 derived_figure <- function(predictions, site = NULL) {
   if (!is.null(site)) {
     predictions <- predictions[predictions$site == site, ]
-    return(kb_plot_predictions(predictions, x = "survey_id", max_facets = Inf) + ggplot2::facet_wrap(~year, scales = "free_x") + ggplot2::labs(x = "In situ survey"))
+    return(kb_plot_predictions(predictions, x = "survey_id", geom = "bar", max_facets = Inf) + ggplot2::facet_wrap(~year, scales = "free_x") + ggplot2::labs(x = "In situ survey"))
   }
   if (length(attr(predictions, "kb_group_vars")) == 0) {
     predictions$group <- "All"
-    return(kb_plot_predictions(predictions, x = "group") + ggplot2::labs(x = NULL))
+    return(kb_plot_predictions(predictions, x = "group", geom = "bar") + ggplot2::labs(x = NULL))
   }
-  kb_plot_predictions(predictions)
+  kb_plot_predictions(predictions, geom = "bar")
 }
 
 # The height of derived_figure() in pixels at 96 dpi, from its predictions, or
