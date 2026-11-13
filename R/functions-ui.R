@@ -401,13 +401,6 @@ warning_help <- list(
     title = "Prior sensitivity", note = TRUE,
     advice = "If the flagged prior was not chosen on purpose, make it less informative on the Settings tab and refit."
   ),
-  influence = list(
-    title = "Influential observations", note = TRUE,
-    advice = paste(
-      "Check the flagged observations, listed on the Diagnostics tab, for recording errors.",
-      "Correct any error in the sheet, upload it again and refit; keep observations that check out."
-    )
-  ),
   outdated = list(
     title = "Settings changed since the fit",
     advice = "The results and the R script use the settings the model was fitted with. Refit the model to use the new settings."
@@ -551,29 +544,6 @@ prior_notice <- function(rows, priors, settings_id) {
     "info", warning_help$prior$title,
     settings_link(paste(prior_influence(flagged), action), settings_id),
     tone = "info"
-  )
-}
-
-# Influential observations: a note naming how many observations strongly
-# influence the fit, from kb_influence() rows, with a button to the Diagnostics
-# tab (diagnostics_id) that lists them.
-# jarl-ignore unused_function: influential observations are hidden for now, so its call in mod_model.R is commented out.
-influence_notice <- function(rows, diagnostics_id) {
-  if (!influence_flagged(rows)) {
-    return(NULL)
-  }
-  n <- sum(rows$influential)
-  notice(
-    "info", warning_help$influence$title,
-    paste(
-      sprintf(
-        "%s strongly %s the fit.",
-        if (n == 1) "One observation" else sprintf("%d observations", n), if (n == 1) "influences" else "influence"
-      ),
-      warning_help$influence$advice
-    ),
-    tone = "info",
-    action = button(diagnostics_id, "View observations", variant = "outline", size = "sm")
   )
 }
 

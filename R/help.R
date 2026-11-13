@@ -83,17 +83,6 @@ help_topics <- list(
     ),
     link = kelpbio_articles$diagnostics$path
   ),
-  influence = list(
-    title = "Influential observations",
-    body = function() {
-      paste(
-        "Pareto k measures how much the fit changes when an observation is left out.",
-        "Above a threshold that loo sets from the number of draws, the observation strongly influences the estimates.",
-        "That can be a recording error, or a valid observation in a site-year with few others."
-      )
-    },
-    link = kelpbio_articles$diagnostics$path
-  ),
   prediction_groups = list(
     title = "Overall and group predictions",
     body = paste(

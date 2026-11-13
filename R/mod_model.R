@@ -85,8 +85,6 @@ mod_model_server <- function(id, store) {
     sensitivity <- reactive({
       if (page()$mode == "prefit") kb_sensitivity(fitted_fit()) else req(store$sensitivity[[cid]]())
     })
-    # Influential observations of the fit to your data, shared with the other steps.
-    influence <- reactive(req(store$influence[[cid]]()))
     errors <- reactive(store$setting_errors()[[cid]])
 
     # A pre-fit model shows only its diagnostics and description, and a census
@@ -119,7 +117,6 @@ mod_model_server <- function(id, store) {
       nav_select("tab", "settings", session = session)
       accordion_panel_open("priors_open", "priors", session = session)
     })
-    observeEvent(input$diagnostics_influence, nav_select("tab", "diagnostics", session = session))
     observeEvent(store$tab_request(), {
       request <- store$tab_request()
       if (identical(request$id, cid)) nav_select("tab", request$tab, session = session)
@@ -207,8 +204,6 @@ mod_model_server <- function(id, store) {
           if (isTRUE(status$divergence)) convergence_notice(ns("settings_divergence"), "divergence"),
           lapply(status$fit_warnings, fit_warning_notice),
           prior_notice(store$sensitivity[[cid]](), prior_summary(fit()), ns("settings_prior"))
-          # Influential observations are hidden for now.
-          # influence_notice(store$influence[[cid]](), ns("diagnostics_influence"))
         )
       }
       if (length(notice_ui) > 0) div(class = "d-flex flex-column gap-2 mb-3", notice_ui)
@@ -261,13 +256,13 @@ mod_model_server <- function(id, store) {
     output$tab_diagnostics <- renderUI({
       mode <- page()$mode
       if (mode == "user" && kind() == "ready") {
-        return(diagnostics_panel(ns, "your data", influence = TRUE))
+        return(diagnostics_panel(ns, "your data"))
       }
       if (mode == "prefit" && !is.null(fit())) {
         return(diagnostics_panel(ns, "the reference data"))
       }
       switch(mode,
-        user = fit_pending_state(kind(), "Fit the model to check its convergence, prior sensitivity, influential observations and posterior predictive check."),
+        user = fit_pending_state(kind(), "Fit the model to check its convergence, prior sensitivity and posterior predictive check."),
         "no-sheet" = no_sheet("Diagnostics appear once the model is fitted to your data."),
         none = not_used(),
         NULL
@@ -482,7 +477,6 @@ mod_model_server <- function(id, store) {
       rows <- sensitivity()
       influencing <- sensitivity_flags(rows)$influencing
       weak_data <- sensitivity_flags(rows)$weak_data
-      # influential <- if (page()$mode == "user") sum(influence()$influential)
       tags$ul(
         class = "list-unstyled d-flex flex-column gap-2 mb-0 small",
         line(length(unconverged) == 0, if (length(unconverged) == 0) "All parameters converged" else sprintf("Not converged: %s", and_list(unconverged)), "diag_convergence"),
@@ -498,10 +492,6 @@ mod_model_server <- function(id, store) {
         } else {
           line(TRUE, "No prior sensitivity", "diag_sensitivity")
         },
-        # Influential observations are hidden for now.
-        # if (!is.null(influential)) {
-        #   line(TRUE, if (influential == 0) "No influential observations" else sprintf("%d influential %s to check", influential, if (influential == 1) "observation" else "observations"), "diag_influence", tone = if (influential == 0) "ok" else "info")
-        # },
         line(TRUE, "Posterior predictive check: compare the data with the simulated datasets", "diag_ppc", tone = "info")
       )
     })
@@ -529,28 +519,6 @@ mod_model_server <- function(id, store) {
         )
       )
     })
-
-    output$influence_note <- renderUI({
-      if (!influence_flagged(influence())) notice("check-circle-2", "No influential observations", tone = "muted")
-    })
-
-    # The influential observations, most influential first, as fitted.
-    output$influence <- reactable::renderReactable({
-      rows <- influence()
-      req(influence_flagged(rows))
-      rows <- rows[rows$influential, setdiff(names(rows), c("elpd_loo", "influential"))]
-      rows <- rows[order(rows$pareto_k, decreasing = TRUE), ]
-      # The fit's data and Pareto k as kelpbio gives them, shown to 3
-      # significant figures.
-      numeric <- names(rows)[vapply(rows, is.numeric, logical(1))]
-      columns <- lapply(stats::setNames(nm = numeric), function(name) {
-        reactable::colDef(
-          name = if (name == "pareto_k") "Pareto k" else name, align = "right", class = "kb-tabular",
-          cell = function(value) format(value, digits = 3)
-        )
-      })
-      app_table(rows, page_size = 8, columns = columns)
-    })
   })
 }
 
@@ -568,16 +536,14 @@ fit_pending_state <- function(kind, description) {
 }
 
 # The diagnostics of a fit, in one scrolling tab: convergence and trace plots,
-# prior sensitivity, influential observations (`influence`, for a fit to your
-# data, whose sheet can be corrected) and posterior predictive checks. `data`
+# prior sensitivity and posterior predictive checks. `data`
 # names the data the model was fitted to: "your data", or "the reference data"
 # of a pre-fit model.
-diagnostics_panel <- function(ns, data, influence = FALSE) {
+diagnostics_panel <- function(ns, data) {
   div(
     class = "d-flex flex-column gap-3",
     panel("Summary", uiOutput(ns("verdict"))),
-    # Influential observations are hidden for now.
-    convergence_panel(ns), sensitivity_panel(ns), # if (influence) influence_panel(ns),
+    convergence_panel(ns), sensitivity_panel(ns),
     ppc_panel(ns, data)
   )
 }
@@ -589,16 +555,6 @@ sensitivity_panel <- function(ns) {
     description = "Weak prior: the prior is not driving the estimate. Strong data: the data inform it.",
     uiOutput(ns("sensitivity_note")),
     reactable::reactableOutput(ns("sensitivity"))
-  )
-}
-
-influence_panel <- function(ns) {
-  panel(
-    with_help("Influential observations", "influence"),
-    id = ns("diag_influence"),
-    description = "Observations with a high Pareto k: check these for recording errors.",
-    uiOutput(ns("influence_note")),
-    reactable::reactableOutput(ns("influence"))
   )
 }
 

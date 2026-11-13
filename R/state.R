@@ -122,12 +122,10 @@ fitting_id <- function(records) {
 # and `divergence` when the sampler had too many divergent transitions (both
 # from fit_convergence()) and `fit_warnings`, the warnings kelpbio gave while
 # fitting it; two notes: `prior` (prior_warning, from its prior
-# sensitivity) when a prior is influencing an estimate, and `influence`
-# (influence_warning, from kb_influence()) when observations strongly
-# influence the fit; and `outdated` when its current `settings` differ from
+# sensitivity) when a prior is influencing an estimate; and `outdated` when its current `settings` differ from
 # those it was fitted with.
 component_status <- function(source, sheet, record, prefit = NULL, cover_blocked = FALSE, prior_warning = FALSE,
-                             influence_warning = FALSE, settings = NULL) {
+                             settings = NULL) {
   if (source == "none") {
     return(list(kind = "not-used", source = source))
   }
@@ -155,7 +153,6 @@ component_status <- function(source, sheet, record, prefit = NULL, cover_blocked
     fitted = list(
       kind = "ready", source = source, convergence = convergence$convergence,
       divergence = convergence$divergence, fit_warnings = record$warnings, prior = prior_warning,
-      influence = influence_warning,
       outdated = !is.null(record$settings) && !is.null(settings) && settings_changed(record$settings, settings)
     ),
     failed = list(kind = "failed", source = source, message = record$error),
@@ -166,7 +163,7 @@ component_status <- function(source, sheet, record, prefit = NULL, cover_blocked
 is_ready_status <- function(status) status$kind %in% c("ready", "not-used")
 is_pending_status <- function(status) status$kind %in% c("queued", "fitting")
 # Only a fit that did not converge or that kelpbio warned about has a warning:
-# prior sensitivity and influential observations are notes to check a valid fit.
+# prior sensitivity is a note to check a valid fit.
 has_warning <- function(status) isTRUE(status$convergence) || isTRUE(status$divergence) || length(status$fit_warnings) > 0
 
 # Why a fit did not converge, by kelpbio's kb_converged() verdict:
@@ -199,23 +196,19 @@ sensitivity_flags <- function(rows) {
 # estimate.
 prior_flagged <- function(rows) !is.null(rows) && length(sensitivity_flags(rows)$influencing) > 0
 
-# kb_influence() rows flag an influence warning when any observation is influential.
-influence_flagged <- function(rows) !is.null(rows) && any(rows$influential)
-
 # In situ survey biomass needs the weight and size models, each in use.
 survey_possible <- function(sources) all(sources[survey_ids] != "none")
 
 # The models fitted to their own sheets first; the cover calibration can be
 # fitted once in situ survey biomass can be predicted, and its data are the surveys with
 # canopy imagery (none counts as no data). prior_warnings flags, by model, a fit
-# whose priors influence its estimates, influence_warnings a fit with
-# influential observations, and settings each model's current settings.
+# whose priors influence its estimates, and settings each model's current settings.
 component_statuses <- function(sources, sheets, records, prefits = list(), prior_warnings = list(),
-                               influence_warnings = list(), settings = list()) {
+                               settings = list()) {
   status <- function(id, sheet = sheets[[components[[id]]$sheet]], ...) {
     component_status(
       sources[[id]], sheet, records[[id]], ...,
-      prior_warning = isTRUE(prior_warnings[[id]]), influence_warning = isTRUE(influence_warnings[[id]]),
+      prior_warning = isTRUE(prior_warnings[[id]]),
       settings = settings[[id]]
     )
   }
@@ -552,9 +545,8 @@ new_store <- function(session, run_fit = mirai_fit_runner) {
     sources <- s$sources()
     prefit_ids <- Filter(function(id) is_prefit(sources[[id]]), component_ids)
     prior_warnings <- lapply(component_ids, function(id) prior_flagged(s$sensitivity[[id]]()))
-    influence_warnings <- lapply(component_ids, function(id) influence_flagged(s$influence[[id]]()))
     component_statuses(
-      sources, s$sheets(), s$records(), lapply(prefit_ids, s$prefit), prior_warnings, influence_warnings,
+      sources, s$sheets(), s$records(), lapply(prefit_ids, s$prefit), prior_warnings,
       s$settings()
     )
   })
@@ -593,11 +585,6 @@ new_store <- function(session, run_fit = mirai_fit_runner) {
   s$sensitivity <- lapply(component_ids, function(id) {
     fit <- dedupe(reactive(s$records()[[id]]$fit))
     reactive(if (!is.null(fit())) kb_sensitivity(fit()))
-  })
-  # Influential observations of each model's fit to your data; NULL until fitted.
-  s$influence <- lapply(component_ids, function(id) {
-    fit <- dedupe(reactive(s$records()[[id]]$fit))
-    reactive(if (!is.null(fit())) kb_influence(fit()))
   })
 
   # The derived estimates, from the fits in use and the sheets, for the

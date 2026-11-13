@@ -15,7 +15,7 @@
 #' @importFrom kelpbio kb_priors_cover_calibration_nereo kb_priors_size_nereo kb_priors_weight_macro
 #' @importFrom kelpbio kb_priors_weight_nereo kb_priors_wetdry_macro kb_priors_wetdry_nereo
 #' @importFrom kelpbio kb_prior_exponential kb_prior_lognormal kb_prior_normal
-#' @importFrom kelpbio kb_converged kb_influence kb_model_describe kb_new_data kb_plot_predictions
+#' @importFrom kelpbio kb_converged kb_model_describe kb_new_data kb_plot_predictions
 #' @importFrom kelpbio kb_plot_trace kb_progress kb_sensitivity pp_check prior_summary
 #' @importFrom kelpbio kb_predict_biomass_canopy kb_predict_biomass_in_situ kb_predict_carbon
 #' @importFrom kelpbio kb_predict_nitrogen
