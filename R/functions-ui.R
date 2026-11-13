@@ -299,6 +299,27 @@ plot_table_nav <- function(id, plot, table, selected = NULL, table_first = FALSE
   navset_pill(id = id, selected = selected, !!!unname(panels))
 }
 
+# A Plot and Table switch for an estimate's card header: Bootstrap's radio
+# button group, which Shiny reads as a radio input (`input[[id]]` is "plot" or
+# "table").
+view_switch <- function(id, selected = NULL) {
+  selected <- selected %||% "plot"
+  option <- function(value, label) {
+    option_id <- paste0(id, "_", value)
+    tagList(
+      tags$input(
+        type = "radio", class = "btn-check", name = id, id = option_id, value = value,
+        autocomplete = "off", checked = if (value == selected) NA
+      ),
+      tags$label(class = "btn btn-light border", `for` = option_id, label)
+    )
+  }
+  div(
+    id = id, class = "shiny-input-radiogroup btn-group btn-group-sm", role = "radiogroup", `aria-label` = "View",
+    option("plot", "Plot"), option("table", "Table")
+  )
+}
+
 # Figures render at more than the 96 dpi screen default, so their text is legible;
 # figure_px() scales a height in pixels at 96 dpi to match.
 figure_res <- 120

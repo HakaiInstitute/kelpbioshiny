@@ -73,12 +73,32 @@ mod_estimates_server <- function(id, store) {
   })
 }
 
-# The header of an estimate's page: its name, a line under it if any, and an action.
-estimate_header <- function(title, detail, action = NULL) {
-  div(
-    class = "d-flex flex-wrap align-items-start justify-content-between gap-3 mb-3",
-    div(h2(class = "fs-5 fw-semibold mb-1", title), if (!is.null(detail)) div(class = "small text-body-secondary", detail)),
-    action
+# An estimate's card: its name and the controls of what it shows in one
+# header row, which wraps on a narrow screen, then its body.
+estimate_card <- function(title, ..., controls = NULL) {
+  card(card_body(
+    gap = "1rem",
+    div(
+      class = "d-flex flex-wrap align-items-center justify-content-between gap-2",
+      h2(class = "kb-card-title mb-0", title),
+      if (!is.null(controls)) div(class = "ms-auto", controls)
+    ),
+    ...
+  ))
+}
+
+# The caption under an estimate's figure or table: its parts in one paragraph.
+estimate_caption <- function(...) {
+  parts <- Filter(Negate(is.null), list(...))
+  div(class = "small text-body-secondary mt-2", lapply(parts, function(part) tagList(part, " ")))
+}
+
+# The figure and table of an estimate, one shown at a time by its view_switch().
+estimate_views <- function(id, selected, plot, table) {
+  navset_hidden(
+    id = id, selected = selected %||% "plot",
+    nav_panel_hidden("plot", plot),
+    nav_panel_hidden("table", table)
   )
 }
 
@@ -102,14 +122,7 @@ estimate_notices <- function(ns, store, ids, extra = list(), own = FALSE) {
 
 mod_estimate_ui <- function(id, cid) {
   ns <- NS(id)
-  tagList(
-    estimate_header(
-      label_of(cid), textOutput(ns("source"), inline = TRUE),
-      button(ns("open_model"), "View model", variant = "outline", size = "sm")
-    ),
-    uiOutput(ns("notices")),
-    uiOutput(ns("body"))
-  )
+  tagList(uiOutput(ns("notices")), uiOutput(ns("body")))
 }
 
 mod_estimate_server <- function(id, store) {
@@ -130,8 +143,7 @@ mod_estimate_server <- function(id, store) {
     observeEvent(input$open_model, store$go_to("models", cid))
     observeEvent(input$to_models, store$go_to("models", cid))
     observe_warning_links(input, store)
-
-    output$source <- renderText(sprintf("Source: %s", source_label(store$sources()[[cid]])))
+    observe(nav_select("panels", input$view %||% "plot"))
 
     output$notices <- renderUI({
       req(page()$available$available)
@@ -141,9 +153,9 @@ mod_estimate_server <- function(id, store) {
     output$body <- renderUI({
       page <- page()
       if (!page$available$available) {
-        return(estimate_unavailable(ns, page$available$reason))
+        return(estimate_card(label_of(cid), estimate_unavailable(ns, page$available$reason)))
       }
-      predictions_panel(ns, cid, page$prefit, page$species, page$plants, isolate(grouping()))
+      predictions_panel(ns, cid, page$prefit, page$species, page$plants, isolate(grouping()), isolate(input$view))
     })
 
     # The store holds the choice, so a resumed run shows the grouping it was
@@ -155,16 +167,20 @@ mod_estimate_server <- function(id, store) {
     }))
     observeEvent(input$grouping, store$set_estimate_choice(cid, "grouping", input$grouping))
     observeEvent(grouping(), {
-      if (!is.null(input$grouping) && !identical(input$grouping, grouping())) updateSelectInput(session, "grouping", selected = grouping())
+      if (!is.null(input$grouping) && !identical(input$grouping, grouping())) update_toolbar_input_select("grouping", selected = grouping())
     })
 
-    # Titled and captioned as the biomass figures are.
+    # Captioned as the biomass figures are, with the model's source.
     output$figure <- renderUI({
       grouping <- grouping()
-      panel(
-        sentence_case(prediction_info[[cid]]$response),
-        description = prediction_caption(cid, grouping, page()$species),
-        figure_plot(ns("plot"), class = if (grouping == "population") "kb-figure-narrow", aspect = prediction_aspect(cid, grouping))
+      tagList(
+        figure_plot(ns("plot"), class = if (grouping == "population") "kb-figure-narrow", aspect = prediction_aspect(cid, grouping)),
+        estimate_caption(
+          prediction_caption(cid, grouping, page()$species),
+          prediction_note(page()$prefit, cid, page()$species),
+          sprintf("Source: %s.", source_label(store$sources()[[cid]])),
+          actionLink(ns("open_model"), "View model")
+        )
       )
     })
 
@@ -297,44 +313,43 @@ chosen_grouping <- function(chosen, choices) {
   if (is.null(chosen) || !chosen %in% names(choices)) default_grouping(choices) else chosen
 }
 
-predictions_panel <- function(ns, cid, prefit, species, plants, selected = NULL) {
-  choices <- prediction_choices(cid, prefit, species, plants)
-  note <- if (prefit) {
+# Why a model's predictions are not by site and year, where they are not.
+prediction_note <- function(prefit, cid, species) {
+  if (prefit) {
     "A pre-fit model's predictions are for a typical site and year, so that its reference data stay private."
   } else if (!has_effect(cid, "site", species)) {
     "This model has no site or year effects, so its predictions are overall, for a typical site and year."
   } else if (!has_effect(cid, "year", species)) {
     "This model has a site effect but no year effect, so there are no predictions by year."
   }
-  # A labelled dropdown, as on the biomass pages; a model with one grouping
-  # has none, and its note says why.
-  tagList(
-    div(
-      class = "d-flex flex-wrap align-items-start column-gap-4 row-gap-2 mb-3",
+}
+
+# A model's estimates card: the grouping (where the model offers more than one)
+# and the view in its header, the figure or table below.
+predictions_panel <- function(ns, cid, prefit, species, plants, selected = NULL, view = NULL) {
+  choices <- prediction_choices(cid, prefit, species, plants)
+  estimate_card(
+    label_of(cid),
+    controls = toolbar(
       if (length(choices) > 1) {
-        div(
-          class = "d-flex flex-column gap-1",
-          span(class = "small fw-medium", with_help(span(id = ns("grouping_title"), "Group by"), "prediction_groups")),
-          selectInput(
-            ns("grouping"), NULL,
-            choices = stats::setNames(names(choices), choices), selected = chosen_grouping(selected, choices),
-            selectize = FALSE, width = "16rem"
-          ) |>
-            tagAppendAttributes(class = "mb-0", `aria-labelledby` = ns("grouping_title"))
+        toolbar_input_select(
+          ns("grouping"), "Group by",
+          choices = stats::setNames(names(choices), choices), selected = chosen_grouping(selected, choices)
         )
       },
-      if (!is.null(note)) div(class = "small text-body-secondary w-100", note)
+      if (length(choices) > 1) toolbar_divider(),
+      view_switch(ns("view"), view)
     ),
-    plot_table_nav(
-      ns("view"),
+    estimate_views(
+      ns("panels"), view,
       uiOutput(ns("figure")),
-      panel(
-        textOutput(ns("table_title"), inline = TRUE),
-        description = tagList(
+      tagList(
+        reactable::reactableOutput(ns("table")),
+        estimate_caption(
+          textOutput(ns("table_title"), inline = TRUE),
           with_help("With 95% compatibility intervals, to 3 significant figures.", "interval"),
           uiOutput(ns("support_note"), inline = TRUE)
-        ),
-        reactable::reactableOutput(ns("table"))
+        )
       )
     )
   )
@@ -352,7 +367,6 @@ derived_info <- list(
     help = "survey_biomass", scales = c(area = "Per m\u00b2 surveyed", total = "Total over the area surveyed")
   ),
   canopy = list(
-    detail = "Biomass over the canopy mapped at each site.",
     help = "canopy_biomass", per_area = FALSE
   )
 )
@@ -367,15 +381,7 @@ derived_sums <- function(eid, sheets) {
 
 mod_derived_estimate_ui <- function(id, eid) {
   ns <- NS(id)
-  tagList(
-    estimate_header(
-      with_help(estimate_label(eid), derived_info[[eid]]$help),
-      derived_info[[eid]]$detail,
-      button(ns("change_sources"), "View models", variant = "outline", size = "sm")
-    ),
-    uiOutput(ns("notices")),
-    uiOutput(ns("body"))
-  )
+  tagList(uiOutput(ns("notices")), uiOutput(ns("body")))
 }
 
 mod_derived_estimate_server <- function(id, store) {
@@ -399,14 +405,15 @@ mod_derived_estimate_server <- function(id, store) {
     observeEvent(input$sum, store$set_estimate_choice(eid, "sum", input$sum))
     observeEvent(per_area(), {
       scale <- if (per_area()) "area" else "total"
-      if (!is.null(input$scale) && !identical(input$scale, scale)) updateSelectInput(session, "scale", selected = scale)
+      if (!is.null(input$scale) && !identical(input$scale, scale)) update_toolbar_input_select("scale", selected = scale)
     })
     observeEvent(sum_key(), {
-      if (!is.null(input$sum) && !identical(input$sum, sum_key())) updateSelectInput(session, "sum", selected = sum_key())
+      if (!is.null(input$sum) && !identical(input$sum, sum_key())) update_toolbar_input_select("sum", selected = sum_key())
     })
     observeEvent(input$change_sources, store$go_to("models"))
     observeEvent(input$to_models, store$go_to("models"))
     observe_warning_links(input, store)
+    observe(nav_select("panels", input$view %||% "plot"))
 
     output$notices <- renderUI({
       req(available()$available)
@@ -418,48 +425,40 @@ mod_derived_estimate_server <- function(id, store) {
       ))
     })
 
+    # One card: the measure, scale and rows, the representative sites and the
+    # view in its header, the figure or table below.
     output$body <- renderUI({
+      title <- with_help(estimate_label(eid), info$help)
       if (!available()$available) {
-        return(estimate_unavailable(ns, available()$reason))
+        return(estimate_card(title, estimate_unavailable(ns, available()$reason)))
       }
       outputs <- store$outputs()
       open <- names(outputs)[vapply(outputs, `[[`, logical(1), "available")]
       choices <- sums()
-      # Each control is a group with its label above it, so the groups wrap
-      # whole on a narrow screen.
-      group <- function(title, input_id, control) {
-        div(
-          class = "d-flex flex-column gap-1",
-          span(class = "small fw-medium", id = ns(paste0(input_id, "_title")), title),
-          tagAppendAttributes(control, class = "mb-0", `aria-labelledby` = ns(paste0(input_id, "_title")))
-        )
-      }
-      tagList(
-        div(
-          class = "d-flex flex-wrap align-items-start column-gap-4 row-gap-2 mb-3",
-          group("Output", "output", selectInput(
-            ns("output"), NULL,
-            choices = stats::setNames(open, vapply(output_info[open], `[[`, "", "label")), selected = isolate(output_key()),
-            selectize = FALSE, width = "12rem"
-          )),
+      estimate_card(
+        title,
+        controls = toolbar(
+          toolbar_input_select(
+            ns("output"), "Output",
+            choices = stats::setNames(open, vapply(output_info[open], `[[`, "", "label")), selected = isolate(output_key())
+          ),
           if (!is.null(info$scales)) {
-            group("Scale", "scale", selectInput(
-              ns("scale"), NULL,
-              choices = stats::setNames(names(info$scales), info$scales), selected = if (isolate(per_area())) "area" else "total",
-              selectize = FALSE, width = "14rem"
-            ))
+            toolbar_input_select(
+              ns("scale"), "Scale",
+              choices = stats::setNames(names(info$scales), info$scales), selected = if (isolate(per_area())) "area" else "total"
+            )
           },
           if (!is.null(choices)) {
-            group("Show", "sum", selectInput(
-              ns("sum"), NULL,
-              choices = stats::setNames(names(choices), vapply(choices, `[[`, "", "label")), selected = isolate(sum_key()),
-              selectize = FALSE, width = "16rem"
-            ))
+            toolbar_input_select(
+              ns("sum"), "Show",
+              choices = stats::setNames(names(choices), vapply(choices, `[[`, "", "label")), selected = isolate(sum_key())
+            )
           },
-          if (!is.null(choices)) div(class = "small text-body-secondary w-100", textOutput(ns("sum_detail"), inline = TRUE))
+          uiOutput(ns("stand_ins"), inline = TRUE),
+          toolbar_divider(),
+          view_switch(ns("view"), isolate(input$view))
         ),
-        uiOutput(ns("stand_ins")),
-        plot_table_nav(ns("view"), uiOutput(ns("plot_panel")), uiOutput(ns("table_panel")), selected = isolate(input$view))
+        estimate_views(ns("panels"), isolate(input$view), uiOutput(ns("plot_panel")), uiOutput(ns("table_panel")))
       )
     })
 
@@ -473,39 +472,44 @@ mod_derived_estimate_server <- function(id, store) {
       })
       Filter(function(model) length(model$new) > 0, models)
     }))
+    # A button in the card's header, shown only where a fit lacks some sites,
+    # opening a checklist of the fit's sites for each such model.
     output$stand_ins <- renderUI({
       models <- stand_in_models()
       if (length(models) == 0) {
         return(NULL)
       }
       chosen <- isolate(store$stand_ins_chosen())
-      div(class = "d-flex flex-wrap align-items-start column-gap-4 row-gap-2 mb-3", lapply(names(models), function(id) {
-        title_id <- ns(paste0("stand_in_", id, "_title"))
+      popover(
+        tags$button(
+          type = "button", class = "btn btn-light border btn-sm d-inline-flex align-items-center gap-2",
+          lucide("sliders-horizontal"), "Representative sites"
+        ),
         div(
-          class = "d-flex flex-column gap-1",
-          span(
-            class = "small fw-medium", id = title_id,
-            with_help(sprintf("Representative site (%s model)", label_of(id)), "stand_ins")
-          ),
-          tagAppendAttributes(
-            selectizeInput(
-              ns(paste0("stand_in_", id)), NULL,
-              choices = models[[id]]$sites, selected = intersect(chosen[[id]], models[[id]]$sites), multiple = TRUE,
-              width = "16rem", options = list(placeholder = sprintf("None (%d new %s)", length(models[[id]]$new), if (length(models[[id]]$new) == 1) "site" else "sites"))
-            ),
-            class = "mb-0", `aria-labelledby` = title_id
-          )
-        )
-      }))
+          class = "d-flex flex-column gap-3",
+          div(class = "small text-body-secondary", topic_body(help_topics$stand_ins)),
+          lapply(names(models), function(id) {
+            new <- length(models[[id]]$new)
+            checkboxGroupInput(
+              ns(paste0("stand_in_", id)),
+              sprintf("%s model (%d new %s)", label_of(id), new, if (new == 1) "site" else "sites"),
+              choices = models[[id]]$sites, selected = intersect(chosen[[id]], models[[id]]$sites)
+            ) |>
+              tagAppendAttributes(class = "mb-0")
+          })
+        ),
+        title = "Representative sites", placement = "bottom"
+      )
     })
     lapply(stand_in_ids[[eid]], function(id) {
       observeEvent(input[[paste0("stand_in_", id)]], store$set_stand_ins(id, input[[paste0("stand_in_", id)]] %||% character()), ignoreNULL = FALSE, ignoreInit = TRUE)
     })
 
     # A note only where the rows are not obvious from their label.
-    output$sum_detail <- renderText({
+    sum_detail <- reactive({
       detail <- sums()[[req(sum_key())]]$detail
-      if (is.list(detail)) detail[[if (per_area()) "area" else "total"]] else detail %||% ""
+      detail <- if (is.list(detail)) detail[[if (per_area()) "area" else "total"]] else detail
+      if (!is.null(detail) && nzchar(detail)) detail
     })
 
     labels <- reactive(derived_labels(eid, output_key(), per_area()))
@@ -531,31 +535,30 @@ mod_derived_estimate_server <- function(id, store) {
         if (!is.null(chosen) && chosen %in% rows$site) chosen else as.character(rows$site[[1]])
       }
       height <- derived_height(rows, site, faceted = is.null(pool_by) || "site" %in% pool_by)
-      panel(
-        labels()$label,
-        description = derived_caption(eid, labels(), sum_key()),
+      tagList(
         if (by_survey()) uiOutput(ns("site_ui")),
         uiOutput(ns("plot_error")),
-        figure_plot(ns("figure"), height = figure_px(height))
+        figure_plot(ns("figure"), height = figure_px(height)),
+        estimate_caption(derived_caption(eid, labels(), sum_key()), sum_detail(), actionLink(ns("change_sources"), "View models"))
       )
     })
     output$site_ui <- renderUI({
       div(
-        class = "d-flex align-items-center gap-2",
+        class = "d-flex align-items-center gap-2 mb-3",
         span(class = "small fw-medium", id = ns("site_title"), "Site"),
         selectInput(ns("site"), NULL, choices = sites(), selected = isolate(site()), selectize = FALSE, width = "12rem") |>
           tagAppendAttributes(class = "mb-0", `aria-labelledby` = ns("site_title"))
       )
     })
     output$table_panel <- renderUI({
-      panel(
-        sprintf("%s (%s)", labels()$label, labels()$unit),
-        description = tagList(
+      tagList(
+        uiOutput(ns("table_error")),
+        reactable::reactableOutput(ns("table")),
+        estimate_caption(
+          sprintf("%s (%s).", labels()$label, labels()$unit),
           with_help("With 95% compatibility intervals, to 3 significant figures.", "interval"),
           support_note()
-        ),
-        uiOutput(ns("table_error")),
-        reactable::reactableOutput(ns("table"))
+        )
       )
     })
     estimate_error <- function() {
