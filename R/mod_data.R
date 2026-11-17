@@ -193,7 +193,7 @@ mod_data_ui <- function(id) {
     page_header("Data", action = uiOutput(ns("continue_ui"), inline = TRUE)),
     panel(
       "Upload data",
-      description = upload_description,
+      description = tagList(upload_description, " ", actionLink(ns("format"), "View the data format")),
       action = uiOutput(ns("clear_ui"), inline = TRUE),
       div(
         class = "d-flex flex-column gap-2",
@@ -273,6 +273,7 @@ mod_data_server <- function(id, store) {
       content = function(file) writexl::write_xlsx(template_sheets(store$species(), store$census()), file)
     )
     observeEvent(input$guide, store$open_help("guide"))
+    observeEvent(input$format, store$open_help("format"))
     observeEvent(input$bundle, {
       upload <- input$bundle
       replace_data(function() store$resume(upload$name, upload$datapath))
@@ -314,8 +315,9 @@ mod_data_server <- function(id, store) {
       state <- reactive(sheet_state(store$sheets()[[sid]], sheet_source(sid, store$sources())))
       output[[paste0("tab_label_", sid)]] <- renderUI(sheet_tab_label(sheet_name(sid, store$census()), state()))
       output[[paste0("status_", sid)]] <- renderUI({
-        sheet_status(store$sheets()[[sid]], sid, state(), store$sources(), store$species(), store$census())
+        sheet_status(session$ns, store$sheets()[[sid]], sid, state(), store$sources(), store$species(), store$census())
       })
+      observeEvent(input[[paste0("format_", sid)]], store$open_help("format", sheet_name(sid, store$census())))
       # Hidden while empty (.kb-sheet-status:empty), so it must render while hidden.
       outputOptions(output, paste0("status_", sid), suspendWhenHidden = FALSE)
       output[[paste0("body_", sid)]] <- renderUI({
@@ -522,8 +524,8 @@ sheet_tab_label <- function(name, state) {
 # banners coloured as the summary line above the tabs: a data error in red,
 # warnings in amber, a note in blue. A sheet that is not used shows its check
 # in one muted banner, as it blocks nothing. A sheet not loaded says what it
-# holds and its columns.
-sheet_status <- function(sheet, id, state, sources, species, census) {
+# holds and its columns, linking to its data format on the Help tab.
+sheet_status <- function(ns, sheet, id, state, sources, species, census) {
   if (state == "missing") {
     row <- sheet_info[[id]]$row
     name <- sheet_name(id, census)
@@ -535,7 +537,8 @@ sheet_status <- function(sheet, id, state, sources, species, census) {
       ),
       div(
         class = "small text-body-secondary",
-        "Columns: ", span(class = "font-monospace", paste(sheet_columns(id, species, census), collapse = ", "))
+        "Columns: ", span(class = "font-monospace", paste(sheet_columns(id, species, census), collapse = ", ")), " ",
+        actionLink(ns(paste0("format_", id)), "View the data format")
       )
     ))
   }

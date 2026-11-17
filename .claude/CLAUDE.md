@@ -46,7 +46,7 @@ The build runs are also Positron/VS Code tasks ("kelpbioshiny: build", "kelpbios
 | Path | Contents |
 |------|----------|
 | `R/mod_<step>.R` | One module per step: `mod_<step>_ui(id)` / `mod_<step>_server(id, store)` (`data`, `models`, `estimates`, `export`); `mod_model.R` is the per-model detail page (fit, settings, diagnostics, parameter estimates, description), and `mod_estimates.R` holds each model's predictions and the derived estimates (survey biomass, canopy biomass) |
-| `R/mod_help.R` | The Help tab: `help_ui()` and `help_server()` (its sidebar) hold three pages, `help_guide_ui()` (User guide, built from the app's definitions), `help_methods_ui()` (a tile per kelpbio article, from `kelpbio_articles`) and `help_about_ui()` (with the citations) |
+| `R/mod_help.R` | The Help tab: `help_ui()` and `help_server()` (its sidebar) hold five pages, `help_guide_ui()` (User guide: the steps and the workflow, built from the app's definitions), `help_format_ui()` (Data format: a tab per sheet name with its columns from `kb_data_columns()`), `help_methods_ui()` (kelpbio's installed Methods vignette, by section), `help_glossary_ui()` (kelpbio's survey terms and the app's `help_topics`) and `help_about_ui()` (with the citations) |
 | `R/steps.R` | `app_purpose` and `app_steps`: the app's one-line purpose, and the step names and one-line descriptions |
 | `R/state.R` | `new_store()`: the per-session store of reactive state and actions, the fit queue and its runner, plus the pure fit-record transitions and status logic |
 | `R/data.R` | Sheet and model definitions (`sheet_info`, `components`), the census rule, labels, sheet checks, prior and sampler settings |
@@ -83,7 +83,7 @@ The derived estimates offer only what a report uses (`survey_sums`, `canopy_sums
 
 ## Documentation and help text
 
-- kelpbio owns the statistics: model forms, priors, diagnostics theory, interpretation and any long-form explanation live in kelpbio's roxygen docs and vignettes/articles. kelpbioshiny never restates them; it links to the relevant kelpbio article or section (`kelpbio_url` and `kelpbio_articles` in `R/help.R`, each article's title, summary and path, which the Methods page lists).
+- kelpbio owns the statistics: model forms, priors, diagnostics theory, interpretation and any long-form explanation live in kelpbio's roxygen docs and vignettes/articles. kelpbioshiny never restates them; it links to the relevant kelpbio article or section (`kelpbio_url` and `kelpbio_links` in `R/help.R`). The Help tab shows kelpbio's own text where kelpbio installs it: the Methods page and the survey terms come from its vignettes in the installed package (`kelpbio_vignette()`), with a link to kelpbio's site when kelpbio was installed without them (as from a local checkout), and the Data format page and every sheet's columns from its data dictionary (`kb_data_columns()`, through `sheet_dataset()`).
 - kelpbioshiny documents only how to use the app: what each step is for, what to click, which sheets and columns to provide, and what to do about a warning.
 - One fact, one home inside the app: step names and descriptions (`app_steps`), sheet and column lists and model sources (`components`, `prefit_info`), and glossary text (`help_topics`) are each defined once in R and reused by the UI, the welcome card, the help popovers and the User guide. Never duplicate them as hand-written prose.
 - Wording of labels, notices, popovers and the guide: `.claude/STYLE.md`. Screenshots, if the guide ever needs them, are generated with shinytest2.

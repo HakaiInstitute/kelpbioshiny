@@ -1,10 +1,11 @@
-# The Help tab: a user guide, a methods page and an about page, picked in the
-# sidebar as on the Models and Estimates steps. Help is not a step, so it carries no step marker
-# and takes no part in step completion. The guide is built
-# from the definitions the app already uses (app_steps, sheet_info, components,
-# model_groups, prefit_info, output_info, the sums, warning_help, help_topics),
-# so it changes when they do; only the
-# connecting sentences are written here.
+# The Help tab: a user guide, the data format, the methods, a glossary and an
+# about page, picked in the sidebar as on the Models and Estimates steps. Help
+# is not a step, so it carries no step marker and takes no part in step
+# completion. The pages are built from the definitions the app already uses
+# (app_steps, sheet_info, components, download_items, help_topics) and from
+# kelpbio: the columns of each sheet from its data dictionary
+# (kb_data_columns()), and the methods and the survey terms from its installed
+# vignettes (kelpbio_vignette()); only connecting sentences are written here.
 
 source_url <- "https://github.com/HakaiInstitute/kelpbioshiny"
 
@@ -12,150 +13,49 @@ external_link <- function(href, text) {
   tags$a(href = href, target = "_blank", rel = "noopener", text)
 }
 
-guide_table <- function(header, rows) {
-  tags$table(
-    class = "table table-sm small mb-0",
-    tags$thead(tags$tr(lapply(header, tags$th))),
-    tags$tbody(lapply(rows, function(row) tags$tr(lapply(row, tags$td))))
+# An outline button that opens a page of kelpbio's site in a new tab.
+kelpbio_button <- function(key, text) {
+  tags$a(
+    href = kelpbio_link(key), target = "_blank", rel = "noopener", class = "btn btn-light border btn-sm",
+    span(class = "d-inline-flex align-items-center gap-2", text, lucide("external-link"))
   )
 }
 
-# A sheet's columns, by species and kind of size data where they differ.
-guide_columns <- function(id) {
-  variants <- list(
-    list(label = em(species_info$nereo$latin), species = "nereo", census = FALSE),
-    list(label = tagList(em(species_info$nereo$latin), ", ", tolower(size_data_info$census$label)), species = "nereo", census = TRUE),
-    list(label = em(species_info$macro$latin), species = "macro", census = TRUE)
-  )
-  columns <- lapply(variants, function(v) paste(sheet_columns(id, v$species, v$census), collapse = ", "))
-  if (length(unique(columns)) == 1) {
-    return(tags$code(columns[[1]]))
-  }
-  # The Nereocystis census only where its columns differ.
-  shown <- if (identical(columns[[1]], columns[[2]])) c(1, 3) else 1:3
-  lapply(shown, function(i) div(variants[[i]]$label, ": ", tags$code(columns[[i]])))
-}
+help_pages <- c(guide = "User guide", format = "Data format", methods = "Methods", glossary = "Glossary", about = "About")
+help_page_icons <- c(guide = "book-open", format = "file-spreadsheet", methods = "sigma", glossary = "list-checks", about = "info")
 
-guide_sheets <- function() {
-  guide_table(
-    c("Sheet", "One row per", "Columns"),
-    lapply(sheet_ids, function(id) {
-      name <- if (id == "size") tagList(tags$code(size_sheet_names[["sample"]]), " or ", tags$code(size_sheet_names[["census"]])) else tags$code(sheet_name(id))
-      list(name, sheet_info[[id]]$row, guide_columns(id))
-    })
-  )
-}
-
-# Each model, what it is for and its sources, naming the species of a pre-fit
-# model only one has.
-guide_sources <- function() {
-  guide_table(
-    c("Model", "For", "Sources"),
-    lapply(model_order, function(id) {
-      by_species <- lapply(names(species_info), function(species) model_sources(id, species = species))
-      sources <- unique(unlist(by_species))
-      labels <- vapply(sources, function(source) {
-        species <- names(species_info)[vapply(by_species, function(x) source %in% x, logical(1))]
-        label <- htmltools::htmlEscape(source_label(source))
-        if (length(species) == 1) sprintf("%s (<em>%s</em> only)", label, species_info[[species]]$latin) else label
-      }, "")
-      group <- Filter(function(g) id %in% g$ids, model_groups)[[1]]
-      list(label_of(id), sub("^For ", "", group$label), HTML(paste(labels, collapse = ", ")))
-    })
-  )
-}
-
-# What each estimate needs, and how it can be shown.
-guide_estimates <- function() {
-  or_list <- function(x) sentence_case(sub(", ([^,]*)$", " or \\1", paste(tolower(x), collapse = ", ")))
-  guide_table(
-    c("Estimate", "Needs", "Shown"),
-    list(
-      list(
-        estimate_label("survey"),
-        sprintf("The %s and %s models (or a census), and a %s sheet", lower_label("weight"), lower_label("size"), sheet_name("survey")),
-        paste0(
-          or_list(vapply(survey_sums, `[[`, "", "label")), "; ",
-          tolower(or_list(derived_info$survey$scales))
-        )
-      ),
-      list(
-        estimate_label("canopy"),
-        sprintf("A %s sheet and the %s", sheet_name("canopy"), lower_label("cover")),
-        or_list(c(vapply(canopy_sums(), `[[`, "", "label"), sprintf("total by any text column of the %s sheet and year", sheet_name("canopy"))))
-      ),
-      list(
-        "Each model's predictions",
-        "The model, fitted or pre-fit",
-        paste("Group by:", tolower(or_list(prediction_groupings[c("population", "site", "year", "site_year")])))
-      )
-    )
-  )
-}
+# User guide --------------------------------------------------------------------------
 
 # A few short points under a step.
-guide_points <- function(...) tags$ul(class = "small text-body-secondary mb-0 d-flex flex-column gap-1", lapply(c(...), tags$li))
+guide_points <- function(...) tags$ul(class = "small text-body-secondary mb-0 d-flex flex-column gap-1", lapply(list(...), tags$li))
 
-# Extra content under a step's heading in the guide.
 guide_extras <- list(
   data = function() {
-    tagList(
-      guide_points(
-        sprintf(
-          "Choose the species, and for Nereocystis whether a sample of plants or all of them were measured, in the sidebar. A workbook with a %s or %s sheet sets the choice on upload.",
-          size_sheet_names[["sample"]], size_sheet_names[["census"]]
-        ),
-        "A run estimates one species. For beds with both species, run the app once per species, each with a workbook of that species' data and canopy maps.",
-        "Upload an Excel workbook with one sheet per kind of data, or a CSV file per sheet named after it (weight.csv). Download the template workbook to start from the right sheets and columns, or try the app with the example workbook.",
-        "Each sheet is checked on upload. Open its tab to see the check, a figure and a table of the data; Coverage shows the site-years each sheet has data for.",
-        "To resume a saved run, add its fit bundle under Resume a run."
+    guide_points(
+      "Choose the species and, for Nereocystis, whether all plants were measured (a census), in the sidebar. A run estimates one species: run beds with both species once per species.",
+      tagList(
+        "Upload an Excel workbook with one sheet per kind of data, or a CSV file per sheet, or try the example workbook. ",
+        actionLink("help_to_format", help_pages[["format"]]), " lists the sheets and their columns."
       ),
-      div(
-        class = "small text-body-secondary",
-        paste(
-          "The columns of each sheet. Other columns are ignored.",
-          sprintf(
-            "The size sheet is %s for a sample of plants measured, or %s with %s, a census, when it holds every counted plant and the %s sheet has no plants column. Macrocystis in situ surveys are always a census.",
-            size_sheet_names[["sample"]], size_sheet_names[["census"]], tolower(size_data_info$census$label), sheet_name("survey")
-          )
-        )
-      ),
-      div(class = "table-responsive", guide_sheets())
+      "Open each sheet's tab to check its data, and correct any data error before continuing."
     )
   },
   models = function() {
-    tagList(
-      guide_points(
-        "Choose a source for each model: your data, your data with a reference dataset, a pre-fit model, or none. With all plants measured (a census) there is no size model.",
-        "A source such as Your data + Hakai Institute fits the model to the rows of your sheet together with those of the reference dataset; its estimates include the reference sites.",
-        sprintf("Fit all fits every model that uses your data, in the background; the %s is fitted once the %s and %s models are ready.", lower_label("cover"), lower_label("weight"), lower_label("size")),
-        sprintf(
-          "Open a model for its %s tabs. Check the Diagnostics tab before using its estimates; any warning there says what to do.",
-          and_list(model_tabs)
-        ),
-        sprintf("A pre-fit %s gives canopy biomass from a %s sheet alone, without in situ survey data.", lower_label("cover"), sheet_name("canopy"))
-      ),
-      div(class = "table-responsive", guide_sources())
+    guide_points(
+      "Choose a source for each model: your data, your data with a reference dataset, a pre-fit model, or none.",
+      "Fit all fits the models in the background. Check each model's Diagnostics tab before using its estimates; any warning there says what to do."
     )
   },
   estimates = function() {
-    tagList(
-      guide_points(
-        sprintf(
-          "Each estimate has a figure and a table, in %s, %s with a %s model, or %s or %s with the %s model and a %s or %s model.",
-          tolower(output_info$wet$label), tolower(output_info$dry$label), lower_label("wetdry"),
-          tolower(output_info$carbon$label), tolower(output_info$nitrogen$label), lower_label("wetdry"),
-          lower_label("carbon"), lower_label("nitrogen")
-        ),
-        "Where a model has no data for a site predicted, optionally choose sites in its data with similar conditions under Representative site."
-      ),
-      div(class = "table-responsive", guide_estimates())
-    )
+    guide_points("Review in situ survey biomass, canopy biomass and each model's predictions, each as a figure and a table.")
   },
   export = function() {
-    tagList(
-      div(class = "small text-body-secondary", "The results workbook and the figures hold every available estimate, at the choices made on its page on the Estimates step (such as Group by, Scale and Show), in each output available. The R script reruns the whole analysis with kelpbio, with the same sources, priors and sampler settings."),
-      tags$ul(class = "small text-body-secondary mb-0", lapply(download_items, function(item) tags$li(sprintf("%s (%s)", item$label, item$detail))))
+    guide_points(
+      sprintf(
+        "Download the %s and %s, or copy an R script that reruns the analysis with kelpbio.",
+        tolower(download_items$results$label), tolower(download_items$figures$label)
+      ),
+      sprintf("Save the %s to resume the run later, under Resume a run on the Data step.", tolower(download_items$bundle$label))
     )
   }
 )
@@ -246,6 +146,119 @@ guide_workflow <- function() {
   )
 }
 
+# Data format --------------------------------------------------------------------------
+
+# The ways a sheet's dataset can differ: by species and, for the size sheet,
+# by the kind of size data.
+format_variants <- list(
+  list(species = "nereo", census = FALSE),
+  list(species = "nereo", census = TRUE),
+  list(species = "macro", census = TRUE)
+)
+
+# A dataset's columns from kelpbio's data dictionary, as a table.
+format_table <- function(dataset) {
+  columns <- kb_data_columns(dataset)
+  rows <- lapply(seq_len(nrow(columns)), function(i) {
+    tags$tr(
+      tags$td(tags$code(columns$column[[i]]), if (!columns$required[[i]]) div(class = "text-body-secondary", "optional")),
+      tags$td(if (!is.na(columns$units[[i]])) columns$units[[i]]),
+      tags$td(columns$allowed[[i]]),
+      tags$td(tags$code(columns$example[[i]])),
+      tags$td(columns$description[[i]])
+    )
+  })
+  div(
+    class = "table-responsive",
+    tags$table(
+      class = "table table-sm small mb-0",
+      tags$thead(tags$tr(lapply(c("Column", "Units", "Allowed", "Example", "Description"), tags$th))),
+      tags$tbody(rows)
+    )
+  )
+}
+
+# The format tabs: one per sheet name a workbook or CSV file can use, so the
+# size sheet has one for each kind of size data. Each lists its columns, by
+# species where they differ.
+format_tabs <- function() {
+  names <- list()
+  for (id in sheet_ids) {
+    kinds <- if (id == "size") c(FALSE, TRUE) else NA
+    for (census in kinds) names[[length(names) + 1]] <- list(id = id, census = census)
+  }
+  tabs <- lapply(names, function(tab) {
+    variants <- Filter(function(v) is.na(tab$census) || v$census == tab$census, format_variants)
+    datasets <- unique(vapply(variants, function(v) sheet_dataset(tab$id, v$species, v$census), ""))
+    contents <- lapply(datasets, function(d) as.data.frame(kb_data_columns(d))[, -1])
+    same <- length(unique(contents)) == 1
+    name <- sheet_name(tab$id, isTRUE(tab$census))
+    row <- sheet_info[[tab$id]]$row
+    tables <- if (same) {
+      list(format_table(datasets[[1]]))
+    } else {
+      lapply(datasets, function(d) {
+        species <- if (endsWith(d, "_macro")) "macro" else "nereo"
+        div(class = "d-flex flex-column gap-2", div(class = "small fw-semibold", em(species_info[[species]]$latin)), format_table(d))
+      })
+    }
+    nav_panel(
+      title = span(class = "small", name),
+      value = name,
+      folio_sheet(
+        div(class = "small text-body-secondary", sprintf("One row per %s%s.", tolower(substr(row, 1, 1)), substring(row, 2))),
+        !!!tables
+      )
+    )
+  })
+  folio(navset_tab(id = "format_tabs", !!!tabs))
+}
+
+help_format_ui <- function() {
+  tagList(
+    page_header(help_pages[["format"]], "The sheets the app reads, and their columns."),
+    panel(
+      "Sheets",
+      description = paste(
+        "Name each sheet of the Excel workbook, or each CSV file, as its tab below; other sheets and columns are ignored.",
+        "Leave out the sheets you do not have. Download the template workbook on the Data step to start from the right sheets and columns."
+      ),
+      action = kelpbio_button("data_format", "In kelpbio"),
+      format_tabs()
+    )
+  )
+}
+
+# Methods --------------------------------------------------------------------------
+
+methods_sections <- function() kelpbio_vignette("methods", "methods-")
+
+# Shown when kelpbio was installed without its vignettes.
+vignette_missing <- function(what, key) {
+  div(
+    class = "d-flex flex-wrap align-items-center gap-3",
+    div(class = "small text-body-secondary flex-grow-1", sprintf("%s is not installed with this copy of kelpbio.", what)),
+    kelpbio_button(key, "Read it on kelpbio's site")
+  )
+}
+
+help_methods_ui <- function() {
+  sections <- methods_sections()
+  tagList(
+    page_header(help_pages[["methods"]], sprintf("How kelpbio estimates biomass: its Methods article, for kelpbio %s.", package_version_text("kelpbio"))),
+    if (is.null(sections)) {
+      card(card_body(vignette_missing("The Methods article", "methods")))
+    } else {
+      div(
+        class = "d-flex flex-column gap-3",
+        lapply(sections, function(section) panel(section$title, id = section$id, class = "kb-anchor", div(class = "kb-article", section$html)))
+      )
+    }
+  )
+}
+
+# Glossary --------------------------------------------------------------------------
+
 guide_glossary <- function() {
   tags$dl(
     class = "row mb-0",
@@ -263,47 +276,23 @@ guide_glossary <- function() {
   )
 }
 
-# The warnings and notes the app shows, each with what to do about it, from
-# warning_help.
-guide_warnings <- function() {
-  entries <- function(items) {
-    tags$dl(
-      class = "row mb-0",
-      lapply(items, function(warning) {
-        tagList(
-          tags$dt(class = "col-md-3 fw-medium", warning$title),
-          tags$dd(class = "col-md-9 text-body-secondary mb-3", warning$advice)
-        )
-      })
-    )
-  }
-  note <- vapply(warning_help, function(warning) isTRUE(warning$note), logical(1))
+help_glossary_ui <- function() {
+  # kelpbio's glossary of survey terms, from its installed Get started vignette.
+  survey_terms <- Filter(function(section) section$id == "glossary-glossary", kelpbio_vignette("kelpbio", "glossary-") %||% list())
   tagList(
-    h3(class = "fs-6 fw-semibold", "Warnings"),
-    p(class = "small text-body-secondary", "The fit or data cannot be relied on until they are fixed."),
-    entries(warning_help[!note]),
-    h3(class = "fs-6 fw-semibold mt-2", "Notes"),
-    p(class = "small text-body-secondary", "The fit is valid; check what is flagged."),
-    entries(warning_help[note])
-  )
-}
-
-# Predicting the weight of each plant without biomass, after the steps.
-guide_plant_weights <- function() {
-  div(
-    class = "small text-body-secondary",
-    sprintf(
-      "The app can also predict the wet weight of each plant, without biomass. Load a %s sheet, use the %s model (fitted to your data or pre-fit), and open %s on the Estimates step with Group by set to %s.",
-      components$size$sheet, lower_label("weight"), label_of("weight"), prediction_groupings[["plant"]]
+    page_header(help_pages[["glossary"]], "The survey terms kelpbio uses, and the terms behind the help icons in the app."),
+    div(
+      class = "d-flex flex-column gap-3",
+      panel(
+        "Survey terms",
+        if (length(survey_terms) == 0) vignette_missing("kelpbio's glossary", "glossary") else div(class = "kb-article", survey_terms[[1]]$html)
+      ),
+      panel("Terms in the app", guide_glossary())
     )
   )
 }
 
-# The guide's sections, by anchor id, as titled on the page and in its contents.
-guide_sections <- c(guide_steps = "Steps", guide_workflow = "Workflow", guide_warnings = "Warnings and notes", guide_glossary = "Glossary")
-
-help_pages <- c(guide = "User guide", methods = "Methods", about = "About")
-help_page_icons <- c(guide = "book-open", methods = "sigma", about = "info")
+# Layout --------------------------------------------------------------------------
 
 help_ui <- function() {
   step_layout(
@@ -311,18 +300,23 @@ help_ui <- function() {
     navset_hidden(
       id = "help_page",
       nav_panel_hidden("guide", help_guide_ui()),
+      nav_panel_hidden("format", help_format_ui()),
       nav_panel_hidden("methods", help_methods_ui()),
+      nav_panel_hidden("glossary", help_glossary_ui()),
       nav_panel_hidden("about", help_about_ui())
     )
   )
 }
 
-# The sidebar: a link per page, with the guide's sections under it while it is
-# open; each section link jumps to its section, and the page stays scrollable.
+# The sidebar: a link per page, with the Methods sections under it while it
+# is open; each section link jumps to its section, and the page stays
+# scrollable.
 help_server <- function(input, output, session) {
   lapply(names(help_pages), function(value) {
     observeEvent(input[[paste0("help_nav_", value)]], nav_select("help_page", value))
   })
+  observeEvent(input$help_to_format, nav_select("help_page", "format"))
+  sections <- methods_sections()
   output$help_subnav <- renderUI({
     page <- input$help_page %||% "guide"
     tags$nav(
@@ -331,11 +325,11 @@ help_server <- function(input, output, session) {
       lapply(names(help_pages), function(value) {
         tagList(
           subnav_link(paste0("help_nav_", value), page == value, lucide(help_page_icons[[value]], "text-body-secondary"), help_pages[[value]]),
-          if (value == "guide" && page == "guide") {
+          if (value == "methods" && page == "methods" && length(sections) > 0) {
             div(
               class = "d-flex flex-column gap-1 small ps-4 ms-2 pb-1",
-              lapply(names(guide_sections), function(id) {
-                tags$a(href = paste0("#", id), class = "link-body-emphasis text-decoration-none py-1", guide_sections[[id]])
+              lapply(sections, function(section) {
+                tags$a(href = paste0("#", section$id), class = "link-body-emphasis text-decoration-none py-1", section$title)
               })
             )
           }
@@ -360,83 +354,22 @@ help_server <- function(input, output, session) {
 
 help_guide_ui <- function() {
   tagList(
-    page_header(help_pages[["guide"]], "How to use the app, step by step."),
+    page_header(help_pages[["guide"]], "How to go from field data to biomass estimates."),
     div(
       class = "d-flex flex-column gap-3",
       panel(
-        guide_sections[["guide_steps"]],
-        id = "guide_steps", class = "kb-anchor",
-        description = paste(
-          "Not every sheet is needed: a run uses only the sheets of the estimates it makes, and any model can be pre-fit instead of fitted to a sheet.",
-          "A run moves through four steps in the navbar. A step's marker shows a check mark once its task is done: data loaded, every model in use ready, or a download made or the R script copied. A warning sign flags a sheet that failed its check or a model with a warning."
-        ),
+        "Steps",
+        description = "Not every sheet is needed: a run uses only the sheets of the estimates it makes, and any model can be pre-fit instead.",
         div(
           class = "d-flex flex-column gap-4",
-          lapply(names(steps), function(value) {
-            step_item(value, if (!is.null(guide_extras[[value]])) guide_extras[[value]](), small = FALSE)
-          })
-        ),
-        guide_plant_weights()
-      ),
-      panel(
-        guide_sections[["guide_workflow"]],
-        id = "guide_workflow", class = "kb-anchor",
-        description = "Which sheets feed which models, and how the models combine into the estimates. Any model can be pre-fit instead of fitted to a sheet.",
-        guide_workflow()
-      ),
-      panel(
-        guide_sections[["guide_warnings"]],
-        id = "guide_warnings", class = "kb-anchor",
-        description = "The warnings and notes a model or sheet can show, and what to do about them.",
-        guide_warnings()
-      ),
-      panel(
-        guide_sections[["guide_glossary"]],
-        id = "guide_glossary", class = "kb-anchor",
-        description = "The terms behind the help icons in the app.",
-        guide_glossary()
-      )
-    )
-  )
-}
-
-# A kelpbio article as a tile: the whole tile opens it in a new tab.
-article_tile <- function(article) {
-  div(
-    class = "kb-tile position-relative d-flex flex-column gap-1 rounded-3 p-3 small",
-    tags$a(
-      href = paste0(kelpbio_url, article$path), target = "_blank", rel = "noopener",
-      class = "stretched-link fw-medium link-body-emphasis text-decoration-none d-inline-flex align-items-center gap-1",
-      article$title, lucide("external-link", "text-body-secondary")
-    ),
-    div(class = "text-body-secondary", article$summary)
-  )
-}
-
-# The statistics are documented in kelpbio, so this page only points to them.
-help_methods_ui <- function() {
-  tagList(
-    page_header(help_pages[["methods"]], "The models, priors and diagnostics the app runs are documented in the kelpbio R package."),
-    div(
-      class = "d-flex flex-column gap-3",
-      panel(
-        "kelpbio articles",
-        description = "Each article opens in a new tab.",
-        layout_column_wrap(width = "16rem", fill = FALSE, gap = "0.75rem", !!!unname(lapply(kelpbio_articles, article_tile)))
-      ),
-      card(card_body(div(
-        class = "d-flex flex-wrap align-items-center gap-3",
-        div(class = "kb-tile-icon bg-primary-subtle text-primary-emphasis", lucide("book-open")),
-        div(
-          class = "flex-grow-1",
-          h2(class = "kb-card-title mb-0", "kelpbio documentation"),
-          div(class = "small text-body-secondary mt-1", "Every article, and the reference for each function the app calls.")
-        ),
-        tags$a(
-          href = kelpbio_url, target = "_blank", rel = "noopener", class = "btn btn-light border",
-          span(class = "d-inline-flex align-items-center gap-2", "Open the kelpbio documentation", lucide("external-link"))
+          lapply(names(steps), function(value) step_item(value, guide_extras[[value]](), small = FALSE))
         )
-      )))
+      ),
+      panel(
+        "Workflow",
+        description = "Which sheets feed which models, and how the models combine into the estimates.",
+        guide_workflow()
+      )
     )
   )
 }
@@ -481,7 +414,6 @@ help_about_ui <- function() {
         gap = "1rem",
         div(
           class = "text-body-secondary",
-          "The app runs the Bayesian models of the kelpbio R package without writing code. ",
           "It was developed by Poisson Consulting for the Hakai Institute, funded by the Tula Foundation. ",
           "Estimates depend on the data and the model choices; check them with the diagnostics on the Models step."
         ),

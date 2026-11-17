@@ -178,6 +178,36 @@
   display: none !important;
 }
 
+/* A kelpbio vignette shown on the Help tab (Methods, Glossary): its own
+   headings, figures and code, set to the app's sizes. */
+.kb-article > :last-child {
+  margin-bottom: 0;
+}
+
+.kb-article h3 {
+  font-size: 1rem;
+  font-weight: 600;
+  margin-top: 1.5rem;
+}
+
+.kb-article h4 {
+  font-size: 0.9375rem;
+  font-weight: 600;
+  margin-top: 1.25rem;
+}
+
+.kb-article img {
+  max-width: 100%;
+  height: auto;
+}
+
+.kb-article pre {
+  background-color: var(--bs-tertiary-bg);
+  border-radius: var(--bs-border-radius);
+  padding: 0.75rem;
+  font-size: 0.8125rem;
+}
+
 .kb-anchor {
   scroll-margin-top: 1.5rem;
 }

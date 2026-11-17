@@ -958,10 +958,12 @@ new_store <- function(session, run_fit = mirai_fit_runner) {
     nav_select("data-sheet_tabs", id, session = session)
   }
 
-  # Opens one page of the Help tab: "guide" or "about".
-  s$open_help <- function(page) {
+  # Opens one page of the Help tab, such as "guide" or "format", and on the
+  # Data format page the tab of a sheet name (`tab`).
+  s$open_help <- function(page, tab = NULL) {
     s$go_to("help")
     nav_select("help_page", page, session = session)
+    if (!is.null(tab)) nav_select("format_tabs", tab, session = session)
   }
 
   # Opens one tab of a model's detail page, e.g. its diagnostics from a warning.
