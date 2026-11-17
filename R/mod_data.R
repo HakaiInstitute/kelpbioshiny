@@ -193,7 +193,7 @@ mod_data_ui <- function(id) {
     page_header("Data", action = uiOutput(ns("continue_ui"), inline = TRUE)),
     panel(
       "Upload data",
-      description = tagList(upload_description, " ", actionLink(ns("format"), "View the data format")),
+      description = tagList(upload_description, " ", actionLink(ns("format"), "Review data format requirements")),
       action = uiOutput(ns("clear_ui"), inline = TRUE),
       div(
         class = "d-flex flex-column gap-2",
@@ -538,7 +538,7 @@ sheet_status <- function(ns, sheet, id, state, sources, species, census) {
       div(
         class = "small text-body-secondary",
         "Columns: ", span(class = "font-monospace", paste(sheet_columns(id, species, census), collapse = ", ")), " ",
-        actionLink(ns(paste0("format_", id)), "View the data format")
+        actionLink(ns(paste0("format_", id)), "Review data format requirements")
       )
     ))
   }

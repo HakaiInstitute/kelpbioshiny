@@ -16,46 +16,77 @@ external_link <- function(href, text) {
 # An outline button that opens a page of kelpbio's site in a new tab.
 kelpbio_button <- function(key, text) {
   tags$a(
-    href = kelpbio_link(key), target = "_blank", rel = "noopener", class = "btn btn-light border btn-sm",
-    span(class = "d-inline-flex align-items-center gap-2", text, lucide("external-link"))
+    href = kelpbio_link(key),
+    target = "_blank",
+    rel = "noopener",
+    class = "btn btn-light border btn-sm",
+    span(
+      class = "d-inline-flex align-items-center gap-2",
+      text,
+      lucide("external-link")
+    )
   )
 }
 
-help_pages <- c(guide = "User guide", format = "Data format", methods = "Methods", glossary = "Glossary", about = "About")
-help_page_icons <- c(guide = "book-open", format = "file-spreadsheet", methods = "sigma", glossary = "list-checks", about = "info")
+help_pages <- c(
+  guide = "User guide",
+  format = "Data format",
+  methods = "Methods",
+  glossary = "Glossary",
+  about = "About"
+)
+help_page_icons <- c(
+  guide = "book-open",
+  format = "file-spreadsheet",
+  methods = "sigma",
+  glossary = "list-checks",
+  about = "info"
+)
 
 # User guide --------------------------------------------------------------------------
 
 # A few short points under a step.
-guide_points <- function(...) tags$ul(class = "small text-body-secondary mb-0 d-flex flex-column gap-1", lapply(list(...), tags$li))
+guide_points <- function(...) {
+  tags$ul(
+    class = "small text-body-secondary mb-0 d-flex flex-column gap-1",
+    lapply(list(...), tags$li)
+  )
+}
 
 guide_extras <- list(
   data = function() {
     guide_points(
-      "Choose the species and, for Nereocystis, whether all plants were measured (a census), in the sidebar. A run estimates one species: run beds with both species once per species.",
+      "In the sidebar, choose the species and, for Nereocystis, whether all plants were measured vs. a sample of plants were measured. The app is designed to work on one species at a time. For beds with both species, complete separate runs.",
       tagList(
         "Upload an Excel workbook with one sheet per kind of data, or a CSV file per sheet, or try the example workbook. ",
-        actionLink("help_to_format", help_pages[["format"]]), " lists the sheets and their columns."
+        actionLink("help_to_format", help_pages[["format"]]),
+        " lists the sheets and their columns."
       ),
-      "Open each sheet's tab to check its data, and correct any data error before continuing."
+      "Open each sheet's tab to check its data, and correct any data error or warnings before continuing."
     )
   },
   models = function() {
     guide_points(
-      "Choose a source for each model: your data, your data with a reference dataset, a pre-fit model, or none.",
-      "Fit all fits the models in the background. Check each model's Diagnostics tab before using its estimates; any warning there says what to do."
+      "Choose a source for each model: your data, your data appended to a public dataset, a model pre-fit to a public dataset, or none (although some are required).",
+      "'Fit all' fits all of the models in the background. If there are model fit warnings, check each model's Diagnostics tab before using its estimates; follow specific recommendations in the warning messages and re-fit models if necessary. Model convergence is especially important for valid estimates."
     )
   },
   estimates = function() {
-    guide_points("Review in situ survey biomass, canopy biomass and each model's predictions, each as a figure and a table.")
+    guide_points(
+      "Review in situ survey biomass, canopy biomass and each model's predictions, each as a figure and a table."
+    )
   },
   export = function() {
     guide_points(
       sprintf(
         "Download the %s and %s, or copy an R script that reruns the analysis with kelpbio.",
-        tolower(download_items$results$label), tolower(download_items$figures$label)
+        tolower(download_items$results$label),
+        tolower(download_items$figures$label)
       ),
-      sprintf("Save the %s to resume the run later, under Resume a run on the Data step.", tolower(download_items$bundle$label))
+      sprintf(
+        "Save the %s to resume the run later, under Resume a run on the Data step.",
+        tolower(download_items$bundle$label)
+      )
     )
   }
 )
@@ -73,10 +104,16 @@ flow_node <- function(kind, title, detail = NULL) {
 
 flow_sheet <- function(id, name = tags$code(sheet_name(id))) {
   row <- sheet_info[[id]]$row
-  flow_node("sheet", name, paste0("One row per ", tolower(substr(row, 1, 1)), substring(row, 2)))
+  flow_node(
+    "sheet",
+    name,
+    paste0("One row per ", tolower(substr(row, 1, 1)), substring(row, 2))
+  )
 }
 
-flow_model <- function(id, detail = components[[id]]$detail) flow_node("model", paste(label_of(id), "model"), detail)
+flow_model <- function(id, detail = components[[id]]$detail) {
+  flow_node("model", paste(label_of(id), "model"), detail)
+}
 
 flow_arrow <- function() div(class = "kb-flow-arrow", lucide("arrow-right"))
 
@@ -85,27 +122,52 @@ flow_arrow <- function() div(class = "kb-flow-arrow", lucide("arrow-right"))
 flow_group <- function(inputs, estimate) {
   div(
     class = "kb-flow-group",
-    unlist(lapply(seq_along(inputs), function(i) {
-      row <- inputs[[i]]
-      list(
-        tagAppendAttributes(row$from, style = sprintf("grid-area: %d / 1", i)),
-        if (is.null(row$model)) {
-          div(class = "kb-flow-line", style = sprintf("grid-area: %d / 2 / %d / 4", i, i))
-        } else {
-          list(
-            tagAppendAttributes(flow_arrow(), style = sprintf("grid-area: %d / 2", i)),
-            tagAppendAttributes(row$model, style = sprintf("grid-area: %d / 3", i))
-          )
-        }
-      )
-    }), recursive = FALSE),
-    tagAppendAttributes(flow_arrow(), style = sprintf("grid-area: 1 / 4 / span %d", length(inputs))),
-    tagAppendAttributes(estimate, style = sprintf("grid-area: 1 / 5 / span %d", length(inputs)))
+    unlist(
+      lapply(seq_along(inputs), function(i) {
+        row <- inputs[[i]]
+        list(
+          tagAppendAttributes(
+            row$from,
+            style = sprintf("grid-area: %d / 1", i)
+          ),
+          if (is.null(row$model)) {
+            div(
+              class = "kb-flow-line",
+              style = sprintf("grid-area: %d / 2 / %d / 4", i, i)
+            )
+          } else {
+            list(
+              tagAppendAttributes(
+                flow_arrow(),
+                style = sprintf("grid-area: %d / 2", i)
+              ),
+              tagAppendAttributes(
+                row$model,
+                style = sprintf("grid-area: %d / 3", i)
+              )
+            )
+          }
+        )
+      }),
+      recursive = FALSE
+    ),
+    tagAppendAttributes(
+      flow_arrow(),
+      style = sprintf("grid-area: 1 / 4 / span %d", length(inputs))
+    ),
+    tagAppendAttributes(
+      estimate,
+      style = sprintf("grid-area: 1 / 5 / span %d", length(inputs))
+    )
   )
 }
 
 guide_workflow <- function() {
-  size_names <- tagList(tags$code(size_sheet_names[["sample"]]), " or ", tags$code(size_sheet_names[["census"]]))
+  size_names <- tagList(
+    tags$code(size_sheet_names[["sample"]]),
+    " or ",
+    tags$code(size_sheet_names[["census"]])
+  )
   div(
     class = "overflow-x-auto",
     div(
@@ -116,7 +178,13 @@ guide_workflow <- function() {
       flow_group(
         list(
           list(from = flow_sheet("weight"), model = flow_model("weight")),
-          list(from = flow_sheet("size", size_names), model = flow_model("size", sprintf("%s; none in a census", components$size$detail))),
+          list(
+            from = flow_sheet("size", size_names),
+            model = flow_model(
+              "size",
+              sprintf("%s; none in a census", components$size$detail)
+            )
+          ),
           list(from = flow_sheet("survey"))
         ),
         flow_node("estimate", estimate_label("survey"))
@@ -124,7 +192,14 @@ guide_workflow <- function() {
       flow_group(
         list(
           list(
-            from = flow_node("estimate", estimate_label("survey"), sprintf("Of the %s rows with canopy imagery", sheet_name("survey"))),
+            from = flow_node(
+              "estimate",
+              estimate_label("survey"),
+              sprintf(
+                "Of the %s rows with canopy imagery",
+                sheet_name("survey")
+              )
+            ),
             model = flow_model("cover")
           ),
           list(from = flow_sheet("canopy"))
@@ -138,7 +213,13 @@ guide_workflow <- function() {
           list(from = flow_sheet("nitrogen"), model = flow_model("nitrogen"))
         ),
         flow_node(
-          "estimate", sprintf("%s, %s and %s", output_info$dry$label, tolower(output_info$carbon$label), tolower(output_info$nitrogen$label)),
+          "estimate",
+          sprintf(
+            "%s, %s and %s",
+            output_info$dry$label,
+            tolower(output_info$carbon$label),
+            tolower(output_info$nitrogen$label)
+          ),
           "Of either estimate"
         )
       )
@@ -161,7 +242,12 @@ format_table <- function(dataset) {
   columns <- kb_data_columns(dataset)
   rows <- lapply(seq_len(nrow(columns)), function(i) {
     tags$tr(
-      tags$td(tags$code(columns$column[[i]]), if (!columns$required[[i]]) div(class = "text-body-secondary", "optional")),
+      tags$td(
+        tags$code(columns$column[[i]]),
+        if (!columns$required[[i]]) {
+          div(class = "text-body-secondary", "optional")
+        }
+      ),
       tags$td(if (!is.na(columns$units[[i]])) columns$units[[i]]),
       tags$td(columns$allowed[[i]]),
       tags$td(tags$code(columns$example[[i]])),
@@ -172,7 +258,10 @@ format_table <- function(dataset) {
     class = "table-responsive",
     tags$table(
       class = "table table-sm small mb-0",
-      tags$thead(tags$tr(lapply(c("Column", "Units", "Allowed", "Example", "Description"), tags$th))),
+      tags$thead(tags$tr(lapply(
+        c("Column", "Units", "Allowed", "Example", "Description"),
+        tags$th
+      ))),
       tags$tbody(rows)
     )
   )
@@ -185,12 +274,23 @@ format_tabs <- function() {
   names <- list()
   for (id in sheet_ids) {
     kinds <- if (id == "size") c(FALSE, TRUE) else NA
-    for (census in kinds) names[[length(names) + 1]] <- list(id = id, census = census)
+    for (census in kinds) {
+      names[[length(names) + 1]] <- list(id = id, census = census)
+    }
   }
   tabs <- lapply(names, function(tab) {
-    variants <- Filter(function(v) is.na(tab$census) || v$census == tab$census, format_variants)
-    datasets <- unique(vapply(variants, function(v) sheet_dataset(tab$id, v$species, v$census), ""))
-    contents <- lapply(datasets, function(d) as.data.frame(kb_data_columns(d))[, -1])
+    variants <- Filter(
+      function(v) is.na(tab$census) || v$census == tab$census,
+      format_variants
+    )
+    datasets <- unique(vapply(
+      variants,
+      function(v) sheet_dataset(tab$id, v$species, v$census),
+      ""
+    ))
+    contents <- lapply(datasets, function(d) {
+      as.data.frame(kb_data_columns(d))[, -1]
+    })
     same <- length(unique(contents)) == 1
     name <- sheet_name(tab$id, isTRUE(tab$census))
     row <- sheet_info[[tab$id]]$row
@@ -199,14 +299,25 @@ format_tabs <- function() {
     } else {
       lapply(datasets, function(d) {
         species <- if (endsWith(d, "_macro")) "macro" else "nereo"
-        div(class = "d-flex flex-column gap-2", div(class = "small fw-semibold", em(species_info[[species]]$latin)), format_table(d))
+        div(
+          class = "d-flex flex-column gap-2",
+          div(class = "small fw-semibold", em(species_info[[species]]$latin)),
+          format_table(d)
+        )
       })
     }
     nav_panel(
       title = span(class = "small", name),
       value = name,
       folio_sheet(
-        div(class = "small text-body-secondary", sprintf("One row per %s%s.", tolower(substr(row, 1, 1)), substring(row, 2))),
+        div(
+          class = "small text-body-secondary",
+          sprintf(
+            "One row per %s%s.",
+            tolower(substr(row, 1, 1)),
+            substring(row, 2)
+          )
+        ),
         !!!tables
       )
     )
@@ -216,12 +327,15 @@ format_tabs <- function() {
 
 help_format_ui <- function() {
   tagList(
-    page_header(help_pages[["format"]], "The sheets the app reads, and their columns."),
+    page_header(
+      help_pages[["format"]],
+      "The sheets that the app reads, required column names, and data format."
+    ),
     panel(
       "Sheets",
       description = paste(
         "Name each sheet of the Excel workbook, or each CSV file, as its tab below; other sheets and columns are ignored.",
-        "Leave out the sheets you do not have. Download the template workbook on the Data step to start from the right sheets and columns."
+        "Leave out the sheets you do not have; not all are required. Download the template workbook on the Data step for an empty template with correct sheet and column names."
       ),
       action = kelpbio_button("data_format", "In kelpbio"),
       format_tabs()
@@ -237,7 +351,10 @@ methods_sections <- function() kelpbio_vignette("methods", "methods-")
 vignette_missing <- function(what, key) {
   div(
     class = "d-flex flex-wrap align-items-center gap-3",
-    div(class = "small text-body-secondary flex-grow-1", sprintf("%s is not installed with this copy of kelpbio.", what)),
+    div(
+      class = "small text-body-secondary flex-grow-1",
+      sprintf("%s is not installed with this copy of kelpbio.", what)
+    ),
     kelpbio_button(key, "Read it on kelpbio's site")
   )
 }
@@ -245,13 +362,26 @@ vignette_missing <- function(what, key) {
 help_methods_ui <- function() {
   sections <- methods_sections()
   tagList(
-    page_header(help_pages[["methods"]], sprintf("How kelpbio estimates biomass: its Methods article, for kelpbio %s.", package_version_text("kelpbio"))),
+    page_header(
+      help_pages[["methods"]],
+      sprintf(
+        "How kelpbio estimates biomass: its Methods article, for kelpbio %s.",
+        package_version_text("kelpbio")
+      )
+    ),
     if (is.null(sections)) {
       card(card_body(vignette_missing("The Methods article", "methods")))
     } else {
       div(
         class = "d-flex flex-column gap-3",
-        lapply(sections, function(section) panel(section$title, id = section$id, class = "kb-anchor", div(class = "kb-article", section$html)))
+        lapply(sections, function(section) {
+          panel(
+            section$title,
+            id = section$id,
+            class = "kb-anchor",
+            div(class = "kb-article", section$html)
+          )
+        })
       )
     }
   )
@@ -278,14 +408,24 @@ guide_glossary <- function() {
 
 help_glossary_ui <- function() {
   # kelpbio's glossary of survey terms, from its installed Get started vignette.
-  survey_terms <- Filter(function(section) section$id == "glossary-glossary", kelpbio_vignette("kelpbio", "glossary-") %||% list())
+  survey_terms <- Filter(
+    function(section) section$id == "glossary-glossary",
+    kelpbio_vignette("kelpbio", "glossary-") %||% list()
+  )
   tagList(
-    page_header(help_pages[["glossary"]], "The survey terms kelpbio uses, and the terms behind the help icons in the app."),
+    page_header(
+      help_pages[["glossary"]],
+      "The terms that kelpbio uses, and the terms behind the help icons in the app."
+    ),
     div(
       class = "d-flex flex-column gap-3",
       panel(
         "Survey terms",
-        if (length(survey_terms) == 0) vignette_missing("kelpbio's glossary", "glossary") else div(class = "kb-article", survey_terms[[1]]$html)
+        if (length(survey_terms) == 0) {
+          vignette_missing("kelpbio's glossary", "glossary")
+        } else {
+          div(class = "kb-article", survey_terms[[1]]$html)
+        }
       ),
       panel("Terms in the app", guide_glossary())
     )
@@ -313,7 +453,10 @@ help_ui <- function() {
 # scrollable.
 help_server <- function(input, output, session) {
   lapply(names(help_pages), function(value) {
-    observeEvent(input[[paste0("help_nav_", value)]], nav_select("help_page", value))
+    observeEvent(
+      input[[paste0("help_nav_", value)]],
+      nav_select("help_page", value)
+    )
   })
   observeEvent(input$help_to_format, nav_select("help_page", "format"))
   sections <- methods_sections()
@@ -324,12 +467,21 @@ help_server <- function(input, output, session) {
       `aria-label` = "Help",
       lapply(names(help_pages), function(value) {
         tagList(
-          subnav_link(paste0("help_nav_", value), page == value, lucide(help_page_icons[[value]], "text-body-secondary"), help_pages[[value]]),
+          subnav_link(
+            paste0("help_nav_", value),
+            page == value,
+            lucide(help_page_icons[[value]], "text-body-secondary"),
+            help_pages[[value]]
+          ),
           if (value == "methods" && page == "methods" && length(sections) > 0) {
             div(
               class = "d-flex flex-column gap-1 small ps-4 ms-2 pb-1",
               lapply(sections, function(section) {
-                tags$a(href = paste0("#", section$id), class = "link-body-emphasis text-decoration-none py-1", section$title)
+                tags$a(
+                  href = paste0("#", section$id),
+                  class = "link-body-emphasis text-decoration-none py-1",
+                  section$title
+                )
               })
             )
           }
@@ -338,10 +490,14 @@ help_server <- function(input, output, session) {
       # Not a page: GitHub's new issue form, in a new tab.
       tags$hr(class = "my-1"),
       tags$a(
-        href = paste0(source_url, "/issues/new"), target = "_blank", rel = "noopener", class = "nav-link py-2 px-2",
+        href = paste0(source_url, "/issues/new"),
+        target = "_blank",
+        rel = "noopener",
+        class = "nav-link py-2 px-2",
         div(
           class = "d-flex align-items-center gap-2",
-          lucide("github", "text-body-secondary"), span(class = "flex-grow-1", "Report an issue"),
+          lucide("github", "text-body-secondary"),
+          span(class = "flex-grow-1", "Report an issue"),
           lucide("external-link", "text-body-secondary")
         )
       )
@@ -354,20 +510,25 @@ help_server <- function(input, output, session) {
 
 help_guide_ui <- function() {
   tagList(
-    page_header(help_pages[["guide"]], "How to go from field data to biomass estimates."),
+    page_header(
+      help_pages[["guide"]],
+      "How to get biomass estimates from your data."
+    ),
     div(
       class = "d-flex flex-column gap-3",
       panel(
         "Steps",
-        description = "Not every sheet is needed: a run uses only the sheets of the estimates it makes, and any model can be pre-fit instead.",
+        description = "Not every sheet is needed: a run uses only the sheets of the estimates it makes, and models pre-fit to public datasets can be used instead.",
         div(
           class = "d-flex flex-column gap-4",
-          lapply(names(steps), function(value) step_item(value, guide_extras[[value]](), small = FALSE))
+          lapply(names(steps), function(value) {
+            step_item(value, guide_extras[[value]](), small = FALSE)
+          })
         )
       ),
       panel(
         "Workflow",
-        description = "Which sheets feed which models, and how the models combine into the estimates.",
+        description = "Which sheets feed which models, and how the models combine to get estimates.",
         guide_workflow()
       )
     )
@@ -375,11 +536,15 @@ help_guide_ui <- function() {
 }
 
 # A package's installed version.
-package_version_text <- function(package) as.character(utils::packageVersion(package))
+package_version_text <- function(package) {
+  as.character(utils::packageVersion(package))
+}
 
 # HTML style renders the title in italics and the URL as a link, where the text
 # style would show R's markup characters.
-citation_html <- function(citation) HTML(paste(format(citation, style = "html"), collapse = " "))
+citation_html <- function(citation) {
+  HTML(paste(format(citation, style = "html"), collapse = " "))
+}
 
 # A citation in a code block, with a button that copies its text.
 citation_block <- function(id, label, citation) {
@@ -390,17 +555,26 @@ citation_block <- function(id, label, citation) {
       div(class = "fw-medium", label),
       copy_button(id, "citation", paste("Copy the", label, "citation"))
     ),
-    div(id = id, class = "kb-citation small bg-body-tertiary border rounded-3 p-3", citation_html(citation))
+    div(
+      id = id,
+      class = "kb-citation small bg-body-tertiary border rounded-3 p-3",
+      citation_html(citation)
+    )
   )
 }
 
 # A fact about the app, such as a version or its licence, as a muted badge.
-about_fact <- function(...) span(class = "badge border text-body-secondary fw-medium", ...)
+about_fact <- function(...) {
+  span(class = "badge border text-body-secondary fw-medium", ...)
+}
 
 # A link out of the app, as a small outline button with an icon.
 about_link <- function(href, icon, text) {
   tags$a(
-    href = href, target = "_blank", rel = "noopener", class = "btn btn-light border btn-sm",
+    href = href,
+    target = "_blank",
+    rel = "noopener",
+    class = "btn btn-light border btn-sm",
     span(class = "d-inline-flex align-items-center gap-2", lucide(icon), text)
   )
 }
@@ -414,8 +588,8 @@ help_about_ui <- function() {
         gap = "1rem",
         div(
           class = "text-body-secondary",
-          "It was developed by Poisson Consulting for the Hakai Institute, funded by the Tula Foundation. ",
-          "Estimates depend on the data and the model choices; check them with the diagnostics on the Models step."
+          "kelpbio was developed by Poisson Consulting for the Hakai Institute, funded by the Tula Foundation. ",
+          "Validity of estimates depend on the data and the model choices; check them with the diagnostics on the Models step."
         ),
         div(
           class = "d-flex flex-wrap align-items-center gap-2",
@@ -430,8 +604,16 @@ help_about_ui <- function() {
       panel(
         "Citation",
         description = "To cite the app and the kelpbio package in publications, use:",
-        citation_block("citation_kelpbioshiny", "kelpbioshiny", utils::citation("kelpbioshiny")),
-        citation_block("citation_kelpbio", "kelpbio", utils::citation("kelpbio"))
+        citation_block(
+          "citation_kelpbioshiny",
+          "kelpbioshiny",
+          utils::citation("kelpbioshiny")
+        ),
+        citation_block(
+          "citation_kelpbio",
+          "kelpbio",
+          utils::citation("kelpbio")
+        )
       )
     )
   )
