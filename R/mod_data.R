@@ -397,6 +397,16 @@ mod_data_server <- function(id, store) {
       nav_select("sheet_tabs", selected)
     })
 
+    # The summary's sheet errors and warnings open the leftmost tab with one.
+    open_first <- function(field) {
+      sheets <- store$sheets()
+      sources <- store$sources()
+      ids <- Filter(function(id) !is.null(sheets[[id]][[field]]) && uses_sheet(sheet_source(id, sources)), sheet_ids)
+      if (length(ids) > 0) nav_select("sheet_tabs", ids[[1]])
+    }
+    observeEvent(input$open_error, open_first("error"))
+    observeEvent(input$open_warnings, open_first("warnings"))
+
     # With no data loaded, the welcome card above stands in for these.
     output$issues <- renderUI({
       req(loaded())
@@ -579,7 +589,8 @@ sheet_body <- function(ns, sheet, id, species, facet = NULL, view = NULL) {
 }
 
 # One line above the sheets: counts of what the checks and the coverage table
-# flag, each linking to its section. Only sheets used by their model count as
+# flag, each linking to its section; the sheet errors and warnings open the
+# first sheet's tab with one. Only sheets used by their model count as
 # errors or warnings. What the site-years lack is summarised on the Coverage
 # card instead.
 issues_summary <- function(ns, sheets, cov, sources) {
@@ -598,8 +609,8 @@ issues_summary <- function(ns, sheets, cov, sources) {
   warnings <- warnings[warnings > 0]
   issues <- lapply(names(warnings), function(what) {
     switch(what,
-      "sheet errors" = link(count(warnings[[what]], "sheet error"), "sheets_card"),
-      "sheet warnings" = link(count(warnings[[what]], "sheet warning"), "sheets_card"),
+      "sheet errors" = actionLink(ns("open_error"), count(warnings[[what]], "sheet error"), class = "link-body-emphasis"),
+      "sheet warnings" = actionLink(ns("open_warnings"), count(warnings[[what]], "sheet warning"), class = "link-body-emphasis"),
       link(site_years(warnings[[what]], what), "coverage_card")
     )
   })
