@@ -119,7 +119,7 @@ export_script <- function(species, sources, sheets, workbook, priors, samplers, 
       "",
       vapply(read_ids, check, ""),
       "",
-      unlist(lapply(in_models, fit_lines)),
+      drop_repeated_comments(lapply(in_models, fit_lines)),
       if (plants) {
         c("", "# The predicted weight of each plant in the size sheet", "plant_weights <- kb_predict_weight(fit_weight, new_data = size)")
       },
@@ -164,7 +164,7 @@ export_script <- function(species, sources, sheets, workbook, priors, samplers, 
 
 download_items <- list(
   results = list(label = "Results workbook", detail = "Excel: every available estimate, with the settings and sources", file = "kelpbio-results-%s.xlsx", icon = "file-spreadsheet"),
-  figures = list(label = "Figures", detail = "ZIP of PNG and PDF figures", file = "kelpbio-figures-%s.zip", icon = "file-image"),
+  figures = list(label = "Figures", detail = "PNG and PDF, zipped", file = "kelpbio-figures-%s.zip", icon = "file-image"),
   bundle = list(label = "Fit bundle", detail = "RDS: add it on the Data step to resume this run", file = "kelpbio-fits-%s.rds", icon = "database")
 )
 
@@ -448,7 +448,7 @@ mod_export_ui <- function(id) {
   })
 
   main <- tagList(
-    page_header("Export", step_description("export")),
+    page_header("Export"),
     uiOutput(ns("warnings")),
     panel("Downloads", description = textOutput(ns("downloads_note"), inline = TRUE), div(class = "row g-3", downloads)),
     panel(
@@ -543,4 +543,13 @@ mod_export_server <- function(id, store) {
       tags$pre(id = session$ns("script"), class = "m-0 px-3 py-3 small bg-white border-0", .noWS = "inside", tags$code(.noWS = "inside", code))
     })
   })
+}
+
+# The script lines of each model's fit (`blocks`), joined, without a block's
+# opening comment where it repeats the opening comment of the block before, as
+# when several models come from the same pre-fit source.
+drop_repeated_comments <- function(blocks) {
+  opening <- vapply(blocks, function(lines) if (startsWith(lines[[1]], "#")) lines[[1]] else NA_character_, character(1))
+  repeated <- !is.na(opening) & (opening == c(NA_character_, utils::head(opening, -1))) %in% TRUE
+  unlist(lapply(seq_along(blocks), function(i) if (repeated[[i]]) blocks[[i]][-1] else blocks[[i]]))
 }

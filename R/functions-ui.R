@@ -598,15 +598,13 @@ prior_notice <- function(rows, priors, settings_id) {
 data_strength_notice <- function(rows) {
   flags <- sensitivity_flags(rows)
   weak_data <- flags$weak_data
-  if (length(flags$influencing) == 0 && length(weak_data) == 0) {
-    return(notice("check-circle-2", "No prior sensitivity", tone = "muted"))
-  }
   if (length(weak_data) == 0) {
     return(NULL)
   }
+  # The Summary names the parameters; this gives what to do about them.
   many <- length(weak_data) > 1
   notice(
-    "info", sprintf("Not strongly informed by the data: %s", and_list(weak_data)),
+    "info",
     sprintf(
       "%s largely on %s prior. Check that the %s reasonable; more data would narrow %s.",
       if (many) "Their estimates depend" else "Its estimate depends", if (many) "their" else "its",

@@ -51,8 +51,7 @@ mod_models_ui <- function(id) {
       `data-ns-prefix` = if (cid == "size") ns(""),
       tags$td(
         class = "ps-4",
-        actionLink(ns(paste0("open_", cid)), label_of(cid), class = "fw-medium link-body-emphasis link-underline-opacity-0 link-underline-opacity-100-hover"),
-        div(class = "small text-body-secondary", components[[cid]]$detail)
+        actionLink(ns(paste0("open_", cid)), label_of(cid), class = "fw-medium link-body-emphasis link-underline-opacity-0 link-underline-opacity-100-hover")
       ),
       # Phones show only the model and its status; the model page has the
       # source and the fit control.
@@ -81,7 +80,11 @@ mod_models_ui <- function(id) {
   head_cell <- function(...) tags$th(class = "bg-body-tertiary text-body-secondary small", ...)
 
   hub <- tagList(
-    page_header("Models", step_description("models"), uiOutput(ns("fit_all_ui"), inline = TRUE)),
+    page_header(
+      "Models",
+      "Fit each model to your data alone or with a public dataset, or use one pre-fit to a public dataset.",
+      uiOutput(ns("fit_all_ui"), inline = TRUE)
+    ),
     # While fits run: the model fitting, a full-width bar and the fits queued.
     # The banner is part of the page; only its text and bar update.
     conditionalPanel(

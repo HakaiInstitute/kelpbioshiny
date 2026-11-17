@@ -1,5 +1,5 @@
-# The four steps of a run: the navbar labels, the page subtitles, the welcome
-# card and the user guide all read their names and descriptions from here.
+# The four steps of a run: the navbar labels, the welcome card and the user
+# guide all read their names and descriptions from here.
 
 # What the app is for, in one sentence: the welcome card and the about page.
 app_purpose <- "Get annual estimates of kelp biomass by site from in situ surveys and canopy maps, using Bayesian methods in the kelpbio R package."

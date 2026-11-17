@@ -9,7 +9,7 @@ mod_estimates_ui <- function(id) {
     lapply(derived_ids, function(eid) nav_panel_hidden(eid, mod_derived_estimate_ui(ns(eid), eid)))
   )
   main <- tagList(
-    page_header("Estimates", step_description("estimates"), uiOutput(ns("continue_ui"), inline = TRUE)),
+    page_header("Estimates", action = uiOutput(ns("continue_ui"), inline = TRUE)),
     do.call(navset_hidden, c(list(id = ns("view")), unname(pages)))
   )
   step_layout(card(card_body(padding = "0.5rem", uiOutput(ns("subnav")))), main)
@@ -177,7 +177,7 @@ mod_estimate_server <- function(id, store) {
         figure_plot(ns("plot"), class = if (grouping == "population") "kb-figure-narrow", aspect = prediction_aspect(cid, grouping)),
         estimate_caption(
           prediction_caption(cid, grouping, page()$species),
-          prediction_note(page()$prefit, cid, page()$species),
+          prediction_note(page()$prefit, cid, page()$species, grouping),
           sprintf("Source: %s.", source_label(store$sources()[[cid]])),
           actionLink(ns("open_model"), "View model")
         )
@@ -313,10 +313,11 @@ chosen_grouping <- function(chosen, choices) {
   if (is.null(chosen) || !chosen %in% names(choices)) default_grouping(choices) else chosen
 }
 
-# Why a model's predictions are not by site and year, where they are not.
-prediction_note <- function(prefit, cid, species) {
+# Why a model's predictions are not by site and year, where they are not. An
+# overall prediction's caption already says it is for a typical site and year.
+prediction_note <- function(prefit, cid, species, grouping) {
   if (prefit) {
-    "A pre-fit model's predictions are for a typical site and year, so that its reference data stay private."
+    if (grouping != "population") "A pre-fit model's predictions are for a typical site and year."
   } else if (!has_effect(cid, "site", species)) {
     "This model has no site or year effects, so its predictions are overall, for a typical site and year."
   } else if (!has_effect(cid, "year", species)) {
@@ -505,13 +506,6 @@ mod_derived_estimate_server <- function(id, store) {
       observeEvent(input[[paste0("stand_in_", id)]], store$set_stand_ins(id, input[[paste0("stand_in_", id)]] %||% character()), ignoreNULL = FALSE, ignoreInit = TRUE)
     })
 
-    # A note only where the rows are not obvious from their label.
-    sum_detail <- reactive({
-      detail <- sums()[[req(sum_key())]]$detail
-      detail <- if (is.list(detail)) detail[[if (per_area()) "area" else "total"]] else detail
-      if (!is.null(detail) && nzchar(detail)) detail
-    })
-
     labels <- reactive(derived_labels(eid, output_key(), per_area()))
     # Each survey is plotted one site at a time, by plot within each year, so
     # the surveys of a site-year sit side by side; the table holds every survey.
@@ -539,7 +533,7 @@ mod_derived_estimate_server <- function(id, store) {
         if (by_survey()) uiOutput(ns("site_ui")),
         uiOutput(ns("plot_error")),
         figure_plot(ns("figure"), height = figure_px(height)),
-        estimate_caption(derived_caption(eid, labels(), sum_key()), sum_detail(), actionLink(ns("change_sources"), "View models"))
+        estimate_caption(derived_caption(eid, labels(), sum_key()), actionLink(ns("change_sources"), "View models"))
       )
     })
     output$site_ui <- renderUI({
@@ -676,10 +670,10 @@ derived_labels <- function(eid, key, per_area) {
 # With `site`, the caption of the figure of that site's surveys.
 derived_caption <- function(eid, labels, sum_key, site = NULL) {
   by <- switch(sum_key,
-    survey = sprintf(" of each in situ survey at %s, faceted by year", if (is.null(site)) "the chosen site" else site),
-    site_year = if (eid == "canopy") " of each canopy map of a site by year, faceted by site" else " of each site-year by year, faceted by site",
+    survey = sprintf(" of each in situ survey at %s", if (is.null(site)) "the chosen site" else site),
+    site_year = if (eid == "canopy") " of each canopy map" else " by site and year",
     year = " summed over sites by year",
-    sprintf(" summed by %s and year, faceted by %s", sum_key, sum_key)
+    sprintf(" summed by %s and year", sum_key)
   )
   sprintf("Estimated %s (%s)%s, with 95%% compatibility intervals.", tolower(labels$label), labels$unit, by)
 }

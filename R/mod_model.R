@@ -223,18 +223,13 @@ mod_model_server <- function(id, store) {
       switch(page()$mode,
         user = tagList(
           panel(
-            "Sampler settings",
-            description = sprintf(
-              "Each fit keeps %s draws from each of %s chains, as the pre-fit models do, so that their estimates can be combined.",
-              format(fit_draws$niters, big.mark = ","), fit_draws$chains
-            ),
+            with_help("Sampler settings", "sampler"),
             uiOutput(ns("sampler"))
           ),
           # Priors are an advanced setting, so they are collapsed unless the
           # fit flagged one.
           panel(
             with_help("Priors", "priors"),
-            description = "Advanced: the defaults suit most datasets.",
             accordion(
               id = ns("priors_open"),
               open = if (isTRUE(isolate(status()$prior))) "priors" else FALSE,
@@ -492,7 +487,7 @@ mod_model_server <- function(id, store) {
         } else {
           line(TRUE, "No prior sensitivity", "diag_sensitivity")
         },
-        line(TRUE, "Posterior predictive check: compare the data with the simulated datasets", "diag_ppc", tone = "info")
+        line(TRUE, "Posterior predictive check: check the figures", "diag_ppc", tone = "info")
       )
     })
 
@@ -552,7 +547,6 @@ sensitivity_panel <- function(ns) {
   panel(
     with_help("Prior sensitivity", "sensitivity"),
     id = ns("diag_sensitivity"),
-    description = "Weak prior: the prior is not driving the estimate. Strong data: the data inform it.",
     uiOutput(ns("sensitivity_note")),
     reactable::reactableOutput(ns("sensitivity"))
   )
@@ -583,11 +577,6 @@ convergence_panel <- function(ns) {
   panel(
     "Convergence",
     id = ns("diag_convergence"),
-    description = tagList(
-      "Parameters with ", with_help("R-hat", "rhat"), sprintf(" above %s or a bulk or tail ", default_arg(kb_converged, "rhat")),
-      with_help("effective sample size (ESS)", "ess"),
-      sprintf(" below %s per chain are flagged.", default_arg(kb_converged, "ess"))
-    ),
     uiOutput(ns("convergence_overall")),
     reactable::reactableOutput(ns("convergence")),
     figure_plot(ns("trace"), "Draws for each chain by iteration. Well-mixed chains overlap.")
@@ -595,18 +584,19 @@ convergence_panel <- function(ns) {
 }
 
 # The worst R-hat and ESS over every parameter and the divergent transitions,
-# from a glance() row, each against kb_converged()'s threshold (ESS per chain).
+# from a glance() row, each against kb_converged()'s threshold (ESS per chain,
+# shown over all chains as the ESS is), with the help topic of its label.
 convergence_checks <- function(row) {
   threshold <- function(name) default_arg(kb_converged, name)
   min_ess <- threshold("ess") * row$nchains
   ess_text <- function(value) format(round(value), big.mark = ",")
   checks <- list(
-    list("Largest R-hat", format(round(row$rhat, 3), nsmall = 3), isTRUE(row$rhat < threshold("rhat")), sprintf("below %s", threshold("rhat"))),
-    list("Smallest bulk ESS", ess_text(row$ess_bulk), isTRUE(row$ess_bulk >= min_ess), sprintf("at least %s", ess_text(min_ess))),
-    list("Smallest tail ESS", ess_text(row$ess_tail), isTRUE(row$ess_tail >= min_ess), sprintf("at least %s", ess_text(min_ess))),
+    list("Largest R-hat", format(round(row$rhat, 3), nsmall = 3), isTRUE(row$rhat < threshold("rhat")), sprintf("below %s", threshold("rhat")), "rhat"),
+    list("Smallest bulk ESS", ess_text(row$ess_bulk), isTRUE(row$ess_bulk >= min_ess), sprintf("at least %s", ess_text(min_ess)), "ess"),
+    list("Smallest tail ESS", ess_text(row$ess_tail), isTRUE(row$ess_tail >= min_ess), sprintf("at least %s", ess_text(min_ess)), "ess"),
     list(
       "Divergent transitions", sprintf("%s%%", format(row$perc_divergent)),
-      isTRUE(row$perc_divergent <= threshold("max_perc_divergent")), sprintf("at most %s%%", threshold("max_perc_divergent"))
+      isTRUE(row$perc_divergent <= threshold("max_perc_divergent")), sprintf("at most %s%%", threshold("max_perc_divergent")), NULL
     )
   )
   div(
@@ -617,7 +607,7 @@ convergence_checks <- function(row) {
         class = "d-flex align-items-start gap-2",
         span(class = "mt-1", lucide(if (ok) "check-circle-2" else "alert-triangle", if (ok) "text-success" else "text-warning")),
         div(
-          div(class = "small text-body-secondary", check[[1]]),
+          div(class = "small text-body-secondary", if (is.null(check[[5]])) check[[1]] else with_help(check[[1]], check[[5]])),
           div(class = "fw-medium kb-tabular", check[[2]]),
           div(class = "small text-body-secondary", span(class = "visually-hidden", if (ok) "Passes: " else "Fails: "), check[[4]])
         )

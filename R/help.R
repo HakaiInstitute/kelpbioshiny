@@ -113,6 +113,16 @@ help_topics <- list(
     link = "hierarchical"
   ),
 
+  sampler = list(
+    title = "Sampler settings",
+    body = function() {
+      sprintf(
+        "Each fit keeps %s draws from each of %s chains, as the pre-fit models do, so that their estimates can be combined.",
+        format(fit_draws$niters, big.mark = ","), fit_draws$chains
+      )
+    },
+    link = "diagnostics"
+  ),
   nthin = list(
     title = "Thinning (nthin)",
     body = paste(
@@ -140,13 +150,8 @@ help_topics <- list(
   prefit = list(
     title = "Pre-fit models",
     body = paste(
-      sprintf(
-        "%s models were fitted in advance to %s, and %s models to %s.",
-        prefit_info$coastwide$label, prefit_info$coastwide$data, prefit_info$hakai$label, prefit_info$hakai$data
-      ),
-      "They need no data or fitting here.",
-      "Sites in the reference data get their own estimates.",
-      sprintf("A Your data + %s source instead fits the model here to your data together with that reference data.", prefit_info$hakai$name)
+      "A pre-fit model was fitted in advance to reference data, so it needs no data or fitting here.",
+      "A Your data + reference source fits the model here to your data together with the reference data."
     ),
     link = "prefit"
   ),

@@ -893,25 +893,22 @@ prediction_caption <- function(id, grouping, species = "nereo") {
   if (grouping == "site_year" && curve) what <- paste(info$response, "of", info$at)
   by <- switch(grouping,
     population = if (year) " for a typical site and year" else if (site) " for a typical site" else "",
-    site = paste0(if (curve) ", faceted by site" else " by site", if (year) ", for a typical year"),
-    year = paste0(if (curve) ", faceted by year" else " by year", ", for a typical site"),
-    site_year = " by year, faceted by site"
+    site = paste0(if (curve) " for each site" else " by site", if (year) ", for a typical year"),
+    year = paste0(if (curve) " for each year" else " by year", ", for a typical site"),
+    site_year = " by site and year"
   )
   sprintf("Predicted %s%s, with 95%% compatibility intervals.", what, by)
 }
 
 # Derived estimates ----------------------------------------------------------------
-# The rows survey and canopy biomass are shown in: each choice's label, a note
-# where the label does not say what the rows are, and its kelpbio pool_by value
+# The rows survey and canopy biomass are shown in: each choice's label and its
+# kelpbio pool_by value
 # (NULL keeps one row per survey or canopy map). Biomass is a standing stock in
 # the peak season, so sums stay within a year. kelpbio pools by any grouping;
 # the app offers the ones a report uses.
 
 survey_sums <- list(
-  site_year = list(
-    label = "By site and year", pool_by = c("site", "year"),
-    detail = list(area = "The in situ surveys of each site-year pooled: their summed biomass over their summed area.", total = "")
-  ),
+  site_year = list(label = "By site and year", pool_by = c("site", "year")),
   survey = list(label = "Each in situ survey", pool_by = NULL)
 )
 
