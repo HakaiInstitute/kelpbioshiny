@@ -588,8 +588,8 @@ help_about_ui <- function() {
         gap = "1rem",
         div(
           class = "text-body-secondary",
-          "kelpbio was developed by Poisson Consulting for the Hakai Institute, funded by the Tula Foundation. ",
-          "Validity of estimates depend on the data and the model choices; check them with the diagnostics on the Models step."
+          "kelpbioshiny was developed by Poisson Consulting for the Hakai Institute, funded by the Tula Foundation. ",
+          "Validity of estimates depends on the data and the model choices; check them with the diagnostics on the Models step."
         ),
         div(
           class = "d-flex flex-wrap align-items-center gap-2",
