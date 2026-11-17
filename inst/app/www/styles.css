@@ -170,6 +170,12 @@
   background-color: var(--bs-tertiary-bg);
 }
 
+/* The CSV upload button: its file input is visually hidden, so the button
+   shows the focus ring when the input has keyboard focus. */
+.kb-file-button:has(input:focus-visible) {
+  box-shadow: 0 0 0 0.25rem rgba(var(--bs-primary-rgb), 0.25);
+}
+
 .kb-anchor {
   scroll-margin-top: 1.5rem;
 }

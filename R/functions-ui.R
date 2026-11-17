@@ -145,6 +145,19 @@ button <- function(id, label, icon = NULL, variant = c("primary", "soft", "outli
   actionButton(id, label, class = paste(class, collapse = " "), ...)
 }
 
+# A file input drawn as one small outline button, without fileInput()'s box of
+# the chosen file's name or its progress bar: Shiny reads any file input, and
+# the sheet's tab shows what was loaded. The input is visually hidden inside
+# the button's label, so it stays in the tab order; `purpose` ends its
+# accessible name ("Upload CSV for the weight sheet").
+csv_button <- function(id, purpose) {
+  tags$label(
+    class = "btn btn-light border btn-sm mb-0 flex-shrink-0 kb-file-button",
+    span(class = "d-inline-flex align-items-center gap-2", lucide("upload"), "Upload CSV", span(class = "visually-hidden", paste0(" ", purpose))),
+    tags$input(id = id, name = id, type = "file", accept = ".csv", class = "visually-hidden")
+  )
+}
+
 # A status in words: the badges, the hidden text beside status icons and the
 # reasons biomass is locked all use it.
 status_label <- function(status) {

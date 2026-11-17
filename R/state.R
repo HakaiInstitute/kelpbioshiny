@@ -996,10 +996,10 @@ new_store <- function(session, run_fit = mirai_fit_runner) {
     s$estimate_choices(choices)
   }
 
-  # Opens a sheet's panel on the Data step, with its figure and table.
+  # Opens a sheet's tab on the Data step, with its check, figure and table.
   s$view_sheet <- function(id) {
     s$go_to("data")
-    accordion_panel_open("data-sheet_list", id, session = session)
+    nav_select("data-sheet_tabs", id, session = session)
   }
 
   # Opens one page of the Help tab: "guide" or "about".
