@@ -105,6 +105,10 @@
   flex-shrink: 0;
 }
 
+.kb-brand-subtitle {
+  opacity: 0.75;
+}
+
 .kb-step-todo {
   border: 1px solid currentColor;
   opacity: 0.8;

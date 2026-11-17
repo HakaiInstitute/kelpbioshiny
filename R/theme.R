@@ -1,4 +1,4 @@
-# The theme: a neutral analytic palette (cool greys, a white navbar and cards)
+# The theme: a neutral analytic palette (cool greys, a blue-grey navbar, white cards)
 # with one blue accent, expressed as Bootstrap Sass variables. Everything else in
 # the app reads colours from var(--bs-*) rather than from this palette.
 #
@@ -15,7 +15,7 @@ app_palette <- list(
   info = "#326093", info_bg = "#eaf0f7", info_border = "#cad7e6", info_fg = "#24476e",
   # input: the border of inputs, selects and radios, at 3:1 contrast on white (WCAG 1.4.11).
   border = "#e1e4e8", input = "#8a939d", ring = "#4f7db4", ring_rgb = "79, 125, 180",
-  navbar_bg = "#ffffff", navbar_fg = "#57616d", navbar_hover = "#1b2430",
+  navbar_bg = "#dde7f2", navbar_border = "#c3d2e4", navbar_fg = "#57616d", navbar_hover = "#1b2430",
   navbar_active = "#1b2430", navbar_brand = "#1b2430"
 )
 
@@ -97,7 +97,7 @@ app_theme <- function() {
     "badge-border-radius" = "0.375rem",
     "progress-bg" = col$muted,
     "progress-height" = "0.5rem",
-    # Navigation: a white navbar with dark text, its colours set directly.
+    # Navigation: a blue-grey navbar with dark text, its colours set directly.
     "navbar-bg" = col$navbar_bg,
     # The underlined step tabs get extra bottom padding equal to the navbar's,
     # so equal top padding keeps their labels on the navbar's centre line.
@@ -146,9 +146,9 @@ app_theme <- function() {
     "table-bg" = "transparent"
   ) |>
     # The one rule on a Bootstrap class: Bootstrap has no variable for a
-    # navbar border, and the white navbar needs a hairline to stand apart
-    # from the page. The selector matches bslib's own, which removes it.
-    bslib::bs_add_rules(".bslib-page-navbar .navbar { border-bottom: var(--bs-border-width) solid var(--bs-border-color); }")
+    # navbar border, and the navbar needs a hairline to stand apart from the
+    # page. The selector matches bslib's own, which removes it.
+    bslib::bs_add_rules(sprintf(".bslib-page-navbar .navbar { border-bottom: var(--bs-border-width) solid %s; }", col$navbar_border))
 }
 
 # reactable styles from the theme's CSS variables.
