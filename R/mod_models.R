@@ -82,7 +82,7 @@ mod_models_ui <- function(id) {
   hub <- tagList(
     page_header(
       "Models",
-      "Fit each model to your data alone or with a public dataset, or use one pre-fit to a public dataset.",
+      "Fit each model to your data, your data appended to a public dataset, or use a model pre-fit to a public dataset.",
       uiOutput(ns("fit_all_ui"), inline = TRUE)
     ),
     # While fits run: the model fitting, a full-width bar and the fits queued.
