@@ -232,8 +232,7 @@ mod_data_ui <- function(id) {
       "Sheets",
       id = ns("sheets_card"),
       description = "Each sheet is checked on upload. A sheet can also be uploaded on its own as a CSV file.",
-      sheet_tabs(ns),
-      conditionalPanel("output.has_data", uiOutput(ns("estimable")), ns = ns)
+      sheet_tabs(ns)
     ),
     conditionalPanel("output.has_data", uiOutput(ns("coverage_ui")), ns = ns)
   )
@@ -402,10 +401,6 @@ mod_data_server <- function(id, store) {
     output$issues <- renderUI({
       req(loaded())
       issues_summary(session$ns, store$sheets(), cov(), store$sources())
-    })
-    output$estimable <- renderUI({
-      req(loaded())
-      estimable_list(data_estimable(store$sheets(), store$sources(), store$census(), store$mismatches()))
     })
     output$coverage_ui <- renderUI({
       req(loaded())
@@ -581,42 +576,6 @@ sheet_body <- function(ns, sheet, id, species, facet = NULL, view = NULL) {
     figure_plot(ns(paste0("plot_", id)), data_plot_caption(id, species))
   )
   plot_table_nav(ns(paste0("view_", id)), plot, table, selected = view, table_first = TRUE)
-}
-
-# What the loaded data can estimate once the models are fitted, each with what
-# it still needs.
-estimable_labels <- c(survey = "In situ survey biomass", canopy = "Canopy biomass", dry = "Dry biomass", carbon = "Carbon", nitrogen = "Nitrogen")
-
-# Under the sheets, in a muted box: each estimate as a check, with the pre-fit
-# models it relies on, or a dash, with what it still needs.
-estimable_list <- function(estimable) {
-  div(
-    class = "d-flex flex-column gap-2 border rounded-3 px-3 py-2 bg-body-tertiary small",
-    div(class = "fw-medium", "Once the models are fitted, these data can estimate"),
-    tags$ul(
-      class = "list-unstyled d-flex flex-wrap column-gap-4 row-gap-1 mb-0",
-      lapply(names(estimable_labels), function(id) {
-        item <- estimable[[id]]
-        tags$li(
-          class = "d-flex align-items-center gap-2",
-          if (item$possible) lucide("check-circle-2", "text-success") else lucide("minus-circle", "text-body-secondary"),
-          span(
-            class = if (!item$possible) "text-body-secondary",
-            estimable_labels[[id]],
-            span(class = "visually-hidden", if (item$possible) ": possible" else ": not possible"),
-            if (!item$possible) {
-              paste0(" (", item$reason, ")")
-            } else if (length(item$prefit) > 0) {
-              span(
-                class = "text-body-secondary",
-                sprintf(" (with pre-fit %s %s)", and_list(vapply(item$prefit, lower_label, "")), if (length(item$prefit) == 1) "model" else "models")
-              )
-            }
-          )
-        )
-      })
-    )
-  )
 }
 
 # One line above the sheets: counts of what the checks and the coverage table

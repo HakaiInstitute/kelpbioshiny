@@ -309,50 +309,6 @@ estimate_availability <- function(id, statuses, sources, sheets, mismatches) {
   list(available = TRUE)
 }
 
-# What the loaded data can estimate once the models are fitted, for the Data
-# step: each biomass estimate, list(possible, reason, prefit), `prefit` naming
-# the pre-fit models a possible estimate relies on (the conversion models for
-# dry biomass, carbon and nitrogen). A model can be used when it is pre-fit, or its sheet
-# passes its check.
-data_estimable <- function(sheets, sources, census, mismatches = character()) {
-  valid <- function(id) !is.null(sheets[[id]]) && is.null(sheets[[id]]$error)
-  usable <- function(id) is_prefit(sources[[id]]) || (uses_sheet(sources[[id]]) && valid(components[[id]]$sheet))
-  result <- function(reason, ids) {
-    if (!is.null(reason)) {
-      return(list(possible = FALSE, reason = reason))
-    }
-    list(possible = TRUE, prefit = Filter(function(id) is_prefit(sources[[id]]), ids))
-  }
-  survey <- if (!valid("survey")) {
-    if (is.null(sheets$survey)) "needs a survey_in_situ sheet" else "the survey_in_situ sheet fails its check"
-  } else if (!usable("weight")) {
-    "needs a weight sheet that passes its check, or a pre-fit weight model"
-  } else if (!usable("size")) {
-    if (census) "needs a size sheet of every counted plant" else "needs a size sheet that passes its check, or a pre-fit size model"
-  } else if (length(mismatches) > 0) {
-    "site names differ across sheets"
-  }
-  # A pre-fit cover calibration needs only the canopy sheet; one fitted to your
-  # data needs in situ survey biomass and canopy imagery on the surveys.
-  canopy <- if (!valid("canopy")) {
-    if (is.null(sheets$canopy)) "needs a survey_canopy sheet of canopy maps" else "the survey_canopy sheet fails its check"
-  } else if (is_prefit(sources[["cover"]])) {
-    NULL
-  } else if (!is.null(survey)) {
-    "needs in situ survey biomass"
-  } else if (sources[["cover"]] == "none" || nrow(drone_surveys(sheets$survey$rows)) == 0) {
-    "needs canopy imagery on the in situ surveys"
-  }
-  dry <- if (!usable("wetdry")) "needs a wetdry sheet or a pre-fit wet:dry model"
-  carbon <- dry %||% if (!usable("carbon")) "needs a carbon sheet or a pre-fit carbon model"
-  nitrogen <- dry %||% if (!usable("nitrogen")) "needs a nitrogen sheet or a pre-fit nitrogen model"
-  list(
-    survey = result(survey, survey_ids), canopy = result(canopy, if (is_prefit(sources[["cover"]])) "cover" else survey_ids),
-    dry = result(dry, "wetdry"), carbon = result(carbon, c("wetdry", "carbon")),
-    nitrogen = result(nitrogen, c("wetdry", "nitrogen"))
-  )
-}
-
 output_availability <- function(sources) {
   available <- function() list(available = TRUE)
   unavailable <- function(reason) list(available = FALSE, reason = reason)
