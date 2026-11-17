@@ -106,8 +106,8 @@ guide_extras <- list(
           size_sheet_names[["sample"]], size_sheet_names[["census"]]
         ),
         "A run estimates one species. For beds with both species, run the app once per species, each with a workbook of that species' data and canopy maps.",
-        "Upload a workbook with one sheet per kind of data, or a CSV file per sheet. Download the template workbook to start from the right sheets and columns, or try the app with the example workbook.",
-        "Each sheet is checked on upload. Open its tab to see the check, a figure and a table of the data, or to upload it on its own as a CSV file; Coverage shows the site-years each sheet has data for.",
+        "Upload an Excel workbook with one sheet per kind of data, or a CSV file per sheet named after it (weight.csv). Download the template workbook to start from the right sheets and columns, or try the app with the example workbook.",
+        "Each sheet is checked on upload. Open its tab to see the check, a figure and a table of the data; Coverage shows the site-years each sheet has data for.",
         "To resume a saved run, add its fit bundle under Resume a run."
       ),
       div(

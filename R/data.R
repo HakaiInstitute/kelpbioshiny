@@ -134,6 +134,17 @@ sheet_name <- function(id, census = FALSE) {
 
 # The kind of size data that sheet or file names (`names`) show: "sample" or
 # "census" when exactly one of the size sheet names is among them, else NULL.
+# The sheet a CSV file holds, from its name (weight.csv, size_census.csv), or
+# NULL.
+csv_sheet_id <- function(file) {
+  name <- sub("\\.csv$", "", file, ignore.case = TRUE)
+  if (name %in% c(size_sheet_names, "size")) {
+    return("size")
+  }
+  ids <- Filter(function(id) sheet_name(id) == name, setdiff(sheet_ids, "size"))
+  if (length(ids) > 0) ids[[1]]
+}
+
 size_data_guess <- function(names) {
   kinds <- names(size_sheet_names)[size_sheet_names %in% names]
   if (length(kinds) == 1) kinds

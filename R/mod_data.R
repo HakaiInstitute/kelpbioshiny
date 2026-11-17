@@ -190,25 +190,17 @@ mod_data_ui <- function(id) {
     # In the page from the start, so it shows before the server's first
     # response; hidden in the browser once data are loaded.
     conditionalPanel("!output.has_data", welcome_card(ns), ns = ns),
-    page_header(
-      "Data",
-      step_description("data"),
-      uiOutput(ns("continue_ui"), inline = TRUE)
-    ),
+    page_header("Data", action = uiOutput(ns("continue_ui"), inline = TRUE)),
     panel(
-      "Workbook",
-      description = sheets_description,
+      "Upload data",
+      description = upload_description,
       action = uiOutput(ns("clear_ui"), inline = TRUE),
       div(
         class = "d-flex flex-column gap-2",
         div(
           class = "d-flex flex-wrap align-items-start gap-2",
-          div(
-            class = "kb-file-input",
-            fileInput(ns("workbook"), NULL, accept = c(".xlsx", ".xls"), buttonLabel = "Browse files", width = "100%") |>
-              tagAppendAttributes(class = "mb-0") |>
-              file_names("Upload a workbook", "Chosen workbook")
-          ),
+          file_button(ns("workbook"), "Upload Excel workbook", accept = c(".xlsx", ".xls")),
+          file_button(ns("csv"), "Upload CSV files", accept = ".csv", multiple = TRUE),
           # The example with every sheet; the other examples are workbooks in
           # data-raw/workbooks/, for uploading.
           button(ns("example"), "Use example workbook", variant = "soft")
@@ -221,8 +213,7 @@ mod_data_ui <- function(id) {
           div(
             class = "small text-body-secondary",
             "Loaded ",
-            span(class = "font-monospace text-body", textOutput(ns("workbook_name"), inline = TRUE), .noWS = c("after", "after-begin", "before-end")),
-            ". Upload another workbook to replace it."
+            span(class = "font-monospace text-body", textOutput(ns("workbook_name"), inline = TRUE), .noWS = c("after-begin", "before-end"))
           )
         )
       )
@@ -231,7 +222,6 @@ mod_data_ui <- function(id) {
     panel(
       "Sheets",
       id = ns("sheets_card"),
-      description = "Each sheet is checked on upload. A sheet can also be uploaded on its own as a CSV file.",
       sheet_tabs(ns)
     ),
     conditionalPanel("output.has_data", uiOutput(ns("coverage_ui")), ns = ns)
@@ -295,19 +285,39 @@ mod_data_server <- function(id, store) {
     observeEvent(input$clear, replace_data(store$clear_data))
     observeEvent(input$continue, store$go_to("models"))
 
-    lapply(sheet_ids, function(sid) {
-      model <- sheet_component(sid)
-      observeEvent(input[[paste0("csv_", sid)]], {
-        upload <- input[[paste0("csv_", sid)]]
-        store$confirm_reset(if (is.null(model)) character() else model, function() store$load_csv(sid, upload$name, upload$datapath))
+    # CSV files, each named after its sheet (weight.csv); a file whose name is
+    # no sheet's is reported and skipped.
+    observeEvent(input$csv, {
+      upload <- input$csv
+      ids <- lapply(upload$name, csv_sheet_id)
+      unknown <- upload$name[vapply(ids, is.null, NA)]
+      if (length(unknown) > 0) {
+        store$notify(
+          sprintf("Name each CSV file after its sheet: %s.", and_list(paste0(c(vapply(setdiff(sheet_ids, "size"), sheet_name, ""), size_sheet_names), ".csv"))),
+          type = "error", title = sprintf("%s %s no sheet", and_list(unknown), if (length(unknown) == 1) "matches" else "match"), duration = 10
+        )
+      }
+      known <- which(!vapply(ids, is.null, NA))
+      if (length(known) == 0) {
+        return()
+      }
+      models <- unlist(lapply(ids[known], sheet_component))
+      store$confirm_reset(unique(as.character(models)), function() {
+        for (i in known) store$load_csv(ids[[i]], upload$name[[i]], upload$datapath[[i]])
+        nav_select("sheet_tabs", ids[[known[[1]]]])
       })
+    })
+
+    lapply(sheet_ids, function(sid) {
       # The tab's status icon and, opened, the sheet's check above its figure
       # and table. The figure and table keep the reader's choices when redrawn.
       state <- reactive(sheet_state(store$sheets()[[sid]], sheet_source(sid, store$sources())))
-      output[[paste0("tab_status_", sid)]] <- renderUI(sheet_state_icon(state()))
+      output[[paste0("tab_label_", sid)]] <- renderUI(sheet_tab_label(sheet_name(sid, store$census()), state()))
       output[[paste0("status_", sid)]] <- renderUI({
         sheet_status(store$sheets()[[sid]], sid, state(), store$sources(), store$species(), store$census())
       })
+      # Hidden while empty (.kb-sheet-status:empty), so it must render while hidden.
+      outputOptions(output, paste0("status_", sid), suspendWhenHidden = FALSE)
       output[[paste0("body_", sid)]] <- renderUI({
         current <- store$sheets()[[sid]]
         if (is.null(current)) {
@@ -375,8 +385,6 @@ mod_data_server <- function(id, store) {
     })
 
     output$workbook_name <- renderText(store$workbook())
-
-    output$tab_name_size <- renderText(sheet_name("size", store$census()))
 
     # When the loaded sheets change, open the first sheet with a data error, or
     # else keep the open tab if it holds a sheet, or else open the first sheet.
@@ -451,9 +459,9 @@ welcome_card <- function(ns) {
   )
 }
 
-# The one description of the workbook's sheets; the columns are in the guide and
-# under the CSV uploads.
-sheets_description <- "One sheet per kind of data; leave out those you do not have."
+# The one description of how data are uploaded; the columns are in the guide
+# and in the tab of each sheet not uploaded.
+upload_description <- "An Excel workbook, or a CSV file per sheet named after it (weight.csv)."
 
 # The sheets as the tabs of a workbook, one per sheet the app reads, whether
 # or not it is loaded. Each tab's title holds its status icon and the sheet's
@@ -462,22 +470,17 @@ sheets_description <- "One sheet per kind of data; leave out those you do not ha
 # only the outputs inside are redrawn.
 sheet_tabs <- function(ns) {
   tabs <- lapply(sheet_ids, function(id) {
-    name <- if (id == "size") textOutput(ns("tab_name_size"), inline = TRUE) else sheet_name(id)
     nav_panel(
-      title = span(class = "d-inline-flex align-items-center gap-2", uiOutput(ns(paste0("tab_status_", id)), inline = TRUE), name),
+      # Drawn as not uploaded until the server first responds.
+      title = uiOutput(ns(paste0("tab_label_", id)), inline = TRUE) |> tagAppendChildren(sheet_tab_label(sheet_name(id), "missing")),
       value = id,
-      div(
-        class = "d-flex flex-column gap-3 pt-3",
-        div(
-          class = "d-flex align-items-start justify-content-between gap-3",
-          div(class = "d-flex flex-column gap-2 flex-grow-1", uiOutput(ns(paste0("status_", id)))),
-          csv_button(ns(paste0("csv_", id)), sprintf("for the %s sheet", if (id == "size") "size" else sheet_name(id)))
-        ),
+      folio_sheet(
+        uiOutput(ns(paste0("status_", id))) |> tagAppendAttributes(class = "d-flex flex-column gap-2 kb-sheet-status"),
         uiOutput(ns(paste0("body_", id)))
       )
     )
   })
-  navset_underline(id = ns("sheet_tabs"), !!!unname(tabs))
+  folio(navset_tab(id = ns("sheet_tabs"), !!!unname(tabs)))
 }
 
 # A sheet's state: not uploaded, not used (its model is pre-fit or not used, so
@@ -496,33 +499,39 @@ sheet_state <- function(sheet, source) {
 }
 
 sheet_states <- list(
-  missing = list(label = "Not uploaded", icon = "circle-dashed", colour = "text-body-tertiary", badge = "bg-secondary-subtle text-secondary-emphasis"),
-  unused = list(label = "Not used", icon = "minus-circle", colour = "text-body-secondary", badge = "bg-secondary-subtle text-secondary-emphasis"),
-  error = list(label = "Data error", icon = "x-circle", colour = "text-danger", badge = "text-bg-danger"),
-  warning = list(label = "Passed with warnings", icon = "alert-triangle", colour = "text-warning", badge = "bg-warning-subtle text-warning-emphasis"),
-  ready = list(label = "Checks passed", icon = "check-circle-2", colour = "text-success", badge = "bg-success-subtle text-success-emphasis")
+  missing = list(label = "Not uploaded", icon = "circle-dashed", colour = "text-body-tertiary"),
+  unused = list(label = "Not used", icon = "minus-circle", colour = "text-body-secondary"),
+  error = list(label = "Data error", icon = "x-circle", colour = "text-danger"),
+  warning = list(label = "Passed with warnings", icon = "alert-triangle", colour = "text-warning"),
+  ready = list(label = "Checks passed", icon = "check-circle-2", colour = "text-success")
 )
 
-# A tab's status: its icon, with the state as a tooltip and as hidden text for
-# screen readers.
-sheet_state_icon <- function(state) {
+# A tab's label: its status icon, with the state as a tooltip and as hidden
+# text for screen readers, and the sheet's name: in bold once uploaded, muted
+# until then.
+sheet_tab_label <- function(name, state) {
   info <- sheet_states[[state]]
-  span(class = "d-inline-flex", title = info$label, lucide(info$icon, info$colour), span(class = "visually-hidden", info$label))
+  span(
+    class = paste("d-inline-flex align-items-center gap-1 small", if (state == "missing") "text-body-secondary fw-normal" else "fw-semibold"),
+    title = info$label,
+    lucide(info$icon, info$colour), span(class = "visually-hidden", info$label), name
+  )
 }
 
-# The top of a sheet's tab: its state as a badge, the CSV it came from, and
-# every error, warning and note of its check; for a sheet not loaded, what it
-# holds and its columns. A sheet that is not used shows its check muted.
+# The top of a sheet's tab: the CSV it came from, then its check's messages in
+# banners coloured as the summary line above the tabs: a data error in red,
+# warnings in amber, a note in blue. A sheet that is not used shows its check
+# in one muted banner, as it blocks nothing. A sheet not loaded says what it
+# holds and its columns.
 sheet_status <- function(sheet, id, state, sources, species, census) {
-  info <- sheet_states[[state]]
-  badge_ui <- badge(info$label, info$badge, info$icon)
   if (state == "missing") {
     row <- sheet_info[[id]]$row
+    name <- sheet_name(id, census)
     return(tagList(
       div(
-        class = "d-flex flex-wrap align-items-center gap-2",
-        badge_ui,
-        span(class = "small text-body-secondary", sprintf("One row per %s%s.", tolower(substr(row, 1, 1)), substring(row, 2)))
+        class = "small text-body-secondary",
+        sprintf("Not uploaded. One row per %s%s; upload a workbook with a ", tolower(substr(row, 1, 1)), substring(row, 2)),
+        tags$code(name), " sheet, or ", tags$code(paste0(name, ".csv"), .noWS = "after"), "."
       ),
       div(
         class = "small text-body-secondary",
@@ -530,34 +539,29 @@ sheet_status <- function(sheet, id, state, sources, species, census) {
       )
     ))
   }
-  used <- state != "unused"
-  warning_line <- function(text) {
-    div(
-      class = paste("small d-flex align-items-center gap-2", if (used) "text-warning-emphasis" else "text-body-secondary"),
-      lucide("alert-triangle", if (used) "text-warning"), span(text)
+  line <- function(icon, text, colour = NULL) div(class = "d-flex align-items-center gap-2", lucide(icon, colour), span(text))
+  banner <- function(box, ...) div(class = paste("d-flex flex-column gap-1 small border rounded-3 px-3 py-2", box), ...)
+  from <- if (endsWith(sheet$file, ".csv")) div(class = "small text-body-secondary", "From ", sheet$file)
+  if (state == "unused") {
+    model <- sheet_component(id)
+    unused <- sprintf(
+      "Not used: the %s model is %s. Change its source on the Models step.",
+      lower_label(model), if (is_prefit(sources[[model]])) "pre-fit" else "not used"
     )
+    return(tagList(from, banner(
+      "bg-body-tertiary text-body-secondary",
+      line("minus-circle", unused),
+      if (!is.null(sheet$error)) line("x-circle", sheet$error),
+      lapply(sheet$warnings, function(text) line("alert-triangle", text))
+    )))
   }
   tagList(
-    div(
-      class = "d-flex flex-wrap align-items-center gap-2",
-      badge_ui,
-      if (endsWith(sheet$file, ".csv")) span(class = "small text-body-secondary", "from ", sheet$file)
-    ),
-    if (!used) {
-      model <- sheet_component(id)
-      div(
-        class = "small text-body-secondary",
-        sprintf(
-          "Not used: the %s model is %s. Change its source on the Models step.",
-          lower_label(model), if (is_prefit(sources[[model]])) "pre-fit" else "not used"
-        )
-      )
+    from,
+    if (!is.null(sheet$error)) banner("bg-danger-subtle border-danger-subtle text-danger-emphasis", line("x-circle", sheet$error, "text-danger")),
+    if (!is.null(sheet$warnings)) {
+      banner("bg-warning-subtle border-warning-subtle text-warning-emphasis", lapply(sheet$warnings, function(text) line("alert-triangle", text, "text-warning")))
     },
-    if (!is.null(sheet$error)) div(class = paste("small", if (used) "text-danger-emphasis" else "text-body-secondary"), sheet$error),
-    if (!is.null(sheet$warnings)) div(class = "d-flex flex-column gap-1", lapply(sheet$warnings, warning_line)),
-    if (!is.null(sheet$note)) {
-      div(class = "small d-flex align-items-center gap-2 text-info-emphasis", lucide("info", "text-info"), sheet$note)
-    }
+    if (!is.null(sheet$note)) banner("bg-info-subtle border-info-subtle text-info-emphasis", line("info", sheet$note, "text-info"))
   )
 }
 
@@ -647,11 +651,14 @@ coverage_panel <- function(ns, sources, species, cov, view) {
   }
   choices <- c(vapply(cov$ids, sheet_label, ""), all = "All")
   if (is.null(view) || !view %in% names(choices)) view <- cov$ids[[1]]
+  omitted <- coverage_omitted_note(coverage_omitted(sources, cov$ids), species)
   panel(
-    "Coverage",
+    span(
+      class = "kb-with-help", "Coverage",
+      help_icon(help_topics$coverage$title, tagList(div(topic_body(help_topics$coverage)), omitted), help_url("coverage"))
+    ),
     id = ns("coverage_card"),
-    description = "The site-years each sheet has data for.",
-    coverage_summary(cov, coverage_omitted_note(coverage_omitted(sources, cov$ids), species)),
+    coverage_summary(cov),
     if (length(cov$mismatched) > 0) {
       notice(
         "alert-triangle", warning_help$mismatch$title,
@@ -668,10 +675,9 @@ coverage_panel <- function(ns, sources, species, cov, view) {
 
 # What the site-years lack, as bullets: the surveyed site-years without each
 # model's data, the canopy maps without calibration surveys at their site or in
-# their year, and the canopy maps of site-years without an in situ survey; then what
-# that means, with a help icon that explains the borrowing and names the
-# models in use the grids leave out (`omitted`).
-coverage_summary <- function(cov, omitted = NULL) {
+# their year, and the canopy maps of site-years without an in situ survey. The
+# card title's help icon explains what that means.
+coverage_summary <- function(cov) {
   n <- function(keys) sprintf("%d %s", length(keys), if (length(keys) == 1) "site-year" else "site-years")
   items <- c(
     lapply(names(cov$missing), function(id) {
@@ -688,17 +694,7 @@ coverage_summary <- function(cov, omitted = NULL) {
   if (length(items) == 0) {
     return(NULL)
   }
-  borrowing <- any(lengths(cov$missing) > 0) || length(cov$uncalibrated) > 0
-  tagList(
-    tags$ul(class = "small mb-0 ps-3", lapply(items, tags$li)),
-    if (borrowing) {
-      div(
-        class = "small text-body-secondary kb-with-help",
-        "Site-years without a model's data borrow its estimates from other sites and years, so their intervals are wider.",
-        help_icon(help_topics$coverage$title, tagList(div(topic_body(help_topics$coverage)), omitted), help_url("coverage"))
-      )
-    }
-  )
+  tags$ul(class = "small mb-0 ps-3", lapply(items, tags$li))
 }
 
 # Why the models in use are missing from the coverage table: no site or year

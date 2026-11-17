@@ -105,10 +105,6 @@
   flex-shrink: 0;
 }
 
-.kb-brand-subtitle {
-  opacity: 0.75;
-}
-
 .kb-step-todo {
   border: 1px solid currentColor;
   opacity: 0.8;
@@ -170,10 +166,16 @@
   background-color: var(--bs-tertiary-bg);
 }
 
-/* The CSV upload button: its file input is visually hidden, so the button
+/* A file upload button: its file input is visually hidden, so the button
    shows the focus ring when the input has keyboard focus. */
 .kb-file-button:has(input:focus-visible) {
   box-shadow: 0 0 0 0.25rem rgba(var(--bs-primary-rgb), 0.25);
+}
+
+/* A sheet tab's status (errors, warnings, the CSV it came from) takes no space
+   when it has nothing to say. */
+.kb-sheet-status:empty {
+  display: none !important;
 }
 
 .kb-anchor {
@@ -205,12 +207,6 @@
     position: sticky;
     top: 1.5rem;
   }
-}
-
-/* The workbook file input fills narrow screens but stays compact on wide ones. */
-.kb-file-input {
-  width: 100%;
-  max-width: 20rem;
 }
 
 /* Coverage grid: one square per site-year, filled where a model has data,

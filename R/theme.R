@@ -103,6 +103,9 @@ app_theme <- function() {
     # so equal top padding keeps their labels on the navbar's centre line.
     "navbar-padding-y" = "0.75rem",
     "nav-link-padding-y" = "0.75rem",
+    # Narrower than Bootstrap's 1rem, so the Data step's seven sheet tabs fit
+    # on one row at laptop widths.
+    "nav-link-padding-x" = "0.75rem",
     "navbar-light-color" = col$navbar_fg,
     "navbar-light-hover-color" = col$navbar_hover,
     "navbar-light-active-color" = col$navbar_active,
@@ -113,6 +116,12 @@ app_theme <- function() {
     "nav-link-hover-color" = col$fg,
     "nav-underline-gap" = "1.25rem",
     "nav-underline-link-active-color" = col$primary,
+    # Folder tabs (the Data step's sheets): the open tab is white, joined to its
+    # white sheet.
+    "nav-tabs-border-color" = col$border,
+    "nav-tabs-link-active-bg" = col$card,
+    "nav-tabs-link-active-color" = col$primary,
+    "nav-tabs-link-active-border-color" = paste(col$border, col$border, col$card),
     "nav-pills-link-active-bg" = col$accent,
     "nav-pills-link-active-color" = col$accent_fg,
     # Popovers (help text)

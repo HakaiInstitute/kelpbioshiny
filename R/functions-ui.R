@@ -4,10 +4,14 @@
 # A step's title and description, with its action on the right. The text
 # wraps within its own block, so the action stays on the right on any width
 # but a narrow screen, where it drops below.
-page_header <- function(title, description, action = NULL) {
+page_header <- function(title, description = NULL, action = NULL) {
   div(
     class = "d-flex flex-wrap align-items-end justify-content-between gap-3 mb-4",
-    div(class = "kb-page-header-text", h1(class = "kb-page-title", title), div(class = "kb-lead text-body-secondary", description)),
+    div(
+      class = "kb-page-header-text",
+      h1(class = "kb-page-title", title),
+      if (!is.null(description)) div(class = "kb-lead text-body-secondary", description)
+    ),
     if (!is.null(action)) div(class = "flex-shrink-0", action)
   )
 }
@@ -146,18 +150,23 @@ button <- function(id, label, icon = NULL, variant = c("primary", "soft", "outli
   actionButton(id, label, class = paste(class, collapse = " "), ...)
 }
 
-# A file input drawn as one small outline button, without fileInput()'s box of
+# A file input drawn as one outline button, without fileInput()'s box of
 # the chosen file's name or its progress bar: Shiny reads any file input, and
-# the sheet's tab shows what was loaded. The input is visually hidden inside
-# the button's label, so it stays in the tab order; `purpose` ends its
-# accessible name ("Upload CSV for the weight sheet").
-csv_button <- function(id, purpose) {
+# the page says what was loaded. The input is visually hidden inside the
+# button's label, so it stays in the tab order.
+file_button <- function(id, label, accept, multiple = FALSE) {
   tags$label(
-    class = "btn btn-light border btn-sm mb-0 flex-shrink-0 kb-file-button",
-    span(class = "d-inline-flex align-items-center gap-2", lucide("upload"), "Upload CSV", span(class = "visually-hidden", paste0(" ", purpose))),
-    tags$input(id = id, name = id, type = "file", accept = ".csv", class = "visually-hidden")
+    class = "btn btn-light border mb-0 flex-shrink-0 kb-file-button",
+    span(class = "d-inline-flex align-items-center gap-2", lucide("upload"), label),
+    tags$input(id = id, name = id, type = "file", accept = paste(accept, collapse = ","), multiple = if (multiple) NA, class = "visually-hidden")
   )
 }
+
+# A folio: folder tabs (a navset_tab()) on a grey strip, the open one joined
+# to a white sheet (folio_sheet()) framed by the strip's grey. The sheets of
+# the Data step and of the Help tab's Data format.
+folio <- function(navset) div(class = "bg-body-tertiary border rounded-3 px-2 pt-2 pb-2", navset)
+folio_sheet <- function(...) div(class = "d-flex flex-column gap-3 p-3 bg-light border border-top-0 rounded-bottom", ...)
 
 # A status in words: the badges, the hidden text beside status icons and the
 # reasons biomass is locked all use it.

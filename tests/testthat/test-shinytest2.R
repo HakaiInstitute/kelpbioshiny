@@ -17,7 +17,7 @@ test_that("the app boots, loads the example and shows the Models step without Ja
 
   app$click("data-example")
   app$wait_for_idle()
-  expect_true(app$get_js("!!document.querySelector('#data-tab_status_weight .kb-icon')"))
+  expect_true(app$get_js("!!document.querySelector('#data-tab_label_weight .kb-icon')"))
 
   app$set_inputs(step = "models")
   app$wait_for_idle()
