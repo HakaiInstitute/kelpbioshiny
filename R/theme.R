@@ -1,22 +1,25 @@
-# The theme: a neutral analytic palette (cool greys, a blue-grey navbar, white cards)
-# with one blue accent, expressed as Bootstrap Sass variables. Everything else in
-# the app reads colours from var(--bs-*) rather than from this palette.
+# The theme: an ocean and kelp palette (a dark teal navbar, teal-tinted greys,
+# white cards) with one teal accent and a kelp gold for the navbar's highlights,
+# expressed as Bootstrap Sass variables. Everything else in the app reads colours
+# from var(--bs-*) rather than from this palette.
 #
-# Blue is Bootstrap's primary: primary and soft buttons, links, the active tab
-# and pill, checked radios and progress bars. Green, amber and red are kept for
-# status (ready, warning, error), always with an icon and text.
+# Teal is Bootstrap's primary: primary and soft buttons, links, the active tab
+# and pill, checked radios and progress bars. Gold marks the open step, the
+# steps done and the kelp drawing in the navbar only. Green, amber and red are
+# kept for status (ready, warning, error), always with an icon and text.
 
 app_palette <- list(
-  bg = "#f5f6f8", fg = "#1b2430", card = "#ffffff",
-  primary = "#326093", muted = "#eef0f3", muted_fg = "#57616d",
-  accent = "#eaf0f7", accent_fg = "#24476e", accent_border = "#cad7e6",
+  bg = "#f1f5f5", fg = "#1b2430", card = "#ffffff",
+  primary = "#1d6b72", muted = "#e8eeee", muted_fg = "#56626a",
+  accent = "#e3f0f0", accent_fg = "#164f55", accent_border = "#bcd8d9",
   secondary_fg = "#2b3542",
-  # info shares the accent's blue: informational notes and data coverage.
-  info = "#326093", info_bg = "#eaf0f7", info_border = "#cad7e6", info_fg = "#24476e",
+  # info shares the accent's teal: informational notes and data coverage.
+  info = "#1d6b72", info_bg = "#e3f0f0", info_border = "#bcd8d9", info_fg = "#164f55",
   # input: the border of inputs, selects and radios, at 3:1 contrast on white (WCAG 1.4.11).
-  border = "#e1e4e8", input = "#8a939d", ring = "#4f7db4", ring_rgb = "79, 125, 180",
-  navbar_bg = "#dde7f2", navbar_border = "#c3d2e4", navbar_fg = "#57616d", navbar_hover = "#1b2430",
-  navbar_active = "#1b2430", navbar_brand = "#1b2430"
+  border = "#dde5e5", input = "#87959a", ring = "#2f8a92", ring_rgb = "47, 138, 146",
+  # The navbar: white text on dark teal, the open step and the kelp drawing in gold.
+  navbar_bg = "#0f3a47", navbar_border = "#0b2c36", navbar_fg = "rgba(255, 255, 255, 0.75)",
+  navbar_hover = "#ffffff", navbar_active = "#d9b45a", navbar_brand = "#ffffff"
 )
 
 app_status_colours <- list(
@@ -97,7 +100,9 @@ app_theme <- function() {
     "badge-border-radius" = "0.375rem",
     "progress-bg" = col$muted,
     "progress-height" = "0.5rem",
-    # Navigation: a blue-grey navbar with dark text, its colours set directly.
+    # Navigation: a dark teal navbar with white text, its colours set directly
+    # (the navbar keeps the light colour mode, so dropdowns and badges in it
+    # keep the page's colours). The toggler's icon is drawn in the icon colour.
     "navbar-bg" = col$navbar_bg,
     # The underlined step tabs get extra bottom padding equal to the navbar's,
     # so equal top padding keeps their labels on the navbar's centre line.
@@ -111,6 +116,8 @@ app_theme <- function() {
     "navbar-light-active-color" = col$navbar_active,
     "navbar-light-brand-color" = col$navbar_brand,
     "navbar-light-brand-hover-color" = col$navbar_brand,
+    "navbar-light-icon-color" = col$navbar_fg,
+    "navbar-light-toggler-border-color" = "rgba(255, 255, 255, 0.25)",
     "nav-link-font-weight" = 500,
     "nav-link-color" = col$fg,
     "nav-link-hover-color" = col$fg,

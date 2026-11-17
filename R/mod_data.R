@@ -522,7 +522,7 @@ sheet_tab_label <- function(name, state) {
 
 # The top of a sheet's tab: the CSV it came from, then its check's messages in
 # banners coloured as the summary line above the tabs: a data error in red,
-# warnings in amber, a note in blue. A sheet that is not used shows its check
+# warnings in amber, a note in teal. A sheet that is not used shows its check
 # in one muted banner, as it blocks nothing. A sheet not loaded says what it
 # holds and its columns, linking to its data format on the Help tab.
 sheet_status <- function(ns, sheet, id, state, sources, species, census) {

@@ -5,7 +5,7 @@
 # name in the page, so a screen reader reads "Models complete", and order-first
 # shows it before the name.
 step_title <- function(value) {
-  span(class = "d-inline-flex align-items-center gap-2", steps[[value]], span(class = "order-first d-inline-flex", step_marker_switch(value)))
+  span(class = "kb-step-title d-inline-flex align-items-center gap-2", steps[[value]], span(class = "order-first d-inline-flex", step_marker_switch(value)))
 }
 
 # The navbar's markers and kelp drawing are in the page from the start and

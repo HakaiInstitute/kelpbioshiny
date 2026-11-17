@@ -95,10 +95,12 @@
   border-radius: var(--bs-border-radius-lg);
 }
 
-/* Navbar: the brand and the not-yet-done step markers take the navbar's own
-   text colour. */
+/* Navbar: the brand text and the not-yet-done step markers take the navbar's
+   own text colour; the kelp drawing and the steps done take its highlight
+   (the open step's colour). */
 /* Block, so the drawing adds no line-box space below it. */
 .kb-kelp-art {
+  color: var(--bs-navbar-active-color);
   display: block;
   width: 1.75rem;
   height: 2.25rem;
@@ -107,6 +109,16 @@
 
 .kb-brand-subtitle {
   opacity: 0.75;
+}
+
+.kb-step-done {
+  background-color: var(--bs-primary);
+  color: var(--bs-white);
+}
+
+.kb-step-title .kb-step-done {
+  background-color: var(--bs-navbar-active-color);
+  color: var(--bs-body-color);
 }
 
 .kb-step-todo {

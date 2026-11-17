@@ -44,8 +44,9 @@ step_marker <- function(number, state = c("todo", "done", "warning", "error", "b
   add <- function(x) paste(c("kb-step-marker", x, class), collapse = " ")
   hidden <- function(text) span(class = "visually-hidden", text)
   switch(state,
-    # A filled accent disc with a white tick, as in a stepper.
-    done = span(class = add("bg-primary text-white"), lucide("check"), hidden("complete")),
+    # A filled disc with a tick, as in a stepper: the accent on the page, gold
+    # in the navbar (.kb-step-title).
+    done = span(class = add("kb-step-done"), lucide("check"), hidden("complete")),
     warning = span(class = add("bg-warning text-white"), lucide("alert-triangle"), hidden("complete with warnings")),
     error = span(class = add("bg-danger text-white"), lucide("x"), hidden("has errors")),
     busy = span(class = add("bg-primary-subtle text-primary-emphasis"), lucide("loader-2", "kb-spin"), hidden("fitting")),
