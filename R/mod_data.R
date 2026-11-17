@@ -626,7 +626,11 @@ issues_summary <- function(ns, sheets, cov, sources) {
   separated <- lapply(seq_along(items), function(i) {
     tagList(if (i > 1) span(class = "text-body-secondary", `aria-hidden` = "true", "\u00b7"), items[[i]])
   })
-  tone <- if (length(warnings) > 0) {
+  # Red while anything blocks the estimates (a sheet error or differing site
+  # names), as the Data step's marker in the navbar.
+  tone <- if (any(names(warnings) != "sheet warnings")) {
+    list(box = "bg-danger-subtle border-danger-subtle", icon = lucide("x-circle", "text-danger"))
+  } else if (length(warnings) > 0) {
     list(box = "bg-warning-subtle border-warning-subtle", icon = lucide("alert-triangle", "text-warning"))
   } else {
     list(box = "bg-body-tertiary", icon = lucide("info", "text-body-secondary"))

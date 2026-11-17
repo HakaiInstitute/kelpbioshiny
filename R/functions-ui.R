@@ -33,9 +33,9 @@ panel <- function(title, ..., description = NULL, action = NULL, class = NULL, i
 }
 
 # A step's numbered circle, as in the navbar: its number until the step is done,
-# then a check mark (or a warning or busy icon). Screen readers get the state as
+# then a check mark (or a warning, error or busy icon). Screen readers get the state as
 # hidden text; the number is hidden from them, as the step order is the tab order.
-step_marker <- function(number, state = c("todo", "done", "warning", "busy"), class = NULL) {
+step_marker <- function(number, state = c("todo", "done", "warning", "error", "busy"), class = NULL) {
   state <- match.arg(state)
   add <- function(x) paste(c("kb-step-marker", x, class), collapse = " ")
   hidden <- function(text) span(class = "visually-hidden", text)
@@ -43,6 +43,7 @@ step_marker <- function(number, state = c("todo", "done", "warning", "busy"), cl
     # A filled accent disc with a white tick, as in a stepper.
     done = span(class = add("bg-primary text-white"), lucide("check"), hidden("complete")),
     warning = span(class = add("bg-warning text-white"), lucide("alert-triangle"), hidden("complete with warnings")),
+    error = span(class = add("bg-danger text-white"), lucide("x"), hidden("has errors")),
     busy = span(class = add("bg-primary-subtle text-primary-emphasis"), lucide("loader-2", "kb-spin"), hidden("fitting")),
     todo = span(class = add("kb-step-todo"), `aria-hidden` = "true", number)
   )

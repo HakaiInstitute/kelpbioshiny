@@ -14,11 +14,11 @@ step_title <- function(value) {
 # conditions as the page loads, before any output arrives.
 
 # A step's marker in each state, shown by the state the server sends as
-# output.mark_<step> ("todo", "done", "warning" or "busy"). The number shows
+# output.mark_<step> ("todo", "done", "warning", "error" or "busy"). The number shows
 # until the server sends another state.
 step_marker_switch <- function(value) {
   number <- match(value, names(steps))
-  lapply(c("todo", "done", "warning", "busy"), function(state) {
+  lapply(c("todo", "done", "warning", "error", "busy"), function(state) {
     conditionalPanel(sprintf("(output.mark_%s || 'todo') === '%s'", value, state), step_marker(number, state))
   })
 }

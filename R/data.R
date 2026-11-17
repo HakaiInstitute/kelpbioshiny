@@ -235,6 +235,11 @@ sheet_errors <- function(sheets, sources) {
   Filter(function(id) !is.null(sheets[[id]]$error) && uses_sheet(sheet_source(id, sources)), names(sheets))
 }
 
+# The sheets in use whose checks passed with warnings.
+sheet_warnings <- function(sheets, sources) {
+  Filter(function(id) is.null(sheets[[id]]$error) && !is.null(sheets[[id]]$warnings) && uses_sheet(sheet_source(id, sources)), names(sheets))
+}
+
 # The models and estimates a run shows: a census has no size model, so no size
 # predictions.
 shown_models <- function(census) if (census) setdiff(component_ids, "size") else component_ids
