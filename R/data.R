@@ -58,50 +58,42 @@ species_info <- list(
 )
 
 # Sheets ----------------------------------------------------------------------------
-# A workbook holds one sheet per kind of data, named by its id. `columns` are the
-# sheet's columns, by species where they differ, optional ones and those of
-# either kind of size data included (sheet_columns() picks them), and `row` is
-# what one row of the sheet holds. Each sheet but the canopy sheet is
-# the data of one model (components); the survey sheet is the cover
-# calibration's.
+# A workbook holds one sheet per kind of data, named by its id; `row` is what
+# one row of the sheet holds. Each sheet holds one of kelpbio's datasets
+# (sheet_dataset()), whose columns come from kelpbio's data dictionary
+# (kb_data_columns()). Each sheet but the canopy sheet is the data of one
+# model (components); the survey sheet is the cover calibration's.
 
 sheet_ids <- c("weight", "size", "survey", "canopy", "wetdry", "carbon", "nitrogen")
 names(sheet_ids) <- sheet_ids
 
 sheet_info <- list(
-  weight = list(
-    label = "Weight", row = "Harvested plant",
-    columns = list(nereo = c("site", "year", "diameter_mm", "weight_kg"), macro = c("site", "year", "fronds", "weight_kg"))
-  ),
-  size = list(
-    label = "Size", row = "Measured plant; in a census, every counted plant",
-    columns = list(nereo = c("site", "year", "survey_id", "diameter_mm", "partial"), macro = c("survey_id", "fronds", "partial"))
-  ),
-  survey = list(
-    label = "In situ survey", row = "In situ survey",
-    columns = list(
-      nereo = c("survey_id", "site", "year", "survey_area_m2", "plants", "plot_area_m2", "canopy_area_m2", "canopy_tide_height_m"),
-      macro = c("survey_id", "site", "year", "survey_area_m2", "plot_area_m2", "canopy_area_m2", "canopy_tide_height_m")
-    )
-  ),
-  canopy = list(
-    label = "Canopy", row = "Canopy map of a site",
-    columns = c("site", "year", "canopy_area_m2", "canopy_tide_height_m", "classified_area_m2")
-  ),
-  wetdry = list(label = "Wet:dry", row = "Tissue sample", columns = c("wet_mass_g", "dry_mass_g")),
-  carbon = list(label = "Carbon", row = "Dried tissue sample", columns = c("sample_mass_mg", "carbon_mass_ug")),
-  nitrogen = list(label = "Nitrogen", row = "Dried tissue sample", columns = c("sample_mass_mg", "nitrogen_mass_ug"))
+  weight = list(label = "Weight", row = "Harvested plant"),
+  size = list(label = "Size", row = "Measured plant; in a census, every counted plant"),
+  survey = list(label = "In situ survey", row = "In situ survey"),
+  canopy = list(label = "Canopy", row = "Canopy map of a site"),
+  wetdry = list(label = "Wet:dry", row = "Tissue sample"),
+  carbon = list(label = "Carbon", row = "Dried tissue sample"),
+  nitrogen = list(label = "Nitrogen", row = "Dried tissue sample")
 )
 
-# A sheet's columns for a species and kind of size data: a census has no
-# plants tally on its surveys, and its size sheet joins each plant to its
-# survey by survey_id (which gives its site and year) and marks partial plants.
+# The kelpbio dataset a sheet holds, for a species and kind of size data, as
+# kb_data_columns() names it.
+sheet_dataset <- function(id, species, census = is_census(species)) {
+  switch(id,
+    size = if (census) paste0("size_census_", species) else "size_sample_nereo",
+    survey = "in_situ",
+    canopy = "canopy",
+    paste0(id, "_", species)
+  )
+}
+
+# A sheet's columns for a species and kind of size data, optional ones
+# included: a census has no plants tally on its surveys.
 sheet_columns <- function(id, species, census = is_census(species)) {
-  columns <- sheet_info[[id]]$columns
-  if (is.list(columns)) columns <- columns[[species]]
-  drop <- if (census) "plants" else "partial"
-  if (id == "size") drop <- c(drop, if (census) c("site", "year") else "survey_id")
-  setdiff(columns, drop)
+  columns <- kb_data_columns(sheet_dataset(id, species, census))$column
+  if (id == "survey" && census) columns <- setdiff(columns, "plants")
+  columns
 }
 
 sheet_label <- function(id) sheet_info[[id]]$label
