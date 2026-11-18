@@ -756,7 +756,8 @@ upload_description <- "An Excel workbook, or a CSV file per sheet named after it
 sheet_tabs <- function(ns) {
   tabs <- lapply(sheet_ids, function(id) {
     nav_panel(
-      # Drawn as not uploaded until the server first responds.
+      # The label and status are drawn as not uploaded until the server first
+      # responds.
       title = uiOutput(ns(paste0("tab_label_", id)), inline = TRUE) |>
         tagAppendChildren(sheet_tab_label(sheet_name(id), "missing")),
       value = id,
@@ -764,7 +765,8 @@ sheet_tabs <- function(ns) {
         uiOutput(ns(paste0("status_", id))) |>
           tagAppendAttributes(
             class = "d-flex flex-column gap-2 kb-sheet-status"
-          ),
+          ) |>
+          tagAppendChildren(sheet_status(ns, NULL, id, "missing", NULL, census = FALSE)),
         uiOutput(ns(paste0("body_", id)))
       )
     )
