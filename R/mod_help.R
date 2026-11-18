@@ -91,6 +91,33 @@ guide_extras <- list(
   }
 )
 
+# Where to read more about a step, under its description in the guide: the
+# app's Data format and Methods pages, and kelpbio's site for the articles the
+# app does not show.
+learn_more <- function(...) {
+  links <- list(...)
+  n <- length(links)
+  separators <- c(rep(", ", max(n - 2, 0)), if (n > 1) if (n > 2) ", and " else " and ")
+  div(
+    class = "small",
+    "Learn more: ",
+    lapply(seq_len(n), function(i) {
+      tagList(links[[i]], if (i < n) separators[[i]] else ".")
+    })
+  )
+}
+
+guide_learn_more <- list(
+  data = function() learn_more(
+    inline_link("help_to_format_guide", help_pages[["format"]])
+  ),
+  models = function() learn_more(
+    methods_link("modelling-approach", "Modelling approach"),
+    tags$a(href = kelpbio_link("prefit"), target = "_blank", rel = "noopener", "Pre-fit models", .noWS = "outside"),
+    tags$a(href = kelpbio_link("diagnostics"), target = "_blank", rel = "noopener", "Diagnostics", .noWS = "outside")
+  )
+)
+
 # The workflow: which sheets feed which models, and how the models combine
 # into the estimates, in three columns. Each group is one estimate, its inputs
 # stacked on the left and the estimate spanning them on the right.
@@ -297,32 +324,42 @@ methods_links <- function(html) {
   links <- regmatches(html, gregexpr(pattern, html))[[1]]
   for (link in unique(links)) {
     anchor <- sub(".*methods\\.html#?([^\"]*)\".*", "\\1", link)
-    scroll <- if (nzchar(anchor)) {
-      sprintf(
-        paste(
-          "$(document).one('shown.bs.tab', function() {",
-          "var e = document.getElementById('methods-%s');",
-          "if (e) e.scrollIntoView();",
-          "});"
-        ),
-        anchor
-      )
-    } else {
-      ""
-    }
-    onclick <- paste(
-      scroll,
-      "Shiny.setInputValue('help_to_methods', true, {priority: 'event'});",
-      "return false;"
-    )
     html <- gsub(
       link,
-      sprintf('<a href="#" onclick="%s">', onclick),
+      sprintf('<a href="#" onclick="%s">', methods_onclick(anchor)),
       html,
       fixed = TRUE
     )
   }
   html
+}
+
+# The inline script that opens the Methods page (help_to_methods) and, for a
+# section's `anchor`, scrolls to it once the page shows.
+methods_onclick <- function(anchor = "") {
+  scroll <- if (nzchar(anchor)) {
+    sprintf(
+      paste(
+        "$(document).one('shown.bs.tab', function() {",
+        "var e = document.getElementById('methods-%s');",
+        "if (e) e.scrollIntoView();",
+        "});"
+      ),
+      anchor
+    )
+  } else {
+    ""
+  }
+  paste(
+    scroll,
+    "Shiny.setInputValue('help_to_methods', true, {priority: 'event'});",
+    "return false;"
+  )
+}
+
+# A link to a section of the Methods page, inside a sentence.
+methods_link <- function(anchor, text) {
+  tags$a(href = "#", onclick = methods_onclick(anchor), text, .noWS = "outside")
 }
 
 # The format tabs: one per sheet name a workbook or CSV file can use, so the
@@ -531,6 +568,7 @@ help_server <- function(input, output, session) {
     )
   })
   observeEvent(input$help_to_format, nav_select("help_page", "format"))
+  observeEvent(input$help_to_format_guide, nav_select("help_page", "format"))
   # The Data format article's links to Methods (format_sections()).
   observeEvent(input$help_to_methods, nav_select("help_page", "methods"))
   sections <- methods_sections()
@@ -596,7 +634,12 @@ help_guide_ui <- function() {
         div(
           class = "d-flex flex-column gap-4",
           lapply(names(steps), function(value) {
-            step_item(value, guide_extras[[value]](), small = FALSE)
+            step_item(
+              value,
+              if (!is.null(guide_learn_more[[value]])) guide_learn_more[[value]](),
+              guide_extras[[value]](),
+              small = FALSE
+            )
           })
         )
       ),
