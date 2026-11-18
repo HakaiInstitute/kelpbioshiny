@@ -267,28 +267,62 @@ format_table <- function(dataset) {
   )
 }
 
-# The guide sections of kelpbio's installed Data format article: what each
-# dataset holds and how they are linked. Its columns and data checks are left
-# out, as the page's sheet tabs list the columns and the Data step checks the
-# sheets. Its link to the Methods article opens the Methods page
-# (help_to_methods).
+# The guide sections of kelpbio's installed Data format article. Its Datasets,
+# Columns and data checks are left out, as each sheet tab shows its row
+# (kb_datasets()) and columns, and the Data step checks the sheets. Its links
+# to the Methods article open the app's Methods page (methods_link()).
 format_sections <- function() {
   sections <- kelpbio_vignette("data-format", "format-")
   sections <- Filter(
-    function(x) !x$id %in% c("format-columns", "format-checking-the-data"),
+    function(x) {
+      !x$id %in% c("format-datasets", "format-columns", "format-checking-the-data")
+    },
     sections
   )
-  methods <- sprintf('<a href="%s"', kelpbio_link("methods"))
   lapply(sections, function(section) {
-    html <- sub(
-      paste0(methods, ' target="_blank" rel="noopener">'),
-      '<a id="help_to_methods" href="#" class="action-button">',
-      as.character(section$html),
-      fixed = TRUE
-    )
-    section$html <- HTML(html)
+    section$html <- HTML(methods_links(as.character(section$html)))
     section
   })
+}
+
+# Links to kelpbio's Methods article, as kelpbio_vignette() writes them, made
+# into links that open the app's Methods page (help_to_methods) and, for a link
+# to a section, scroll to it once the page shows. The section's id on the
+# Methods page carries its "methods-" prefix (methods_sections()).
+methods_links <- function(html) {
+  pattern <- sprintf(
+    '<a href="%s(#[^"]*)?" target="_blank" rel="noopener">',
+    gsub(".", "\\.", kelpbio_link("methods"), fixed = TRUE)
+  )
+  links <- regmatches(html, gregexpr(pattern, html))[[1]]
+  for (link in unique(links)) {
+    anchor <- sub(".*methods\\.html#?([^\"]*)\".*", "\\1", link)
+    scroll <- if (nzchar(anchor)) {
+      sprintf(
+        paste(
+          "$(document).one('shown.bs.tab', function() {",
+          "var e = document.getElementById('methods-%s');",
+          "if (e) e.scrollIntoView();",
+          "});"
+        ),
+        anchor
+      )
+    } else {
+      ""
+    }
+    onclick <- paste(
+      scroll,
+      "Shiny.setInputValue('help_to_methods', true, {priority: 'event'});",
+      "return false;"
+    )
+    html <- gsub(
+      link,
+      sprintf('<a href="#" onclick="%s">', onclick),
+      html,
+      fixed = TRUE
+    )
+  }
+  html
 }
 
 # The format tabs: one per sheet name a workbook or CSV file can use, so the
@@ -345,8 +379,12 @@ format_tabs <- function() {
   folio(navset_tab(id = "format_tabs", !!!tabs))
 }
 
+# The Sheets panel first, with the article's Overview above the sheet tabs;
+# its other sections follow.
 help_format_ui <- function() {
   sections <- format_sections()
+  overview <- Filter(function(x) x$id == "format-overview", sections)
+  rest <- Filter(function(x) x$id != "format-overview", sections)
   tagList(
     page_header(
       help_pages[["format"]],
@@ -354,29 +392,25 @@ help_format_ui <- function() {
     ),
     div(
       class = "d-flex flex-column gap-3",
-      if (length(sections) == 0) {
-        card(card_body(vignette_missing("The Data format article", "data_format")))
-      } else {
-        lapply(sections, function(section) {
-          panel(
-            section$title,
-            id = section$id,
-            class = "kb-anchor",
-            div(class = "kb-article", section$html)
-          )
-        })
-      },
       panel(
         "Sheets",
         description = paste(
-          "Name each sheet of the Excel workbook, or each CSV file, as its tab below: the dataset's name without the species suffix.",
-          "Other sheets and columns are ignored.",
+          "Name each sheet of the Excel workbook, or each CSV file, as its tab below.",
+          "Other sheets are ignored.",
           "Choose a size sample or a size census under Size data on the Data step.",
           "The template workbook on the Data step has every sheet and column name pre-filled."
         ),
         action = kelpbio_button("data_format", "In kelpbio"),
+        if (length(sections) == 0) {
+          vignette_missing("The Data format article", "data_format")
+        } else {
+          lapply(overview, function(x) div(class = "kb-article", x$html))
+        },
         format_tabs()
-      )
+      ),
+      lapply(rest, function(x) {
+        panel(x$title, id = x$id, class = "kb-anchor", div(class = "kb-article", x$html))
+      })
     )
   )
 }
@@ -497,6 +531,7 @@ help_server <- function(input, output, session) {
     )
   })
   observeEvent(input$help_to_format, nav_select("help_page", "format"))
+  # The Data format article's links to Methods (format_sections()).
   observeEvent(input$help_to_methods, nav_select("help_page", "methods"))
   sections <- methods_sections()
   output$help_subnav <- renderUI({
