@@ -108,43 +108,31 @@ sheet_ids <- c(
 names(sheet_ids) <- sheet_ids
 
 sheet_info <- list(
-  weight = list(
-    label = "Weight",
-    row = "Harvested plant, weighed and measured"
-  ),
-  size = list(
-    label = "Size",
-    row = "Measured plant, from a sub-sample of the counted plants"
-  ),
-  survey = list(
-    label = "In situ survey",
-    row = "In situ survey, including the total count if size_sample is used"
-  ),
-  canopy = list(
-    label = "Canopy",
-    row = "Site-level canopy map (i.e., from aerial imagery)"
-  ),
-  wetdry = list(label = "Wet:dry", row = "Tissue sample, weighed wet and dry"),
-  carbon = list(
-    label = "Carbon",
-    row = "Tissue sample, analysed for carbon content"
-  ),
-  nitrogen = list(
-    label = "Nitrogen",
-    row = "Tissue sample, analysed for nitrogen content"
-  ),
-  # The size sheet in a census (size_census), whose rows differ from a sample's.
-  size_census = list(
-    label = "Size",
-    row = "Measured plant, including all counted plants (i.e., a census)"
-  )
+  weight = list(label = "Weight"),
+  size = list(label = "Size"),
+  survey = list(label = "In situ survey"),
+  canopy = list(label = "Canopy"),
+  wetdry = list(label = "Wet:dry"),
+  carbon = list(label = "Carbon"),
+  nitrogen = list(label = "Nitrogen")
 )
 
-# What one row of a sheet holds, for the kind of size data.
+# What one row of a sheet holds, for the kind of size data, from kelpbio
+# (kb_datasets()): markdown with column names in backticks, starting lower
+# case to follow "One row per". Both species' datasets read the same.
 sheet_row <- function(id, census = FALSE) {
-  key <- if (id == "size" && census) "size_census" else id
-  sheet_info[[key]]$row
+  row <- kb_datasets(sheet_dataset(id, "nereo", census))$row
+  paste0(tolower(substr(row, 1, 1)), substring(row, 2))
 }
+
+# A sheet's row as HTML, with its column names in code font, so it sits inside
+# a sentence with no white space added around it.
+row_html <- function(row) {
+  gsub("`([^`]*)`", "<code>\\1</code>", htmltools::htmlEscape(row))
+}
+
+# A sheet's row as plain text, for the template.
+row_text <- function(row) gsub("`", "", row, fixed = TRUE)
 
 # The kelpbio dataset a sheet holds, for a species and kind of size data, as
 # kb_data_columns() names it.
@@ -858,7 +846,7 @@ template_readme <- function(species, census = is_census(species)) {
     data.frame(
       sheet = sheet_name(id, census),
       needed = sheet_need(id, species),
-      one_row_per = sheet_row(id, census),
+      one_row_per = row_text(sheet_row(id, census)),
       column = columns,
       description = vapply(columns, function(x) column_text(id, x)[1], ""),
       values = vapply(columns, function(x) column_text(id, x)[2], "")

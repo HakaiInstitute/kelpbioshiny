@@ -842,11 +842,11 @@ sheet_status <- function(ns, sheet, id, state, sources, census) {
     return(tagList(
       div(
         class = "small text-body-secondary",
-        sprintf(
-          "Not uploaded. One row per %s%s; upload a workbook with a ",
-          tolower(substr(row, 1, 1)),
-          substring(row, 2)
-        ),
+        HTML(paste0(
+          "Not uploaded. One row per ",
+          row_html(row),
+          "; upload a workbook with a "
+        )),
         tags$code(name),
         " sheet, or ",
         tags$code(paste0(name, ".csv"), .noWS = "after"),

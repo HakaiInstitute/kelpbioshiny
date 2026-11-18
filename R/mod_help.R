@@ -104,16 +104,11 @@ flow_node <- function(kind, title, detail = NULL) {
 
 # A sheet in the flow; the size sheet's row covers both kinds of size data.
 flow_sheet <- function(id, name = tags$code(sheet_name(id))) {
-  lower_first <- function(x) paste0(tolower(substr(x, 1, 1)), substring(x, 2))
-  row <- lower_first(sheet_row(id))
+  detail <- paste0("One row per ", row_html(sheet_row(id)))
   if (id == "size") {
-    row <- paste0(
-      row,
-      "; in a census, ",
-      lower_first(sheet_row(id, census = TRUE))
-    )
+    detail <- paste0(detail, "; in a census, ", row_html(sheet_row(id, census = TRUE)))
   }
-  flow_node("sheet", name, paste("One row per", row))
+  flow_node("sheet", name, HTML(detail))
 }
 
 flow_model <- function(id, detail = components[[id]]$detail) {
@@ -341,11 +336,7 @@ format_tabs <- function() {
       folio_sheet(
         div(
           class = "small text-body-secondary",
-          sprintf(
-            "One row per %s%s.",
-            tolower(substr(row, 1, 1)),
-            substring(row, 2)
-          )
+          HTML(paste0("One row per ", row_html(row), "."))
         ),
         !!!tables
       )
