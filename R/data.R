@@ -660,15 +660,15 @@ check_sheet <- function(id, rows, species, census, size = NULL) {
       kb_check_data_size_census_nereo(rows, x_name = x_name)
     },
     survey = if (census) {
-      kb_check_data_in_situ(
+      kb_check_data_survey_in_situ(
         survey_rows(rows, TRUE),
         size_census = size,
         x_name = x_name
       )
     } else {
-      kb_check_data_in_situ(rows, x_name = x_name)
+      kb_check_data_survey_in_situ(rows, x_name = x_name)
     },
-    canopy = kb_check_data_canopy(rows, x_name = x_name),
+    canopy = kb_check_data_survey_canopy(rows, x_name = x_name),
     kelpbio_fn("check", id, species)(rows, x_name = x_name)
   )
 }
@@ -1376,8 +1376,7 @@ example_rows <- function(species) {
     switch(
       id,
       size = paste0("size_", if (species == "macro") "census" else "sample"),
-      survey = "in_situ",
-      id
+      sheet_name(id)
     )
   }
   lapply(sheet_ids, function(id) {

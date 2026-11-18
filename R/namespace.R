@@ -1,10 +1,10 @@
 #' @import shiny bslib
 #' @importFrom generics glance tidy
 #' @importFrom rlang %||% .data
-#' @importFrom kelpbio kb_check_data_canopy kb_check_data_carbon_macro kb_check_data_carbon_nereo
+#' @importFrom kelpbio kb_check_data_survey_canopy kb_check_data_carbon_macro kb_check_data_carbon_nereo
 #' @importFrom kelpbio kb_check_data_nitrogen_macro kb_check_data_nitrogen_nereo
 #' @importFrom kelpbio kb_check_data_size_census_macro kb_check_data_size_census_nereo
-#' @importFrom kelpbio kb_check_data_size_sample_nereo kb_check_data_in_situ
+#' @importFrom kelpbio kb_check_data_size_sample_nereo kb_check_data_survey_in_situ
 #' @importFrom kelpbio kb_check_data_weight_macro kb_check_data_weight_nereo
 #' @importFrom kelpbio kb_check_data_wetdry_macro kb_check_data_wetdry_nereo
 #' @importFrom kelpbio kb_fit_carbon_macro kb_fit_carbon_nereo kb_fit_cover_calibration_macro

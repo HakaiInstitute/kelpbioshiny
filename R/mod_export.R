@@ -36,8 +36,8 @@ export_script <- function(species, sources, sheets, workbook, priors, samplers, 
   check <- function(id) {
     switch(id,
       size = if (census) sprintf("kb_check_data_size_census_%s(size)", sp) else "kb_check_data_size_sample_nereo(size)",
-      survey = if (census) "kb_check_data_in_situ(survey, size)" else "kb_check_data_in_situ(survey)",
-      canopy = "kb_check_data_canopy(canopy)",
+      survey = if (census) "kb_check_data_survey_in_situ(survey, size)" else "kb_check_data_survey_in_situ(survey)",
+      canopy = "kb_check_data_survey_canopy(canopy)",
       sprintf("kb_check_data_%s_%s(%s)", id, sp, id)
     )
   }
