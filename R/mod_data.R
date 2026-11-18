@@ -528,7 +528,6 @@ mod_data_server <- function(id, store) {
           sid,
           state(),
           store$sources(),
-          store$species(),
           store$census()
         )
       })
@@ -833,10 +832,10 @@ sheet_tab_label <- function(name, state) {
 # banners coloured as the summary line above the tabs: a data error in red,
 # warnings in amber, a note in teal. A sheet that is not used shows its check
 # in one muted banner, as it blocks nothing. A sheet not loaded says what it
-# holds and its columns, linking to its data format on the Help tab.
-sheet_status <- function(ns, sheet, id, state, sources, species, census) {
+# holds and links to its data format on the Help tab.
+sheet_status <- function(ns, sheet, id, state, sources, census) {
   if (state == "missing") {
-    row <- sheet_info[[id]]$row
+    row <- sheet_row(id, census)
     name <- sheet_name(id, census)
     return(tagList(
       div(
@@ -852,14 +851,8 @@ sheet_status <- function(ns, sheet, id, state, sources, species, census) {
         "."
       ),
       div(
-        class = "small text-body-secondary",
-        "Columns: ",
-        span(
-          class = "font-monospace",
-          paste(sheet_columns(id, species, census), collapse = ", ")
-        ),
-        " ",
-        actionLink(ns(paste0("format_", id)), "Review data format requirements")
+        class = "small",
+        actionLink(ns(paste0("format_", id)), "Review this sheet's data requirements")
       )
     ))
   }
