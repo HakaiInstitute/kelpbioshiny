@@ -8,7 +8,7 @@
 kelpbio_url <- "https://hakaiinstitute.github.io/kelpbio/"
 kelpbio_links <- list(
   methods = "articles/methods.html",
-  data_format = "articles/kelpbio.html#data-format",
+  data_format = "articles/data-format.html",
   glossary = "articles/kelpbio.html#glossary",
   prefit = "articles/kelpbio.html#pre-fit-models",
   census = "articles/methods.html#site-wide-census",

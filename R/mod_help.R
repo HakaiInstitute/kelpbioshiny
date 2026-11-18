@@ -272,6 +272,30 @@ format_table <- function(dataset) {
   )
 }
 
+# The guide sections of kelpbio's installed Data format article: what each
+# dataset holds and how they are linked. Its columns and data checks are left
+# out, as the page's sheet tabs list the columns and the Data step checks the
+# sheets. Its link to the Methods article opens the Methods page
+# (help_to_methods).
+format_sections <- function() {
+  sections <- kelpbio_vignette("data-format", "format-")
+  sections <- Filter(
+    function(x) !x$id %in% c("format-columns", "format-checking-the-data"),
+    sections
+  )
+  methods <- sprintf('<a href="%s"', kelpbio_link("methods"))
+  lapply(sections, function(section) {
+    html <- sub(
+      paste0(methods, ' target="_blank" rel="noopener">'),
+      '<a id="help_to_methods" href="#" class="action-button">',
+      as.character(section$html),
+      fixed = TRUE
+    )
+    section$html <- HTML(html)
+    section
+  })
+}
+
 # The format tabs: one per sheet name a workbook or CSV file can use, so the
 # size sheet has one for each kind of size data. Each lists its columns, by
 # species where they differ.
@@ -331,19 +355,37 @@ format_tabs <- function() {
 }
 
 help_format_ui <- function() {
+  sections <- format_sections()
   tagList(
     page_header(
       help_pages[["format"]],
       "The sheets that the app reads, required column names, and data format."
     ),
-    panel(
-      "Sheets",
-      description = paste(
-        "Name each sheet of the Excel workbook, or each CSV file, as its tab below; other sheets and columns are ignored.",
-        "Leave out the sheets you do not have; not all are required. Download the template workbook on the Data step for an empty template with correct sheet and column names."
-      ),
-      action = kelpbio_button("data_format", "In kelpbio"),
-      format_tabs()
+    div(
+      class = "d-flex flex-column gap-3",
+      if (length(sections) == 0) {
+        card(card_body(vignette_missing("The Data format article", "data_format")))
+      } else {
+        lapply(sections, function(section) {
+          panel(
+            section$title,
+            id = section$id,
+            class = "kb-anchor",
+            div(class = "kb-article", section$html)
+          )
+        })
+      },
+      panel(
+        "Sheets",
+        description = paste(
+          "Name each sheet of the Excel workbook, or each CSV file, as its tab below: the dataset's name without the species suffix.",
+          "Other sheets and columns are ignored.",
+          "Choose a size sample or a size census under Size data on the Data step.",
+          "The template workbook on the Data step has every sheet and column name pre-filled."
+        ),
+        action = kelpbio_button("data_format", "In kelpbio"),
+        format_tabs()
+      )
     )
   )
 }
@@ -464,6 +506,7 @@ help_server <- function(input, output, session) {
     )
   })
   observeEvent(input$help_to_format, nav_select("help_page", "format"))
+  observeEvent(input$help_to_methods, nav_select("help_page", "methods"))
   sections <- methods_sections()
   output$help_subnav <- renderUI({
     page <- input$help_page %||% "guide"
