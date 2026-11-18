@@ -108,17 +108,43 @@ sheet_ids <- c(
 names(sheet_ids) <- sheet_ids
 
 sheet_info <- list(
-  weight = list(label = "Weight", row = "Harvested plant"),
+  weight = list(
+    label = "Weight",
+    row = "Harvested plant, weighed and measured"
+  ),
   size = list(
     label = "Size",
-    row = "Measured plant; in a census, every counted plant"
+    row = "Measured plant, from a sub-sample of the counted plants"
   ),
-  survey = list(label = "In situ survey", row = "In situ survey"),
-  canopy = list(label = "Canopy", row = "Canopy map of a site"),
-  wetdry = list(label = "Wet:dry", row = "Tissue sample"),
-  carbon = list(label = "Carbon", row = "Dried tissue sample"),
-  nitrogen = list(label = "Nitrogen", row = "Dried tissue sample")
+  survey = list(
+    label = "In situ survey",
+    row = "In situ survey, including the total count if size_sample is used"
+  ),
+  canopy = list(
+    label = "Canopy",
+    row = "Site-level canopy map (i.e., from aerial imagery)"
+  ),
+  wetdry = list(label = "Wet:dry", row = "Tissue sample, weighed wet and dry"),
+  carbon = list(
+    label = "Carbon",
+    row = "Tissue sample, analysed for carbon content"
+  ),
+  nitrogen = list(
+    label = "Nitrogen",
+    row = "Tissue sample, analysed for nitrogen content"
+  ),
+  # The size sheet in a census (size_census), whose rows differ from a sample's.
+  size_census = list(
+    label = "Size",
+    row = "Measured plant, including all counted plants (i.e., a census)"
+  )
 )
+
+# What one row of a sheet holds, for the kind of size data.
+sheet_row <- function(id, census = FALSE) {
+  key <- if (id == "size" && census) "size_census" else id
+  sheet_info[[key]]$row
+}
 
 # The kelpbio dataset a sheet holds, for a species and kind of size data, as
 # kb_data_columns() names it.
@@ -126,8 +152,8 @@ sheet_dataset <- function(id, species, census = is_census(species)) {
   switch(
     id,
     size = if (census) paste0("size_census_", species) else "size_sample_nereo",
-    survey = "in_situ",
-    canopy = "canopy",
+    survey = ,
+    canopy = sheet_name(id),
     paste0(id, "_", species)
   )
 }
@@ -832,7 +858,7 @@ template_readme <- function(species, census = is_census(species)) {
     data.frame(
       sheet = sheet_name(id, census),
       needed = sheet_need(id, species),
-      one_row_per = sheet_info[[id]]$row,
+      one_row_per = sheet_row(id, census),
       column = columns,
       description = vapply(columns, function(x) column_text(id, x)[1], ""),
       values = vapply(columns, function(x) column_text(id, x)[2], "")

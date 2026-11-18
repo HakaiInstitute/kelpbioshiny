@@ -102,13 +102,18 @@ flow_node <- function(kind, title, detail = NULL) {
   )
 }
 
+# A sheet in the flow; the size sheet's row covers both kinds of size data.
 flow_sheet <- function(id, name = tags$code(sheet_name(id))) {
-  row <- sheet_info[[id]]$row
-  flow_node(
-    "sheet",
-    name,
-    paste0("One row per ", tolower(substr(row, 1, 1)), substring(row, 2))
-  )
+  lower_first <- function(x) paste0(tolower(substr(x, 1, 1)), substring(x, 2))
+  row <- lower_first(sheet_row(id))
+  if (id == "size") {
+    row <- paste0(
+      row,
+      "; in a census, ",
+      lower_first(sheet_row(id, census = TRUE))
+    )
+  }
+  flow_node("sheet", name, paste("One row per", row))
 }
 
 flow_model <- function(id, detail = components[[id]]$detail) {
@@ -293,7 +298,7 @@ format_tabs <- function() {
     })
     same <- length(unique(contents)) == 1
     name <- sheet_name(tab$id, isTRUE(tab$census))
-    row <- sheet_info[[tab$id]]$row
+    row <- sheet_row(tab$id, isTRUE(tab$census))
     tables <- if (same) {
       list(format_table(datasets[[1]]))
     } else {
