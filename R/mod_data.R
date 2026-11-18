@@ -456,6 +456,8 @@ mod_data_server <- function(id, store) {
     )
     observeEvent(input$guide, store$open_help("guide"))
     observeEvent(input$format, store$open_help("format"))
+    observeEvent(input$welcome_format, store$open_help("format"))
+    observeEvent(input$welcome_methods, store$open_help("methods"))
     observeEvent(input$bundle, {
       upload <- input$bundle
       replace_data(function() store$resume(upload$name, upload$datapath))
@@ -734,14 +736,18 @@ welcome_card <- function(ns) {
         gap = "1rem",
         !!!lapply(names(steps), step_item)
       ),
-      div(actionLink(ns("guide"), "Read the user guide"))
+      div(
+        "Read the ", inline_link(ns("guide"), "user guide"), ", ",
+        inline_link(ns("welcome_format"), "data requirements"), ", and ",
+        inline_link(ns("welcome_methods"), "methods")
+      )
     )
   )
 }
 
 # The one description of how data are uploaded; the columns are in the guide
 # and in the tab of each sheet not uploaded.
-upload_description <- "An Excel workbook, or a CSV file per sheet named after it (weight.csv)."
+upload_description <- "An Excel workbook, or a CSV file per sheet named after it (e.g., weight.csv)."
 
 # The sheets as the tabs of a workbook, one per sheet the app reads, whether
 # or not it is loaded. Each tab's title holds its status icon and the sheet's
@@ -1334,4 +1340,12 @@ coverage_list <- function(cov) {
       )
     )
   )
+}
+
+# An action link inside a sentence, with no white space around it, so
+# punctuation after it sits flush.
+inline_link <- function(id, label) {
+  link <- actionLink(id, label)
+  link$.noWS <- "outside"
+  link
 }
