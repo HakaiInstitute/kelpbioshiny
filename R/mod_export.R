@@ -202,7 +202,7 @@ model_export <- function(store, cid, choice) {
   fit <- store$fit_of(cid)
   plants <- if (cid == "weight") plant_rows(store$sheets())
   choices <- prediction_choices(cid, is_prefit(store$sources()[[cid]]), species, !is.null(plants))
-  grouping <- chosen_grouping(choice$grouping, choices)
+  grouping <- chosen_grouping(cid, choice$grouping, choices)
   own <- own_rows(cid, store$sources()[[cid]], store$sheets())
   predictions <- model_predictions(cid, fit, grouping, species, plants = plants, own = own)
   caption <- prediction_caption(cid, grouping, species)

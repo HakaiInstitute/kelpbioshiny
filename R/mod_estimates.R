@@ -163,7 +163,7 @@ mod_estimate_server <- function(id, store) {
     # every estimate's choices, so the grouping is deduplicated, to follow only
     # this model's.
     grouping <- dedupe(reactive({
-      chosen_grouping(store$estimate_choices()[[cid]]$grouping, prediction_choices(cid, page()$prefit, page()$species, page()$plants))
+      chosen_grouping(cid, store$estimate_choices()[[cid]]$grouping, prediction_choices(cid, page()$prefit, page()$species, page()$plants))
     }))
     observeEvent(input$grouping, store$set_estimate_choice(cid, "grouping", input$grouping))
     observeEvent(grouping(), {
@@ -300,10 +300,15 @@ population_label <- function(cid, species) {
   if (has_effect(cid, "site", species)) "All sites" else "All samples"
 }
 
-# By site where the model has site effects, as that is what most users want to
-# see; then each plant, for a weight model with a size sheet (a pre-fit model
-# offers no sites, as its reference data stay private); else the population.
-default_grouping <- function(choices) {
+# The overall curve of a model that predicts along a predictor (weight and
+# cover calibration), as its relationship is what most users want to see;
+# otherwise by site where the model has site effects, then each plant, for a
+# weight model with a size sheet (a pre-fit model offers no sites, as its
+# reference data stay private); else the population.
+default_grouping <- function(cid, choices) {
+  if (!is.null(prediction_info[[cid]]$along)) {
+    return("population")
+  }
   for (grouping in c("site", "plant")) {
     if (grouping %in% names(choices)) {
       return(grouping)
@@ -314,8 +319,8 @@ default_grouping <- function(choices) {
 
 # The grouping chosen on a model's page, or the default where none is chosen or
 # the choice is no longer offered.
-chosen_grouping <- function(chosen, choices) {
-  if (is.null(chosen) || !chosen %in% names(choices)) default_grouping(choices) else chosen
+chosen_grouping <- function(cid, chosen, choices) {
+  if (is.null(chosen) || !chosen %in% names(choices)) default_grouping(cid, choices) else chosen
 }
 
 # Why a model's predictions are not by site and year, where they are not. An
@@ -340,7 +345,7 @@ predictions_panel <- function(ns, cid, prefit, species, plants, selected = NULL,
       if (length(choices) > 1) {
         toolbar_input_select(
           ns("grouping"), "Group by",
-          choices = stats::setNames(names(choices), choices), selected = chosen_grouping(selected, choices)
+          choices = stats::setNames(names(choices), choices), selected = chosen_grouping(cid, selected, choices)
         )
       },
       if (length(choices) > 1) toolbar_divider(),
