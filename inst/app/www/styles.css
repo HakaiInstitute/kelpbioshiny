@@ -163,6 +163,30 @@
   --shiny-spinner-size: 0px;
 }
 
+/* The arrows that page through a figure's panels show while the pointer is
+   over the figure or an arrow has focus, and always on a touch screen. */
+.kb-panel-nav {
+  opacity: 0;
+  transition: opacity 0.15s ease-in-out;
+}
+
+.kb-figure-frame:hover .kb-panel-nav,
+.kb-figure-frame:focus-within .kb-panel-nav {
+  opacity: 1;
+}
+
+@media (hover: none) {
+  .kb-panel-nav {
+    opacity: 1;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .kb-panel-nav {
+    transition: none;
+  }
+}
+
 /* A small figure, such as a single population-level estimate. */
 .kb-figure-narrow {
   max-width: 36rem;

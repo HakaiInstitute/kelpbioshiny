@@ -352,8 +352,9 @@ figure_px <- function(px) round(px * figure_res / 96)
 # A ggplot from kelpbio drawn by render_figure(), with its caption. Until it is
 # first drawn, its frame holds the figure's space, as a share of its width
 # (`aspect`, as render_figure()'s) or a height in pixels (`height`), and shows a
-# placeholder; without either it holds a set height.
-figure_plot <- function(output_id, caption = NULL, class = NULL, aspect = NULL, height = NULL) {
+# placeholder; without either it holds a set height. `overlay` sits over the
+# figure, as the arrows of panel_nav_ui() do.
+figure_plot <- function(output_id, caption = NULL, class = NULL, aspect = NULL, height = NULL, overlay = NULL) {
   # Sized by its content box, so the border adds to the figure's size, as it
   # does once the figure is drawn.
   size <- if (!is.null(height)) {
@@ -375,7 +376,8 @@ figure_plot <- function(output_id, caption = NULL, class = NULL, aspect = NULL, 
         `aria-hidden` = "true",
         span(class = "kb-figure-placeholder placeholder d-block w-100 h-100 rounded-2 bg-secondary-subtle")
       ),
-      plotOutput(output_id, height = "auto")
+      plotOutput(output_id, height = "auto"),
+      overlay
     )),
     if (!is.null(caption)) tags$figcaption(class = "small text-body-secondary", caption)
   )
@@ -408,6 +410,110 @@ render_figure <- function(plot, output_id, aspect = 0.5, height = NULL, alt = NA
       if (isTRUE(width() > 0)) round(width() * value(aspect)) else 400
     }
   )
+}
+
+# Pages of panels. kb_plot_predictions() draws a panel per group of the grouping
+# columns not on its x-axis (as kelpbio infers it), and at most `max_facets`,
+# so a figure with more panels is shown a page at a time: panel_pages() splits
+# the groups into pages of that many, page_rows() keeps the rows of one page,
+# and panel_nav() pages through them with arrows over the figure.
+max_panels <- function() default_arg(kb_plot_predictions, "max_facets")
+
+panel_vars <- function(predictions) {
+  group_vars <- attr(predictions, "kb_group_vars")
+  predictor <- attr(predictions, "kb_predictor")
+  varies <- !is.null(predictor) && predictor %in% names(predictions) && length(unique(predictions[[predictor]])) > 1
+  if (varies) group_vars else utils::head(group_vars, -1)
+}
+
+panel_keys <- function(predictions, vars) {
+  do.call(paste, c(lapply(vars, function(var) as.character(predictions[[var]])), sep = ", "))
+}
+
+# Each page's panels, named by its first and last; one page of NULL (every row)
+# for a figure without panels. `vars` are the columns that name the panels.
+panel_pages <- function(predictions, vars = panel_vars(predictions)) {
+  if (length(vars) == 0) {
+    return(structure(list(NULL), vars = vars))
+  }
+  keys <- unique(panel_keys(predictions, vars))
+  pages <- unname(split(keys, ceiling(seq_along(keys) / max_panels())))
+  names(pages) <- vapply(pages, function(page) {
+    if (length(page) == 1) page else sprintf("%s to %s", page[[1]], page[[length(page)]])
+  }, "")
+  structure(pages, vars = vars)
+}
+
+page_rows <- function(predictions, pages, page) {
+  if (is.null(page)) {
+    return(predictions)
+  }
+  predictions[panel_keys(predictions, attr(pages, "vars")) %in% page, ]
+}
+
+# What the panels are named by: "Site", or "Region and year".
+panel_label <- function(pages) paste(vapply(attr(pages, "vars"), column_label, ""), collapse = " and ")
+
+# Previous and next arrows at the sides of a figure, with the panels shown
+# between them at the foot, shown while the pointer is over the figure or an
+# arrow has focus (always on a touch screen); panel_nav() fills it in.
+panel_nav_ui <- function(id) uiOutput(id)
+
+panel_arrow <- function(id, icon, label, side) {
+  actionButton(
+    id, lucide(icon),
+    class = sprintf("kb-panel-nav btn-light border rounded-circle shadow-sm p-2 position-absolute top-50 translate-middle-y %s", side),
+    `aria-label` = label, title = label
+  )
+}
+
+# The page shown of a figure's panels (`pages`, a reactive of panel_pages()),
+# moved by the arrows of panel_nav_ui(`id`) and reset to the first when the
+# pages change.
+panel_nav <- function(id, pages, input = getDefaultReactiveDomain()$input,
+                      output = getDefaultReactiveDomain()$output,
+                      session = getDefaultReactiveDomain()) {
+  ns <- session$ns
+  prev_id <- paste0(id, "_prev")
+  next_id <- paste0(id, "_next")
+  index <- reactiveVal(1L)
+  observeEvent(pages(), index(1L))
+  observeEvent(input[[prev_id]], index(max(index() - 1L, 1L)))
+  observeEvent(input[[next_id]], index(min(index() + 1L, length(pages()))))
+  output[[id]] <- renderUI({
+    pages <- pages()
+    if (length(pages) < 2) {
+      return(NULL)
+    }
+    tagList(
+      panel_arrow(ns(prev_id), "chevron-left", "Previous panels", "start-0 ms-2"),
+      panel_arrow(ns(next_id), "chevron-right", "Next panels", "end-0 me-2"),
+      span(
+        class = "kb-panel-nav badge rounded-pill text-bg-light border fw-normal position-absolute bottom-0 start-50 translate-middle-x mb-2",
+        `aria-live` = "polite",
+        textOutput(ns(paste0(id, "_count")), inline = TRUE)
+      )
+    )
+  })
+  output[[paste0(id, "_count")]] <- renderText({
+    pages <- pages()
+    shown <- min(index(), length(pages))
+    first <- sum(lengths(pages[seq_len(shown - 1L)])) + 1L
+    last <- first + length(pages[[shown]]) - 1L
+    total <- sum(lengths(pages))
+    vars <- attr(pages, "vars")
+    if (first == last) {
+      return(sprintf("%s %d of %d", panel_label(pages), first, total))
+    }
+    sprintf("%s %d to %d of %d", if (length(vars) == 1) paste0(column_label(vars), "s") else "Panels", first, last, total)
+  })
+  # Run after the arrows are drawn, as they are drawn again with new pages.
+  observe({
+    pages()
+    updateActionButton(session, prev_id, disabled = index() <= 1L)
+    updateActionButton(session, next_id, disabled = index() >= length(pages()))
+  })
+  reactive(pages()[[min(index(), length(pages()))]])
 }
 
 # One row per component: icon, label, a muted note on the right.

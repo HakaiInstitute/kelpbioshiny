@@ -217,11 +217,30 @@ model_export <- function(store, cid, choice) {
       if (!is.null(table$data_support)) support_export_note
     ), collapse = " "),
     table = table,
-    figures = list(list(
-      name = model_name(cid), plot = prediction_figure(cid, predictions, grouping, species),
-      width = width, height = width * prediction_aspect(cid, grouping), caption = caption
-    ))
+    figures = paged_figures(
+      predictions, model_name(cid), caption, if (grouping == "plant") character() else panel_vars(predictions),
+      function(rows) {
+        list(plot = prediction_figure(cid, rows, grouping, species), width = width, height = width * prediction_aspect(cid, grouping))
+      }
+    )
   )
+}
+
+# A figure per page of panels (panel_pages()), numbered where there are several
+# and captioned with the panels each shows; `figure(rows)` gives a page's plot,
+# width and height.
+paged_figures <- function(rows, name, caption, vars, figure) {
+  pages <- panel_pages(rows, vars)
+  lapply(seq_along(pages), function(i) {
+    paged <- length(pages) > 1
+    c(
+      list(
+        name = if (paged) paste(name, i, sep = "_") else name,
+        caption = if (paged) sprintf("%s %s: %s.", caption, panel_label(pages), names(pages)[[i]]) else caption
+      ),
+      figure(page_rows(rows, pages, pages[[i]]))
+    )
+  })
 }
 
 # Each survey's figure is drawn one site at a time, as on the Estimates step.
@@ -236,21 +255,26 @@ derived_export <- function(store, eid, measure, choice) {
   )
   labels <- derived_labels(eid, measure, per_area)
   name <- paste(eid, measure, sep = "_")
-  figure <- function(site = NULL) {
+  figure <- function(site) {
     list(
-      name = if (is.null(site)) name else paste(name, file_name(site), sep = "_"),
+      name = paste(name, file_name(site), sep = "_"),
       plot = derived_figure(rows, site), width = export_width, height = derived_height(rows, site) / 96,
       caption = derived_caption(eid, labels, sum_key, site)
     )
   }
   by_survey <- eid == "survey" && sum_key == "survey"
+  pages <- function() {
+    paged_figures(rows, name, derived_caption(eid, labels, sum_key), panel_vars(rows), function(page) {
+      list(plot = derived_figure(page), width = export_width, height = derived_height(page) / 96)
+    })
+  }
   list(
     name = name,
     title = sprintf("%s: %s (%s)", estimate_label(eid), labels$label, labels$unit),
     rows = sums[[sum_key]]$label,
     note = paste("Estimates with their lower and upper 95% compatibility limits.", support_export_note),
     table = biomass_table(rows, store$stand_ins()),
-    figures = if (by_survey) lapply(unique(as.character(rows$site)), figure) else list(figure())
+    figures = if (by_survey) lapply(unique(as.character(rows$site)), figure) else pages()
   )
 }
 

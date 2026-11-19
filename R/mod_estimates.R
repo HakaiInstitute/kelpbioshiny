@@ -174,7 +174,7 @@ mod_estimate_server <- function(id, store) {
     output$figure <- renderUI({
       grouping <- grouping()
       tagList(
-        figure_plot(ns("plot"), class = if (grouping == "population") "kb-figure-narrow", aspect = prediction_aspect(cid, grouping)),
+        figure_plot(ns("plot"), class = if (grouping == "population") "kb-figure-narrow", aspect = prediction_aspect(cid, grouping), overlay = panel_nav_ui(ns("pager"))),
         estimate_caption(
           prediction_caption(cid, grouping, page()$species),
           prediction_note(page()$prefit, cid, page()$species, grouping),
@@ -189,8 +189,13 @@ mod_estimate_server <- function(id, store) {
     predictions <- reactive(model_predictions(cid, req(fit()), grouping(), page()$species, plants = plants(), own = own()))
     predictions_at <- reactive(table_predictions(cid, req(fit()), grouping(), page()$species, predictions(), own()))
 
+    # More panels than kelpbio draws in one figure are shown a page at a time.
+    # Each plant's weight is drawn in one panel (prediction_figure()).
+    pages <- reactive(panel_pages(predictions(), if (grouping() == "plant") character() else panel_vars(predictions())))
+    panel <- panel_nav("pager", pages)
+
     output$plot <- render_figure(
-      function() prediction_figure(cid, predictions(), grouping(), page()$species),
+      function() prediction_figure(cid, page_rows(predictions(), pages(), panel()), grouping(), page()$species),
       "plot",
       aspect = function() prediction_aspect(cid, grouping()),
       alt = function() sprintf("Predicted %s for the %s model", prediction_info[[cid]]$response, lower_label(cid))
@@ -532,7 +537,7 @@ mod_derived_estimate_server <- function(id, store) {
       tagList(
         if (by_survey()) uiOutput(ns("site_ui")),
         uiOutput(ns("plot_error")),
-        figure_plot(ns("figure"), height = figure_px(height)),
+        figure_plot(ns("figure"), height = figure_px(height), overlay = panel_nav_ui(ns("pager"))),
         estimate_caption(derived_caption(eid, labels(), sum_key()), actionLink(ns("change_sources"), "View models"))
       )
     })
@@ -578,10 +583,16 @@ mod_derived_estimate_server <- function(id, store) {
     })
     estimated <- reactive(if (!inherits(estimates(), "error")) estimates() else req(FALSE))
 
+    # More panels than kelpbio draws in one figure are shown a page at a time;
+    # each survey's figure has a panel per year.
+    pages <- reactive(panel_pages(estimated(), if (by_survey()) character() else panel_vars(estimated())))
+    panel <- panel_nav("pager", pages)
+    shown <- reactive(page_rows(estimated(), pages(), panel()))
+
     output$figure <- render_figure(
-      function() derived_figure(estimated(), if (by_survey()) site()),
+      function() derived_figure(shown(), if (by_survey()) site()),
       "figure",
-      height = function() figure_px(derived_height(estimated(), if (by_survey()) site())),
+      height = function() figure_px(derived_height(shown(), if (by_survey()) site())),
       alt = function() sprintf("Estimated %s", tolower(labels()$label))
     )
 
@@ -631,7 +642,8 @@ derived_figure <- function(predictions, site = NULL) {
 
 # The height of derived_figure() in pixels at 96 dpi, from its predictions, or
 # from the sheet rows they are made from before they are computed (with
-# `faceted`, whether the rows chosen are by site and year).
+# `faceted`, whether the rows chosen are by site and year), with a page of
+# panels at most.
 derived_height <- function(rows, site = NULL, faceted = all(c("site", "year") %in% attr(rows, "kb_group_vars"))) {
   if (!is.null(site)) {
     years <- unique(rows$year[rows$site == site])
@@ -640,7 +652,7 @@ derived_height <- function(rows, site = NULL, faceted = all(c("site", "year") %i
   if (!faceted) {
     return(360)
   }
-  60 + 170 * ggplot2::wrap_dims(length(unique(rows$site)))[1]
+  60 + 170 * ggplot2::wrap_dims(min(length(unique(rows$site)), max_panels()))[1]
 }
 
 # The scale chosen for a derived estimate: in situ survey biomass is per m\u00b2
