@@ -1,4 +1,4 @@
-# Export step: downloads of the results, figures and fits, and an R
+# Export step: downloads of the results and fits, and an R
 # script that reproduces the run.
 
 # `stand_ins` are the sites standing in for sites a model has no data for, by
@@ -156,15 +156,13 @@ export_script <- function(species, sources, sheets, workbook, priors, samplers, 
 }
 
 # Downloads ---------------------------------------------------------------------
-# The results workbook and the figures hold each estimate the run
-# shows that is available, at the choices made on its page on the Estimates
-# step: each model's predictions, and survey and canopy biomass in every
-# measure available. The fit bundle holds what the Data step needs to resume
-# the run.
+# The results hold each estimate the run shows that is available, at the
+# choices made on its page on the Estimates step: each model's predictions, and
+# survey and canopy biomass in every measure available. The fit bundle holds
+# what the Data step needs to resume the run.
 
 download_items <- list(
-  results = list(label = "Results workbook", detail = "Excel: every available estimate, with the settings and sources", file = "kelpbio-results-%s.xlsx", icon = "file-spreadsheet"),
-  figures = list(label = "Figures", detail = "PNG and PDF, zipped", file = "kelpbio-figures-%s.zip", icon = "file-image"),
+  results = list(label = "Results", detail = "ZIP: tables (CSV) and figures (PNG and PDF), a folder per estimate", file = "kelpbio-results-%s.zip", icon = "folder-open"),
   bundle = list(label = "Fit bundle", detail = "RDS: add it on the Data step to resume this run", file = "kelpbio-fits-%s.rds", icon = "database")
 )
 
@@ -173,9 +171,10 @@ download_items <- list(
 export_width <- 8
 
 # Each estimate to export: list(name, title, rows, note, table, figures) or,
-# where kelpbio gave an error, list(name, title, error). `name` names its sheet
-# and figure files, `rows` says what its rows are, and each figure is
-# list(name, plot, width, height, caption), in inches.
+# where kelpbio gave an error, list(name, title, error). `name` names its
+# files, `folder` (derived_folder()) the folder that holds them, `rows` says
+# what its rows are, and each figure is list(name, plot, width, height,
+# caption), in inches.
 export_estimates <- function(store) {
   estimates <- store$estimates()
   ids <- intersect(c(unname(derived_ids), model_order), store$shown_estimates())
@@ -185,8 +184,8 @@ export_estimates <- function(store) {
   items <- lapply(ids, function(id) {
     if (id %in% derived_ids) {
       lapply(measures, function(measure) {
-        name <- paste(id, measure, sep = "_")
-        tryCatch(derived_export(store, id, measure, choices[[id]]), error = function(e) export_error(name, estimate_label(id), e))
+        name <- derived_name(id, measure)
+        tryCatch(derived_export(store, id, measure, choices[[id]]), error = function(e) export_error(name, estimate_label(id), e, derived_folder(id, measure)))
       })
     } else {
       list(tryCatch(model_export(store, id, choices[[id]]), error = function(e) export_error(model_name(id), label_of(id), e)))
@@ -195,7 +194,14 @@ export_estimates <- function(store) {
   unlist(items, recursive = FALSE)
 }
 
-export_error <- function(name, title, error) list(name = name, title = title, error = condition_text(error))
+export_error <- function(name, title, error, folder = name) list(name = name, folder = folder, title = title, error = condition_text(error))
+
+# A derived estimate's files are named for it and its measure
+# (in_situ_biomass_wet), in a folder per measure within one per estimate
+# (in_situ_biomass/wet).
+derived_names <- c(survey = "in_situ_biomass", canopy = "canopy_biomass")
+derived_name <- function(eid, measure) paste(derived_names[[eid]], measure, sep = "_")
+derived_folder <- function(eid, measure) file.path(derived_names[[eid]], measure)
 
 model_export <- function(store, cid, choice) {
   species <- store$species()
@@ -210,6 +216,7 @@ model_export <- function(store, cid, choice) {
   table <- prediction_table(table_predictions(cid, fit, grouping, species, predictions, own), cid, grouping)
   list(
     name = model_name(cid),
+    folder = model_name(cid),
     title = prediction_title(cid, grouping),
     rows = prediction_groupings[[grouping]],
     note = paste(c(
@@ -254,7 +261,7 @@ derived_export <- function(store, eid, measure, choice) {
     canopy = store$canopy_biomass(measure, pool_by)
   )
   labels <- derived_labels(eid, measure, per_area)
-  name <- paste(eid, measure, sep = "_")
+  name <- derived_name(eid, measure)
   figure <- function(site) {
     list(
       name = paste(name, file_name(site), sep = "_"),
@@ -270,6 +277,7 @@ derived_export <- function(store, eid, measure, choice) {
   }
   list(
     name = name,
+    folder = derived_folder(eid, measure),
     title = sprintf("%s: %s (%s)", estimate_label(eid), labels$label, labels$unit),
     rows = sums[[sum_key]]$label,
     note = paste("Estimates with their lower and upper 95% compatibility limits.", support_export_note),
@@ -316,31 +324,52 @@ settings_rows <- function(store) {
   do.call(rbind, c(list(run), models))
 }
 
-# The results workbook: a contents sheet, a sheet per estimate and the settings.
+# The results as a ZIP: a folder per estimate (export_estimates()), with
+# its table as a CSV file and its figures as PNG and PDF files; the settings as
+# a CSV file; and a README that lists each estimate, what its rows are, its
+# notes or error, and its figures' captions.
 write_results <- function(estimates, settings, path) {
-  done <- Filter(function(x) is.null(x$error), estimates)
-  field <- function(name) vapply(estimates, function(x) x[[name]] %||% "", "")
-  notes <- ifelse(field("error") == "", field("note"), paste("Could not be estimated:", field("error")))
-  contents <- data.frame(
-    sheet = c(ifelse(field("error") == "", field("name"), ""), "settings"),
-    estimate = c(field("title"), "Settings"),
-    rows = c(field("rows"), "One per setting"),
-    notes = c(notes, "The sources, the prior and sampler settings each model was fitted with, and the representative sites of the run.")
-  )
-  tables <- stats::setNames(lapply(done, `[[`, "table"), vapply(done, `[[`, "", "name"))
-  writexl::write_xlsx(c(list(contents = contents), tables, list(settings = settings)), path)
-}
-
-# The figures as a ZIP of PNG and PDF files, with their captions.
-write_figures <- function(estimates, path) {
-  dir <- tempfile("kb-figures-")
+  dir <- tempfile("kb-results-")
   dir.create(dir)
   on.exit(unlink(dir, recursive = TRUE))
-  figures <- unlist(lapply(Filter(function(x) is.null(x$error), estimates), `[[`, "figures"), recursive = FALSE)
-  files <- unlist(lapply(figures, function(figure) vapply(c("png", "pdf"), function(ext) save_figure(figure, dir, ext), "")))
-  captions <- file.path(dir, "captions.txt")
-  writeLines(sprintf("%s: %s", vapply(figures, `[[`, "", "name"), vapply(figures, `[[`, "", "caption")), captions)
-  if (utils::zip(path, c(captions, files), flags = "-qj") != 0) stop("The figures could not be zipped.", call. = FALSE)
+  write_csv <- function(rows, file) utils::write.csv(as.data.frame(rows), file, row.names = FALSE, na = "", fileEncoding = "UTF-8")
+  for (estimate in Filter(function(x) is.null(x$error), estimates)) {
+    folder <- file.path(dir, estimate$folder)
+    dir.create(folder, recursive = TRUE)
+    write_csv(estimate$table, file.path(folder, paste0(estimate$name, ".csv")))
+    for (figure in estimate$figures) {
+      for (ext in c("png", "pdf")) save_figure(figure, folder, ext)
+    }
+  }
+  write_csv(settings, file.path(dir, "settings.csv"))
+  writeLines(results_readme(estimates), file.path(dir, "README.txt"), useBytes = TRUE)
+  files <- withr::with_dir(dir, list.files(recursive = TRUE))
+  status <- withr::with_dir(dir, utils::zip(path, files, flags = "-q"))
+  if (status != 0) stop("The results could not be zipped.", call. = FALSE)
+}
+
+results_readme <- function(estimates) {
+  entry <- function(estimate) {
+    if (!is.null(estimate$error)) {
+      return(c(paste0(estimate$folder, "/"), paste("  ", estimate$title), paste("   Could not be estimated:", estimate$error), ""))
+    }
+    c(
+      paste0(estimate$folder, "/"),
+      paste("  ", estimate$title),
+      paste("   Rows:", estimate$rows),
+      paste("  ", estimate$note),
+      vapply(estimate$figures, function(figure) sprintf("   %s: %s", figure$name, figure$caption), ""),
+      ""
+    )
+  }
+  c(
+    "kelpbio results",
+    "",
+    "Each folder holds one estimate: its table as a CSV file and its figures as PNG and PDF files. Biomass is in a folder per measure (wet, dry, carbon and nitrogen) within in_situ_biomass and canopy_biomass.",
+    "settings.csv holds the sources, the prior and sampler settings each model was fitted with, and the representative sites of the run.",
+    "",
+    unlist(lapply(estimates, entry))
+  )
 }
 
 # An export_estimates() figure saved in `dir` in the app's figure theme, as a
@@ -496,13 +525,10 @@ mod_export_server <- function(id, store) {
   moduleServer(id, function(input, output, session) {
     any_fitted <- reactive(any(record_status(store$records()) == "fitted"))
     suffix <- reactive(species_info[[store$species()]]$suffix)
-    enabled <- reactive(c(results = store$any_estimate(), figures = store$any_estimate(), bundle = any_fitted()))
+    enabled <- reactive(c(results = store$any_estimate(), bundle = any_fitted()))
 
-    # The estimates are computed once for the workbook and figures.
-    estimates <- reactive(export_estimates(store))
     files <- list(
-      results = cached_file(function(path) write_results(estimates(), settings_rows(store), path), ".xlsx"),
-      figures = cached_file(function(path) write_figures(estimates(), path), ".zip"),
+      results = cached_file(function(path) write_results(export_estimates(store), settings_rows(store), path), ".zip"),
       bundle = cached_file(function(path) saveRDS(run_bundle(store), path), ".rds")
     )
 
@@ -541,7 +567,7 @@ mod_export_server <- function(id, store) {
     })
 
     output$downloads_note <- renderText({
-      if (!store$any_estimate()) "Results and figures become available once there is an estimate to save."
+      if (!store$any_estimate()) "Results become available once there is an estimate to save."
     })
 
     output$run <- renderUI({

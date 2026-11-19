@@ -9,18 +9,17 @@ test_that("each download writes its file, and the fit bundle resumes the run", {
     finish_fits(session, runner)
     store$set_estimate_choice("survey", "sum", "survey")
 
-    results <- output$`export-download_results`
-    expect_identical(readxl::excel_sheets(results), c(
-      "contents", "survey_wet", "survey_dry", "survey_carbon", "survey_nitrogen", "canopy_wet", "canopy_dry", "canopy_carbon",
-      "canopy_nitrogen", "weight", "size", "cover_calibration", "wetdry", "carbon", "nitrogen", "settings"
+    files <- utils::unzip(output$`export-download_results`, list = TRUE)$Name
+    folders <- unique(dirname(files[grepl("/", files)]))
+    expect_setequal(folders, c(
+      file.path(rep(c("in_situ_biomass", "canopy_biomass"), each = 4), c("wet", "dry", "carbon", "nitrogen")),
+      "weight", "size", "cover_calibration", "wetdry", "carbon", "nitrogen"
     ))
-    contents <- readxl::read_excel(results, "contents")
-    expect_identical(contents$rows[contents$sheet == "survey_wet"], "Each in situ survey")
-
-    figures <- utils::unzip(output$`export-download_figures`, list = TRUE)$Name
-    expect_true(all(c("captions.txt", "weight.png", "weight.pdf", "canopy_carbon.png") %in% figures))
+    expect_true(all(c(
+      "README.txt", "settings.csv", "weight/weight.csv", "weight/weight.png", "weight/weight.pdf", "canopy_biomass/carbon/canopy_biomass_carbon.png"
+    ) %in% files))
     sites <- unique(store$sheets()$survey$rows$site)
-    expect_true(all(sprintf("survey_wet_%s.png", file_name(sites)) %in% figures))
+    expect_true(all(sprintf("in_situ_biomass/wet/in_situ_biomass_wet_%s.png", file_name(sites)) %in% files))
 
     file.copy(output$`export-download_bundle`, bundle)
     expect_true(store$exported())

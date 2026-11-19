@@ -79,9 +79,8 @@ guide_extras <- list(
   export = function() {
     guide_points(
       sprintf(
-        "Download the %s and %s, or copy an R script that reruns the analysis with kelpbio.",
-        tolower(download_items$results$label),
-        tolower(download_items$figures$label)
+        "Download the %s, a folder per estimate with its table and figures, or copy an R script that reruns the analysis with kelpbio.",
+        tolower(download_items$results$label)
       ),
       sprintf(
         "Save the %s to resume the run later, under Resume a run on the Data step.",
