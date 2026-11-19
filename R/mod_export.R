@@ -181,7 +181,10 @@ export_estimates <- function(store) {
   ids <- ids[vapply(estimates[ids], `[[`, logical(1), "available")]
   choices <- store$estimate_choices()
   measures <- names(Filter(function(x) x$available, store$outputs()))
+  steps <- sum(ifelse(ids %in% derived_ids, length(measures), 1))
   items <- lapply(ids, function(id) {
+    incProgress(0, detail = if (id %in% derived_ids) estimate_label(id) else label_of(id))
+    on.exit(incProgress(0.5 * if (id %in% derived_ids) length(measures) / steps else 1 / steps))
     if (id %in% derived_ids) {
       lapply(measures, function(measure) {
         name <- derived_name(id, measure)
@@ -333,12 +336,18 @@ write_results <- function(estimates, settings, path) {
   dir.create(dir)
   on.exit(unlink(dir, recursive = TRUE))
   write_csv <- function(rows, file) utils::write.csv(as.data.frame(rows), file, row.names = FALSE, na = "", fileEncoding = "UTF-8")
-  for (estimate in Filter(function(x) is.null(x$error), estimates)) {
+  estimated <- Filter(function(x) is.null(x$error), estimates)
+  n_figures <- sum(lengths(lapply(estimated, `[[`, "figures")))
+  done <- 0
+  for (estimate in estimated) {
     folder <- file.path(dir, estimate$folder)
     dir.create(folder, recursive = TRUE)
     write_csv(estimate$table, file.path(folder, paste0(estimate$name, ".csv")))
     for (figure in estimate$figures) {
+      done <- done + 1
+      incProgress(0, detail = sprintf("Figure %d of %d", done, n_figures))
       for (ext in c("png", "pdf")) save_figure(figure, folder, ext)
+      incProgress(0.5 / n_figures)
     }
   }
   write_csv(settings, file.path(dir, "settings.csv"))
@@ -548,7 +557,10 @@ mod_export_server <- function(id, store) {
       output[[paste0("download_", key)]] <- downloadHandler(
         filename = function() sprintf(item$file, suffix()),
         content = function(file) {
-          built <- tryCatch(files[[key]](), error = function(e) e)
+          built <- withProgress(
+            message = sprintf("Preparing the %s", tolower(item$label)),
+            tryCatch(files[[key]](), error = function(e) e)
+          )
           if (inherits(built, "error")) {
             store$notify(condition_text(built), type = "error", title = sprintf("%s could not be built", item$label), duration = 10)
             stop(built)
