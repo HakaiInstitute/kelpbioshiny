@@ -180,22 +180,11 @@ app_row_colour <- list(
   warning = list(background = "var(--bs-warning-bg-subtle)")
 )
 
-# The theme of every figure, added by render_figure(): kelpbio's figures use
-# the active ggplot2 theme, so the app styles them all here, from the palette.
+# The theme of every figure, on screen and exported (render_figure(),
+# save_figure()): kelpbio's figures use the active ggplot2 theme, so the app
+# gives them all a plain black and grey look that suits a report, and none of
+# the app's colours.
 figure_theme <- function() {
-  col <- app_palette
   ggplot2::theme_bw(base_size = 11) +
-    ggplot2::theme(
-      text = ggplot2::element_text(colour = col$fg),
-      axis.text = ggplot2::element_text(colour = col$muted_fg),
-      axis.ticks = ggplot2::element_line(colour = col$border),
-      panel.border = ggplot2::element_rect(colour = col$border, fill = NA),
-      panel.grid.major = ggplot2::element_line(colour = col$muted),
-      panel.grid.minor = ggplot2::element_blank(),
-      strip.background = ggplot2::element_rect(fill = col$muted, colour = col$border),
-      strip.text = ggplot2::element_text(colour = col$fg),
-      legend.key = ggplot2::element_blank(),
-      # The fill of columns and interval ribbons that set none of their own.
-      geom = ggplot2::element_geom(fill = col$primary)
-    )
+    ggplot2::theme(panel.grid.minor = ggplot2::element_blank())
 }
