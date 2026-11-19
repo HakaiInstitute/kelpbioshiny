@@ -31,13 +31,29 @@ used_names <- function(fn) {
   unique(found)
 }
 
+# The functions a function calls: the heads of its calls (f() and pkg::f()).
+called_names <- function(fn) {
+  found <- character()
+  walker <- codetools::makeCodeWalker(
+    call = function(e, w) {
+      head <- e[[1]]
+      if (is.name(head)) found <<- c(found, as.character(head))
+      if (is.call(head) && identical(head[[1]], as.name("::"))) found <<- c(found, as.character(head[[3]]))
+      for (part in as.list(e)) if (!missing(part)) codetools::walkCode(part, w)
+    },
+    leaf = function(e, w) NULL
+  )
+  codetools::walkCode(body(fn), walker)
+  unique(found)
+}
+
 test_that("the app code calls no summary or distribution functions", {
   skip_if_not_installed("codetools")
   stats_functions <- c(
     "median", "mean", "quantile", "sd", "var", "signif", "exp", "log", "qlogis", "plogis",
     "rnorm", "rlnorm", "runif", "rgamma", "rbeta", "dbeta"
   )
-  used <- lapply(app_functions(), function(fn) intersect(used_names(fn), stats_functions))
+  used <- lapply(app_functions(), function(fn) intersect(called_names(fn), stats_functions))
   expect_identical(unname(unlist(used)), character())
 })
 
