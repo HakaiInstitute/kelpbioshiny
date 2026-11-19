@@ -50,3 +50,19 @@ test_that("a fit keeps its settings and is out of date once they change", {
     expect_false(store$statuses()$size$outdated)
   })
 })
+
+test_that("a Macrocystis run is a census: it fits every model but size and gives both biomass estimates", {
+  log <- local_stub_fits()
+  shiny::testServer(store_app(load_example = FALSE), {
+    store$set_species("macro")
+    store$load_example()
+    store$fit_all()
+    finish_fits(session, runner)
+
+    expect_true(store$census())
+    expect_identical(fitted_models(log), c("weight", "wetdry", "carbon", "nitrogen", "cover"))
+    expect_true(all(vapply(store$statuses()[fitted_models(log)], `[[`, "", "kind") == "ready"))
+    expect_gt(nrow(store$survey_biomass("wet", FALSE, c("site", "year"))), 0)
+    expect_gt(nrow(store$canopy_biomass("wet", "year")), 0)
+  })
+})

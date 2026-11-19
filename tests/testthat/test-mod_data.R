@@ -11,3 +11,13 @@ test_that("Use example workbook loads the example sheets", {
     expect_identical(store$workbook(), "example-nereo.xlsx")
   })
 })
+
+test_that("an invalid value fails its sheet's check", {
+  rows <- example_rows("nereo")
+  rows$weight$weight_kg[1] <- -1
+  sheets <- check_sheets(rows, lapply(rows, function(x) "example.xlsx"), "nereo")
+
+  expect_match(sheets$weight$error, "weight_kg")
+  expect_identical(sheet_state(sheets$weight, "user"), "error")
+  expect_identical(sheet_state(sheets$size, "user"), "ready")
+})
