@@ -11,13 +11,19 @@
 # Use cases:
 # 1-full: every sheet, so each model is fitted to the data through to canopy
 #   biomass. Nereocystis has a measured sample of plants, Macrocystis a census.
-# 2-demo: weight, size_sample, survey_in_situ and survey_canopy sheets, with
-#   harvests from two sites in two years (demo_weight_rows()) and no tissue
-#   samples, so wet:dry, carbon and nitrogen are pre-fit. Fitted to these
-#   harvests alone, the weight model usually has divergent transitions at the
-#   default sampler settings; raising adapt_delta to 0.99, as the warning
-#   advises, fixes it. The weight model can instead be pre-fit, or fitted to
-#   these harvests appended to the reference data.
+# 2-demo-seed2: weight, size_sample, survey_in_situ and survey_canopy sheets,
+#   with harvests from two sites in two years (demo_weight_rows()) and no
+#   tissue samples, so wet:dry, carbon and nitrogen are pre-fit. With the
+#   weight model's seed set to 2 on its Settings tab, as the file name
+#   recalls, and the other sampler settings at their defaults:
+#   - fitted to these harvests alone, the weight model has divergent
+#     transitions; raising adapt_delta to 0.99, as the warning advises, fixes
+#     them;
+#   - fitted to these harvests appended to the Hakai Institute reference data,
+#     some parameters do not converge; raising nthin to 2, as the warning
+#     advises, fixes it.
+#   The weight model can also be pre-fit. Without seed 2, most fits show the
+#   same warnings.
 # 3-census: weight, size and survey_in_situ sheets, for surveys that
 #   cover the whole area of interest, so survey biomass in total over the area
 #   surveyed is the estimate. Every counted plant is measured, each survey's
@@ -94,7 +100,7 @@ full <- example_rows("nereo")
 write_workbook(full, "1-full", "nereo")
 demo <- full[c("weight", "size", "survey", "canopy")]
 demo$weight <- demo_weight_rows(full$weight)
-write_workbook(demo, "2-demo", "nereo")
+write_workbook(demo, "2-demo-seed2", "nereo")
 census <- full[c("weight", "size", "survey")]
 census$size <- census_rows(full$survey, full$size)
 census$survey <- census$survey[setdiff(names(census$survey), c("plants", "plot_area_m2", "canopy_area_m2", "canopy_tide_height_m"))]
