@@ -56,7 +56,10 @@ guide_points <- function(...) {
 guide_extras <- list(
   data = function() {
     guide_points(
-      "In the sidebar, choose the species and, for Nereocystis, whether all plants were measured vs. a sample of plants were measured. The app is designed to work on one species at a time. For beds with both species, complete separate runs.",
+      tagList(
+        "In the sidebar, choose the species and, for ", em("Nereocystis"), ", whether every plant was measured or only a sample. ",
+        "A run is for one species: for beds with both species, complete a run for each."
+      ),
       tagList(
         "Upload an Excel workbook with one sheet per kind of data, or a CSV file per sheet, or try the example workbook. ",
         actionLink("help_to_format", help_pages[["format"]]),
@@ -67,8 +70,8 @@ guide_extras <- list(
   },
   models = function() {
     guide_points(
-      "Choose a source for each model: your data, your data appended to a public dataset, a model pre-fit to a public dataset, or none (although some are required).",
-      "'Fit all' fits all of the models in the background. If there are model fit warnings, check each model's Diagnostics tab before using its estimates; follow specific recommendations in the warning messages and re-fit models if necessary. Model convergence is especially important for valid estimates."
+      "Choose a source for each model: your data, your data appended to reference data, a model pre-fit to reference data, or none.",
+      "Select Fit all to fit the models in the background. If a fit has warnings, check its Diagnostics tab, follow the advice in the warning and refit. Use estimates only from models that converged."
     )
   },
   estimates = function() {
