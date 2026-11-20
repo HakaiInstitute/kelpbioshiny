@@ -389,16 +389,17 @@ mod_model_server <- function(id, store) {
 
     sampler_labels <- list(
       nthin = with_help("Thinning (nthin)", "nthin"),
-      adapt_delta = with_help("Target acceptance (adapt_delta)", "adapt_delta")
+      adapt_delta = with_help("Target acceptance (adapt_delta)", "adapt_delta"),
+      seed = with_help("Seed", "seed")
     )
-    sampler_steps <- c(nthin = 1, adapt_delta = 0.01)
+    sampler_steps <- c(nthin = 1, adapt_delta = 0.01, seed = 1)
 
     output$sampler <- renderUI({
       current <- isolate(store$samplers()[[cid]])
       tags$fieldset(
         disabled = if (pending()) NA,
         div(
-          class = "d-flex gap-3", style = "max-width: 32rem",
+          class = "d-flex flex-wrap gap-3", style = "max-width: 48rem",
           lapply(names(sampler_labels), function(field) {
             div(
               class = "flex-fill",

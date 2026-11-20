@@ -139,6 +139,13 @@ help_topics <- list(
     ),
     link = "diagnostics"
   ),
+  seed = list(
+    title = "Seed",
+    body = paste(
+      "The starting point of the sampler's random numbers, drawn at random when the app starts.",
+      "Fitting the same data with the same settings and seed gives the same estimates; the R script and settings.csv record it."
+    )
+  ),
   interval = list(
     title = "Estimates and limits",
     body = paste(
@@ -246,7 +253,8 @@ help_icon <- function(title, body, link = NULL) {
   )
 }
 
-help_url <- function(key) kelpbio_link(help_topics[[key]]$link)
+# A topic's kelpbio article, or NULL for a topic about the app alone.
+help_url <- function(key) if (!is.null(help_topics[[key]]$link)) kelpbio_link(help_topics[[key]]$link)
 
 help_topic <- function(key) {
   topic <- help_topics[[key]]

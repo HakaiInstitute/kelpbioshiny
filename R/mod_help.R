@@ -507,7 +507,7 @@ guide_glossary <- function() {
         tags$dd(
           class = "col-md-9 text-body-secondary mb-3",
           div(topic_body(topic)),
-          div(class = "small mt-1", external_link(help_url(key), "Learn more"))
+          if (!is.null(help_url(key))) div(class = "small mt-1", external_link(help_url(key), "Learn more"))
         )
       )
     })

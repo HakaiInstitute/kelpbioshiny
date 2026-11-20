@@ -29,6 +29,7 @@ test_that("Fit all fits each model with its sheet data and sampler settings", {
     expect_identical(size$nthin, 2)
     expect_identical(size$control, list(adapt_delta = 0.99))
     expect_identical(c(size$chains, size$niters), c(4L, 1000L))
+    expect_identical(size$seed, as.integer(store$samplers()$size$seed))
     expect_identical(store$statuses()$size$kind, "ready")
   })
 })

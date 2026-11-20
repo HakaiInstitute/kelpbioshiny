@@ -58,7 +58,8 @@ export_script <- function(species, sources, sheets, workbook, priors, samplers, 
       if (is_combined(sources[[id]])) paste0(data, "_combined") else data,
       if (nrow(changed) > 0) sprintf("priors = priors_%s", model),
       if (sampler$nthin != default_sampler()$nthin) sprintf("nthin = %s", sampler$nthin),
-      if (sampler$adapt_delta != default_sampler()$adapt_delta) sprintf("control = list(adapt_delta = %s)", sampler$adapt_delta)
+      if (sampler$adapt_delta != default_sampler()$adapt_delta) sprintf("control = list(adapt_delta = %s)", sampler$adapt_delta),
+      sprintf("seed = %s", format(sampler$seed, scientific = FALSE))
     )
     prior_lines <- if (nrow(changed) > 0) {
       constructor <- c(normal = "kb_prior_normal(%s, %s)", lognormal = "kb_prior_lognormal(%s, %s)", exponential = "kb_prior_exponential(%s)")
@@ -317,8 +318,8 @@ settings_rows <- function(store) {
       row(label, "Source", source_label(source)),
       if (fits_here(source)) {
         row(
-          label, c(paste("Prior:", priors$label), "Thinning (nthin)", "adapt_delta"),
-          c(format_prior(priors), format(sampler$nthin), format(sampler$adapt_delta))
+          label, c(paste("Prior:", priors$label), "Thinning (nthin)", "adapt_delta", "Seed"),
+          c(format_prior(priors), format(sampler$nthin), format(sampler$adapt_delta), format(sampler$seed, scientific = FALSE))
         )
       },
       if (length(stand_ins[[id]]) > 0) row(label, "Representative sites", paste(stand_ins[[id]], collapse = ", "))

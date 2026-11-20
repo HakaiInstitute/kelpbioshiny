@@ -343,7 +343,7 @@ output_availability <- function(sources) {
 fit_call <- function(id, species, sheets, priors, sampler, progress_dir, fits = list(), census = FALSE, source = "user") {
   settings <- list(
     priors = prior_list(priors), chains = fit_draws$chains, niters = fit_draws$niters, nthin = sampler$nthin,
-    control = list(adapt_delta = sampler$adapt_delta), progress = "none", progress_dir = progress_dir
+    control = list(adapt_delta = sampler$adapt_delta), seed = as.integer(sampler$seed), progress = "none", progress_dir = progress_dir
   )
   if (id == "cover") {
     return(list(fn = fit_cover_calibration, args = c(list(species = species), survey_biomass_args(fits$weight, fits$size, sheets, census), settings)))
@@ -468,7 +468,9 @@ new_store <- function(session, run_fit = mirai_fit_runner) {
   s$sheets <- reactiveVal(list())
   s$sources <- reactiveVal(default_sources(list()))
   s$priors <- reactiveVal(lapply(component_ids, default_priors, species = "nereo"))
-  s$samplers <- reactiveVal(lapply(component_ids, function(id) default_sampler()))
+  # One seed for the session, shared by every model until one is changed.
+  seed <- new_seed()
+  s$samplers <- reactiveVal(lapply(component_ids, function(id) default_sampler(seed)))
   s$records <- reactiveVal(idle_records())
   # The kind of Nereocystis size data (size_data_info), and whether the run is a
   # census, so the size sheet holds every counted plant and no size model is

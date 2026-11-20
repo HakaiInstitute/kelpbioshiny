@@ -1077,14 +1077,20 @@ format_prior <- function(prior) {
 # as the derived estimates combine fits draw by draw.
 fit_draws <- list(chains = 4L, niters = 1000L)
 
-# The sampler settings that can be changed: the thinning (kelpbio's `nthin`)
-# and the sampler's target acceptance rate (`adapt_delta`, passed in
-# `control`), at kelpbio's defaults.
-default_sampler <- function() list(nthin = 1, adapt_delta = 0.95)
+# The sampler settings that can be changed: the thinning (kelpbio's `nthin`),
+# the sampler's target acceptance rate (`adapt_delta`, passed in `control`),
+# at kelpbio's defaults, and the random seed, drawn once per session
+# (new_seed()) so a fit can be reproduced.
+default_sampler <- function(seed = new_seed()) list(nthin = 1, adapt_delta = 0.95, seed = seed)
+
+new_seed <- function() sample.int(seed_max, 1L)
+
+# kelpbio takes any integer seed; the app offers positive ones.
+seed_max <- .Machine$integer.max
 
 # The message for each invalid sampler setting, by setting: nthin must be a
-# positive whole number, as kelpbio checks it, and adapt_delta a number from
-# 0.5 to 0.999.
+# positive whole number, as kelpbio checks it, adapt_delta a number from
+# 0.5 to 0.999, and seed a whole number from 1 to seed_max.
 sampler_errors <- function(sampler) {
   errors <- lapply(names(sampler), function(name) {
     tryCatch(
@@ -1093,6 +1099,9 @@ sampler_errors <- function(sampler) {
         if (name == "nthin") {
           chk::chk_whole_number(sampler[[name]], x_name = x_name)
           chk::chk_gt(sampler[[name]], value = 0, x_name = x_name)
+        } else if (name == "seed") {
+          chk::chk_whole_number(sampler[[name]], x_name = x_name)
+          chk::chk_range(sampler[[name]], range = c(1, seed_max), x_name = x_name)
         } else {
           chk::chk_number(sampler[[name]], x_name = x_name)
           chk::chk_range(
