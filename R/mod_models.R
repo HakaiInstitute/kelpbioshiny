@@ -1,10 +1,10 @@
 # Models step: a sub-navigation, the hub (sources, statuses, fit queue) and one
 # detail page per model (mod_model.R), switched with a hidden navset.
 
-source_choices <- function(id, has_sheet) {
-  options <- components[[id]]$sources
+source_choices <- function(id, has_sheet, census = FALSE, species = "nereo") {
+  options <- model_sources(id, census, species)
   labels <- vapply(options, source_label, character(1))
-  if (!has_sheet) labels[options == "user"] <- "Your data (no sheet)"
+  if (!has_sheet) labels[fits_here(options)] <- paste(labels[fits_here(options)], "(no sheet)")
   stats::setNames(options, labels)
 }
 
@@ -13,7 +13,7 @@ source_select <- function(input_id, id) {
     return(span(source_label(components[[id]]$sources)))
   }
   initial <- default_source(id, FALSE)
-  selectInput(input_id, NULL, choices = source_choices(id, FALSE), selected = initial, selectize = FALSE, width = "12rem") |>
+  selectInput(input_id, NULL, choices = source_choices(id, FALSE), selected = initial, selectize = FALSE, width = "14rem") |>
     tagAppendAttributes(class = "mb-0") |>
     tagAppendAttributes(.cssSelector = "select", `aria-label` = sprintf("Source of the %s model", lower_label(id)))
 }
@@ -35,52 +35,63 @@ sync_source_select <- function(input, session, input_id, id, store) {
     }
   }, ignoreInit = TRUE)
   observe({
-    has_sheet <- !is.null(store$sheets()[[id]])
-    updateSelectInput(session, input_id, choices = source_choices(id, has_sheet), selected = store$sources()[[id]])
+    has_sheet <- !is.null(store$sheets()[[components[[id]]$sheet]])
+    updateSelectInput(session, input_id, choices = source_choices(id, has_sheet, store$census(), store$species()), selected = store$sources()[[id]])
   })
 }
 
 mod_models_ui <- function(id) {
   ns <- NS(id)
 
+  # The size row shows only while the run is not a census (output.census), by
+  # the attribute conditionalPanel() uses, as a row cannot sit in its div.
   rows <- lapply(component_ids, function(cid) {
     tags$tr(
+      `data-display-if` = if (cid == "size") "!output.census",
+      `data-ns-prefix` = if (cid == "size") ns(""),
       tags$td(
         class = "ps-4",
-        actionLink(ns(paste0("open_", cid)), label_of(cid), class = "fw-medium text-body"),
-        div(class = "small text-body-secondary", components[[cid]]$detail)
+        actionLink(ns(paste0("open_", cid)), label_of(cid), class = "fw-medium link-body-emphasis link-underline-opacity-0 link-underline-opacity-100-hover")
       ),
       # Phones show only the model and its status; the model page has the
       # source and the fit control.
       tags$td(class = "d-none d-sm-table-cell", source_select(ns(paste0("source_", cid)), cid)),
       tags$td(uiOutput(ns(paste0("status_", cid)))),
-      tags$td(class = "pe-4 text-end d-none d-sm-table-cell", uiOutput(ns(paste0("fit_", cid)), inline = TRUE))
+      # The fit control, then a chevron that opens the model's page.
+      tags$td(
+        class = "pe-4 text-end text-nowrap d-none d-sm-table-cell",
+        uiOutput(ns(paste0("fit_", cid)), inline = TRUE),
+        actionLink(
+          ns(paste0("chevron_", cid)), lucide("chevron-right"),
+          class = "text-body-secondary ms-2 align-middle", `aria-label` = sprintf("Open the %s model", lower_label(cid))
+        )
+      )
     )
   })
-  # The cover model is optional and builds on the others, so it sits in its own group.
-  group_row <- tags$tr(tags$td(
-    colspan = 4, class = "ps-4 py-2 bg-body-tertiary small text-body-secondary",
-    span(class = "fw-medium text-body", "Total biomass"), " (optional): fitted after the models above"
-  ))
-  rows <- append(rows, list(group_row), after = length(biomass_ids))
+  # The models in their groups (model_groups), each under a row naming what it is for.
+  names(rows) <- component_ids
+  rows <- unlist(lapply(model_groups, function(group) {
+    title <- tags$tr(tags$td(
+      colspan = 4, class = "ps-4 py-2 bg-body-tertiary small text-body-secondary",
+      span(class = "fw-medium text-body", group$label)
+    ))
+    c(list(title), unname(rows[group$ids]))
+  }), recursive = FALSE)
   head_cell <- function(...) tags$th(class = "bg-body-tertiary text-body-secondary small", ...)
 
   hub <- tagList(
-    page_header("Models", step_description("models"), uiOutput(ns("fit_all_ui"), inline = TRUE)),
+    page_header(
+      "Models",
+      "Fit each model to your data, your data appended to a public dataset, or use a model pre-fit to a public dataset.",
+      uiOutput(ns("fit_all_ui"), inline = TRUE)
+    ),
     # While fits run: the model fitting, a full-width bar and the fits queued.
     # The banner is part of the page; only its text and bar update.
     conditionalPanel(
       "output.fitting_active",
-      div(
-        class = "kb-progress d-flex flex-column gap-2 border rounded-3 p-3 mb-3 bg-primary-subtle border-primary-subtle",
-        div(
-          class = "d-flex flex-wrap align-items-center justify-content-between gap-2",
-          span(
-            class = "d-inline-flex align-items-center gap-2 fw-medium",
-            lucide("loader-2", "kb-spin text-primary"), textOutput(ns("progress_title"), inline = TRUE)
-          ),
-          textOutput(ns("progress_detail"), inline = TRUE) |> tagAppendAttributes(class = "small text-body-secondary kb-tabular")
-        ),
+      fit_progress(
+        textOutput(ns("progress_title"), inline = TRUE),
+        textOutput(ns("progress_detail"), inline = TRUE),
         uiOutput(ns("progress_bar"))
       )
     ),
@@ -108,9 +119,9 @@ mod_models_ui <- function(id) {
               # Fixed widths, so the columns stay put as the status badges change.
               tags$thead(tags$tr(
                 head_cell(class = "ps-4", "Model"),
-                head_cell(class = "d-none d-sm-table-cell", style = "width: 14rem", with_help("Source", "prefit")),
+                head_cell(class = "d-none d-sm-table-cell", style = "width: 15rem", with_help("Source", "prefit")),
                 head_cell(style = "width: 13rem", "Status"),
-                head_cell(class = "pe-4 d-none d-sm-table-cell", style = "width: 7rem", span(class = "visually-hidden", "Fit"))
+                head_cell(class = "pe-4 d-none d-sm-table-cell", style = "width: 9rem", span(class = "visually-hidden", "Fit"))
               )),
               tags$tbody(rows)
             )
@@ -137,6 +148,8 @@ mod_models_server <- function(id, store) {
 
     output$has_data <- reactive(store$has_data())
     outputOptions(output, "has_data", suspendWhenHidden = FALSE)
+    output$census <- reactive(store$census())
+    outputOptions(output, "census", suspendWhenHidden = FALSE)
 
     observeEvent(input$hub, store$open("hub"))
     observeEvent(input$to_data, store$go_to("data"))
@@ -146,16 +159,27 @@ mod_models_server <- function(id, store) {
 
     lapply(component_ids, function(cid) {
       observeEvent(input[[paste0("open_", cid)]], store$open(cid))
+      observeEvent(input[[paste0("chevron_", cid)]], store$open(cid))
       observeEvent(input[[paste0("nav_", cid)]], store$open(cid))
       observeEvent(input[[paste0("fit_model_", cid)]], store$queue_fits(cid))
       observeEvent(input[[paste0("cancel_", cid)]], store$cancel_fit(cid))
       sync_source_select(input, session, paste0("source_", cid), cid, store)
+      # The badge, then a link only when the model needs action (status_next()).
+      # An error is in full on the Data step and the model's page, so a long
+      # message does not crowd the column.
       output[[paste0("status_", cid)]] <- renderUI({
         status <- store$statuses()[[cid]]
-        tagList(
-          status_badge(status),
-          if (!is.null(status$message)) div(class = "small text-danger-emphasis mt-1", status$message)
-        )
+        step <- status_next(status)
+        tagList(status_badge(status), if (!is.null(step)) div(class = "small mt-1", actionLink(session$ns(paste0("next_", cid)), step$label)))
+      })
+      observeEvent(input[[paste0("next_", cid)]], {
+        status <- store$statuses()[[cid]]
+        step <- status_next(status)
+        if (identical(step$target, "data")) {
+          if (status$kind == "data-error") store$view_sheet(components[[cid]]$sheet) else store$go_to("data")
+        } else {
+          store$open_tab(cid, step$target)
+        }
       })
       output[[paste0("fit_", cid)]] <- renderUI({
         fit_control(
@@ -176,9 +200,8 @@ mod_models_server <- function(id, store) {
       if (length(plan$ids) > 0) {
         return(button(session$ns("fit_all"), "Fit all", "play"))
       }
-      # Nothing left to fit: the next step is the estimates, as on the Data step;
-      # the notice under the table says what is ready. With no estimate yet,
-      # say why Fit all has nothing to fit.
+      # Nothing left to fit: the next step is the estimates, as on the Data step.
+      # With no estimate yet, say why Fit all has nothing to fit.
       if (store$any_estimate()) {
         return(button(session$ns("continue"), span("Continue to estimates ", lucide("arrow-right"))))
       }
@@ -205,29 +228,17 @@ mod_models_server <- function(id, store) {
       }
     })
 
+    # The Status column says what each model needs, so only a problem across
+    # models shows here.
     output$readiness <- renderUI({
       mismatches <- store$mismatches()
       if (length(mismatches) > 0) {
-        return(notice(
+        notice(
           "alert-triangle", warning_help$mismatch$title,
           sprintf("%s. %s", and_list(sprintf("\"%s\"", mismatches)), mismatch_advice),
           tone = "warning"
-        ))
+        )
       }
-      statuses <- store$statuses()
-      unready <- Filter(function(id) !is_ready_status(statuses[[id]]), component_ids)
-      # The way on to the estimates is in the header (Continue to estimates).
-      if (length(unready) == 0) {
-        return(notice("check-circle-2", "All models in use are ready", "Their estimates are on the Estimates step.", tone = "muted"))
-      }
-      notice(
-        "layout-list", "Not ready yet",
-        paste0(
-          paste(sprintf("%s: %s", vapply(unready, label_of, ""), vapply(statuses[unready], block_reason, "")), collapse = "; "), ".",
-          if (store$any_estimate()) " The estimates of the models that are ready are on the Estimates step."
-        ),
-        tone = "muted"
-      )
     })
 
     output$subnav <- renderUI({
@@ -238,10 +249,12 @@ mod_models_server <- function(id, store) {
         `aria-label` = "Models",
         subnav_link(session$ns("hub"), open == "hub", lucide("layout-list", "text-body-secondary"), "All models"),
         tags$hr(class = "my-1"),
-        lapply(component_ids, function(cid) {
+        lapply(seq_along(model_groups), function(i) {
           tagList(
-            if (cid == "cover") tags$hr(class = "my-1"),
-            subnav_link(session$ns(paste0("nav_", cid)), open == cid, status_icon(statuses[[cid]]), label_of(cid), status_hidden(statuses[[cid]]))
+            if (i > 1) tags$hr(class = "my-1"),
+            lapply(intersect(model_groups[[i]]$ids, store$shown_models()), function(cid) {
+              subnav_link(session$ns(paste0("nav_", cid)), open == cid, status_icon(statuses[[cid]]), label_of(cid), status_hidden(statuses[[cid]]))
+            })
           )
         })
       )
@@ -249,12 +262,28 @@ mod_models_server <- function(id, store) {
   })
 }
 
+# The action a model in the Models list needs, by its status: data to correct,
+# warnings to review or a failed fit to look at. Other statuses need none: the
+# defaults suit most runs, and the model's page (its name, the chevron) holds
+# its settings and diagnostics for those who want them.
+status_next <- function(status) {
+  if (has_warning(status)) {
+    return(list(label = "View warnings", target = "diagnostics"))
+  }
+  switch(status$kind,
+    "data-error" = list(label = "View data", target = "data"),
+    "no-data" = list(label = "Go to data", target = "data"),
+    "failed" = list(label = "Details", target = "diagnostics"),
+    NULL
+  )
+}
+
 # Why Fit all has nothing to fit.
 fit_all_reason <- function(statuses, plan) {
   if (length(plan$skipped) > 0) {
     return("Fix the settings marked in red")
   }
-  own <- Filter(function(status) status$source == "user", statuses)
+  own <- Filter(function(status) fits_here(status$source), statuses)
   if (all(vapply(own, function(status) status$kind == "ready", logical(1)))) {
     return("All models are fitted")
   }

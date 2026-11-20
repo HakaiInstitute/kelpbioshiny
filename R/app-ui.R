@@ -5,7 +5,7 @@
 # name in the page, so a screen reader reads "Models complete", and order-first
 # shows it before the name.
 step_title <- function(value) {
-  span(class = "d-inline-flex align-items-center gap-2", steps[[value]], span(class = "order-first d-inline-flex", step_marker_switch(value)))
+  span(class = "kb-step-title d-inline-flex align-items-center gap-2", steps[[value]], span(class = "order-first d-inline-flex", step_marker_switch(value)))
 }
 
 # The navbar's markers and kelp drawing are in the page from the start and
@@ -14,18 +14,18 @@ step_title <- function(value) {
 # conditions as the page loads, before any output arrives.
 
 # A step's marker in each state, shown by the state the server sends as
-# output.mark_<step> ("todo", "done", "warning" or "busy"). The number shows
+# output.mark_<step> ("todo", "done", "warning", "error" or "busy"). The number shows
 # until the server sends another state.
 step_marker_switch <- function(value) {
   number <- match(value, names(steps))
-  lapply(c("todo", "done", "warning", "busy"), function(state) {
+  lapply(c("todo", "done", "warning", "error", "busy"), function(state) {
     conditionalPanel(sprintf("(output.mark_%s || 'todo') === '%s'", value, state), step_marker(number, state))
   })
 }
 
-# The species' kelp drawing, switched by the species input of the Data step
-# (data-species), so it follows the choice at once.
-kelp_art_switch <- function() {
+# The kelp drawing of each species (kelp_art()), switched by the species input
+# of the Data step (data-species), so it follows the choice at once.
+species_art_switch <- function() {
   default <- names(species_info)[[1]]
   lapply(names(species_info), function(species) {
     conditionalPanel(sprintf("(input['data-species'] || '%s') === '%s'", default, species), kelp_art(species))
@@ -33,18 +33,16 @@ kelp_art_switch <- function() {
 }
 
 # Inline-flex and vertically centred, so the brand sits on the navbar's centre
-# line with the step tabs rather than at the top of an inline line box. Below the
-# md breakpoint only the name shows, so the brand fits beside the menu toggler.
+# line with the step tabs rather than at the top of an inline line box. The
+# subtitle shows from xl, so the brand leaves the step tabs room on one line.
 brand <- function() {
   div(
     class = "d-inline-flex align-items-center align-middle gap-3",
-    tags$img(src = "hakai.png", alt = "Hakai Institute", class = "kb-brand-logo d-none d-md-inline"),
-    span(class = "kb-brand-divider d-none d-md-inline", `aria-hidden` = "true"),
-    kelp_art_switch(),
+    species_art_switch(),
     div(
       class = "lh-sm",
       div(class = "fs-5 fw-semibold", "kelpbio"),
-      div(class = "small fw-normal kb-brand-subtitle d-none d-md-block", "Bayesian kelp biomass estimation")
+      div(class = "small fw-normal kb-brand-subtitle d-none d-xl-block", "Bayesian kelp biomass estimation")
     )
   )
 }
@@ -53,6 +51,8 @@ brand <- function() {
 # only one main is visible at a time.
 step_main <- function(...) tags$main(class = "py-4", ...)
 
+# The fit running and its progress, beside the step tabs: "Size 45%", with the
+# fits queued on extra-wide screens only, so the tabs stay on one line.
 fit_activity <- function() {
   conditionalPanel(
     "output.fitting_active",
@@ -60,7 +60,9 @@ fit_activity <- function() {
       "activity",
       span(
         class = "kb-progress badge rounded-pill d-inline-flex align-items-center gap-2 border border-primary-subtle bg-primary-subtle text-primary-emphasis kb-tabular",
-        lucide("loader-2", "kb-spin"), textOutput("activity_label", inline = TRUE)
+        lucide("loader-2", "kb-spin"), span(class = "visually-hidden", "Fitting"),
+        textOutput("activity_label", inline = TRUE),
+        textOutput("activity_queued", inline = TRUE) |> tagAppendAttributes(class = "d-none d-xxl-inline")
       ),
       class = "text-decoration-none"
     )
@@ -77,10 +79,13 @@ app_ui <- function() {
     fillable = FALSE,
     window_title = "kelpbio",
     lang = "en",
-    navbar_options = navbar_options(collapsible = TRUE),
+    navbar_options = navbar_options(theme = "light", collapsible = TRUE),
     # Shiny's busy pulse would flash at the top of the page on every tick of a
-    # fit; the fit progress shows in the app instead.
-    header = tagList(useBusyIndicators(pulse = FALSE), tags$head(
+    # fit; the fit progress shows in the app instead. Outputs keep full opacity
+    # while they recalculate, so the text and controls around a slow figure
+    # stay legible; only the figure fades (figure_plot()), and a table hides
+    # behind its spinner.
+    header = tagList(useBusyIndicators(pulse = FALSE), busyIndicatorOptions(fade_opacity = 1, fade_selector = "html"), tags$head(
       # Versioned by the file's modification time, so a browser fetches the
       # stylesheet again when it changes rather than using a cached copy.
       tags$link(rel = "stylesheet", href = paste0("styles.css?v=", styles_version())),
@@ -96,7 +101,7 @@ app_ui <- function() {
     # pushes the tabs right, so Help needs none of its own.
     nav_panel("Help", value = "help", step_main(help_ui())),
     footer = div(
-      class = "border-top text-center small text-body-secondary py-4 mt-4",
+      class = "border-top text-center small text-body-secondary pt-4 mt-4",
       sprintf("kelpbioshiny v%s \u00b7 Hakai Institute \u00b7 Poisson Consulting", utils::packageVersion("kelpbioshiny"))
     )
   )

@@ -1,21 +1,25 @@
-# The theme: the Hakai palette of the kelpbio pkgdown site (Hakai red on a dark
-# slate navbar) expressed as Bootstrap Sass variables. Everything else in the app
-# reads colours from var(--bs-*) rather than from this palette.
+# The theme: an ocean and kelp palette (a dark teal navbar, teal-tinted greys,
+# white cards) with one teal accent and a kelp gold for the navbar's highlights,
+# expressed as Bootstrap Sass variables. Everything else in the app reads colours
+# from var(--bs-*) rather than from this palette.
 #
-# Hakai red is Bootstrap's primary: primary and soft buttons, links, the active
-# tab and pill, checked radios and progress bars. Errors use the brighter danger
-# red, always with an icon and text.
+# Teal is Bootstrap's primary: primary and soft buttons, links, the active tab
+# and pill, checked radios and progress bars. Gold marks the open step, the
+# steps done and the kelp drawing in the navbar only. Green, amber and red are
+# kept for status (ready, warning, error), always with an icon and text.
 
 app_palette <- list(
-  bg = "#f6f7f9", fg = "#1d2733", card = "#ffffff",
-  primary = "#aa2025", muted = "#eef1f4", muted_fg = "#5a6672",
-  accent = "#fbeced", accent_fg = "#7c161a", accent_border = "#efc3c5",
-  secondary_fg = "#2c3e50",
-  info = "#3b6a8c", info_bg = "#eaf0f5", info_border = "#cddae5", info_fg = "#24455e",
+  bg = "#f1f5f5", fg = "#1b2430", card = "#ffffff",
+  primary = "#1d6b72", muted = "#e8eeee", muted_fg = "#56626a",
+  accent = "#e3f0f0", accent_fg = "#164f55", accent_border = "#bcd8d9",
+  secondary_fg = "#2b3542",
+  # info shares the accent's teal: informational notes and data coverage.
+  info = "#1d6b72", info_bg = "#e3f0f0", info_border = "#bcd8d9", info_fg = "#164f55",
   # input: the border of inputs, selects and radios, at 3:1 contrast on white (WCAG 1.4.11).
-  border = "#e1e5ea", input = "#8a949e", ring = "#c9484d", ring_rgb = "201, 72, 77",
-  navbar_bg = "#2c3e50", navbar_fg = "rgba(255, 255, 255, 0.72)", navbar_hover = "#ffffff",
-  navbar_active = "#ffffff", navbar_brand = "#ffffff"
+  border = "#dde5e5", input = "#87959a", ring = "#2f8a92", ring_rgb = "47, 138, 146",
+  # The navbar: white text on dark teal, the open step and the kelp drawing in gold.
+  navbar_bg = "#0f3a47", navbar_border = "#0b2c36", navbar_fg = "rgba(255, 255, 255, 0.75)",
+  navbar_hover = "#ffffff", navbar_active = "#d9b45a", navbar_brand = "#ffffff"
 )
 
 app_status_colours <- list(
@@ -23,7 +27,7 @@ app_status_colours <- list(
   # warning_fg keeps small warning text (badges, notices) at WCAG AA contrast on
   # warning_muted and white.
   warning = "#a76100", warning_fg = "#8a5000", warning_muted = "#fff0cc", warning_border = "#f3d68f",
-  danger = "#e7000b"
+  danger = "#c62a1f"
 )
 
 app_theme <- function() {
@@ -96,23 +100,35 @@ app_theme <- function() {
     "badge-border-radius" = "0.375rem",
     "progress-bg" = col$muted,
     "progress-height" = "0.5rem",
-    # Navigation: the navbar colours are set directly so the dark navbar keeps
-    # readable text.
+    # Navigation: a dark teal navbar with white text, its colours set directly
+    # (the navbar keeps the light colour mode, so dropdowns and badges in it
+    # keep the page's colours). The toggler's icon is drawn in the icon colour.
     "navbar-bg" = col$navbar_bg,
     # The underlined step tabs get extra bottom padding equal to the navbar's,
     # so equal top padding keeps their labels on the navbar's centre line.
     "navbar-padding-y" = "0.75rem",
     "nav-link-padding-y" = "0.75rem",
+    # Narrower than Bootstrap's 1rem, so the Data step's seven sheet tabs fit
+    # on one row at laptop widths.
+    "nav-link-padding-x" = "0.75rem",
     "navbar-light-color" = col$navbar_fg,
     "navbar-light-hover-color" = col$navbar_hover,
     "navbar-light-active-color" = col$navbar_active,
     "navbar-light-brand-color" = col$navbar_brand,
     "navbar-light-brand-hover-color" = col$navbar_brand,
+    "navbar-light-icon-color" = col$navbar_fg,
+    "navbar-light-toggler-border-color" = "rgba(255, 255, 255, 0.25)",
     "nav-link-font-weight" = 500,
     "nav-link-color" = col$fg,
     "nav-link-hover-color" = col$fg,
     "nav-underline-gap" = "1.25rem",
     "nav-underline-link-active-color" = col$primary,
+    # Folder tabs (the Data step's sheets): the open tab is white, joined to its
+    # white sheet.
+    "nav-tabs-border-color" = col$border,
+    "nav-tabs-link-active-bg" = col$card,
+    "nav-tabs-link-active-color" = col$primary,
+    "nav-tabs-link-active-border-color" = paste(col$border, col$border, col$card),
     "nav-pills-link-active-bg" = col$accent,
     "nav-pills-link-active-color" = col$accent_fg,
     # Popovers (help text)
@@ -135,7 +151,11 @@ app_theme <- function() {
     "table-border-color" = col$border,
     "table-th-font-weight" = 500,
     "table-bg" = "transparent"
-  )
+  ) |>
+    # The one rule on a Bootstrap class: Bootstrap has no variable for a
+    # navbar border, and the navbar needs a hairline to stand apart from the
+    # page. The selector matches bslib's own, which removes it.
+    bslib::bs_add_rules(sprintf(".bslib-page-navbar .navbar { border-bottom: var(--bs-border-width) solid %s; }", col$navbar_border))
 }
 
 # reactable styles from the theme's CSS variables.
@@ -157,6 +177,14 @@ app_table_theme <- reactable::reactableTheme(
 
 # Row and cell colours for tables, also from the theme.
 app_row_colour <- list(
-  warning = list(background = "var(--bs-warning-bg-subtle)"),
-  info = list(background = "var(--bs-info-bg-subtle)")
+  warning = list(background = "var(--bs-warning-bg-subtle)")
 )
+
+# The theme of every figure, on screen and exported (render_figure(),
+# save_figure()): kelpbio's figures use the active ggplot2 theme, so the app
+# gives them all a plain black and grey look that suits a report, and none of
+# the app's colours.
+figure_theme <- function() {
+  ggplot2::theme_bw(base_size = 11) +
+    ggplot2::theme(panel.grid.minor = ggplot2::element_blank())
+}

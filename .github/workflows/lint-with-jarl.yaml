@@ -1,7 +1,6 @@
 on:
-  push:
-    branches: main
   pull_request:
+    branches: main
 
 name: jarl-check
 
@@ -14,4 +13,7 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - uses: etiennebacher/setup-jarl@c35ca3e867df86402478ea1dbfae36419c80ac2b
+        with:
+          # Keep in step with the local jarl (`jarl --version`).
+          version: 0.7.1
       - run: jarl check .
