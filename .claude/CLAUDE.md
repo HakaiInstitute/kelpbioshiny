@@ -1,109 +1,105 @@
-# CLAUDE.md - kelpbioshiny
+# kelpbioshiny
 
-R package holding the Shiny app for kelpbio (Bayesian kelp biomass estimation). The one export is `run_app()`. The app walks a run through four steps: Data, Models, Estimates, Export. Why a Shiny app, and its scope: `~/Code/HakaiInstitute/kelpbio/decisions/webapp-decision.md`.
+kelpbioshiny is an R package that holds a Shiny app for [kelpbio](https://github.com/HakaiInstitute/kelpbio), a package for Bayesian estimation of kelp biomass.
+Its one export is `run_app()`.
+A run moves through four steps: Data, Models, Estimates and Export.
 
-Every text the app shows, and the README, follows `.claude/STYLE.md`. Follow the kelpbio `CLAUDE.md` (`~/Code/HakaiInstitute/kelpbio/.claude/CLAUDE.md`) for code style and testing conventions; this file lists only what differs or is specific to the app.
+This file is the guide for maintaining and developing the app.
+`.claude/STYLE.md` sets the wording of every text the app shows and of the README.
+kelpbio's `.claude/CLAUDE.md` sets the shared code style and test conventions; this file lists what is specific to the app.
+Both files are committed; the rest of `.claude/` is not.
 
-This file and `.claude/STYLE.md` live in `.claude/` and are committed, as in kelpbio, overriding the organization standard of a root `CLAUDE.md` and an uncommitted `.claude/`; the rest of `.claude/` stays gitignored.
+## Related packages
 
-At the start of every session, load the posit-dev Shiny skills `shiny:shiny-bslib` and `shiny:shiny-bslib-theming` (Skill tool) before working on the app.
+- kelpbio fits the models and computes every estimate, table and figure.
+- kelpbiodata holds the reference fits offered as pre-fit models.
+- Both are in Imports and are not pinned: the app uses the versions installed.
 
-## Repositories and issues
+## Repositories and workflow
 
-- Development (branches, commits, pull requests) happens in the HakaiInstitute repo (`HakaiInstitute/kelpbioshiny`), never in the poissonconsulting fork.
-- GitHub issues go in the poissonconsulting fork (`poissonconsulting/kelpbioshiny`), not the HakaiInstitute repo, to keep them out of the client's repo. The fork is public, so its issues are still publicly visible: write nothing in them that should stay internal.
-- The fork does not track the HakaiInstitute repo: sync it only once in a while, as it mostly holds the issues.
+- Code lives in `HakaiInstitute/kelpbioshiny`; issues are tracked in the public fork `poissonconsulting/kelpbioshiny`.
+- Work is committed to `dev`, one themed change per commit, and reaches `main` through a pull request that lists the issues it closes (`Closes poissonconsulting/kelpbioshiny#<n>`).
+- CI runs R CMD check and jarl on pull requests to `main`, installing kelpbio and kelpbiodata from GitHub.
+- Before pushing, run `Rscript scripts/build.R` and `jarl check .`; keep the local jarl as recent as CI's, and never assign inside a call (`out <- f()` outside `expect_*()`).
+- Planned work goes in an issue on the fork.
+- With Claude Code, load the posit-dev skills `shiny:shiny-bslib` and `shiny:shiny-bslib-theming` before working on the app.
 
-## Development workflow
-
-- All work goes on the `dev` branch in the main checkout (`~/Code/HakaiInstitute/kelpbioshiny`): no feature branches, stacked PRs or worktrees unless asked. The user reviews diffs and accepts snapshots there. Other sessions may share the checkout, so stage only the files this session changed and list any others instead of committing them.
-- Each commit is one themed change with an informative message (what changed and, where not obvious, why), as the commit log is the record of the work until it reaches `main`. A change that touches several themes goes in several commits.
-- Commit and push only when asked, to `origin/dev`; a request to push includes the build and `jarl check .` below. Never amend or rewrite a pushed commit.
-- Before pushing, run `Rscript scripts/build.R` and `jarl check .`. CI runs R CMD check and jarl only on pushes to `main` and on PRs, so pushes to `dev` are checked by these local runs alone. Lint is what fails CI most often: CI installs the latest jarl, so keep the local one current (`jarl --version`), and never assign inside a call (`out <- expect_no_warning(f())`, not `expect_no_warning(out <- f())`).
-- `dev` reaches `main` through one PR, opened when the user asks. Before opening or updating it, scan the open issues (`gh issue list --repo poissonconsulting/kelpbioshiny`, and the other two repos' forks for cross-repo work) for any it resolves, and list each in its description as `Closes poissonconsulting/kelpbioshiny#<n>`; GitHub closes them when it merges. An issue finished on `dev` and closed by hand before then is not listed.
-- Planned work goes in an issue on `poissonconsulting/kelpbioshiny`, not session memory, so the next session can find it.
-
-## Common Commands
+## Commands
 
 | Task | Command |
 |------|---------|
-| Tests from source (before a push) | `devtools::test()` |
-| Build + QC before a push | `Rscript scripts/build.R` (`install()` -> `roxygen2md()` -> `document()` -> `test()`) |
-| Full check (slow) | `Rscript scripts/build.R --check` (adds `R CMD check`) |
-| Run all tests | `devtools::test()` |
 | Run the app from source | `pkgload::load_all(); run_app()` |
-
-The build runs are also Positron/VS Code tasks ("kelpbioshiny: build", "kelpbioshiny: build + check").
-
-## Tests, installs and example workbooks
-
-- During development, skip the tests, lint and app checks to keep changes fast: run the tests (`devtools::test()`), `jarl check .` and a check in the running app once, just before a push. The app is never built or installed during development: run it from source with `pkgload::load_all(); run_app()`. `scripts/build.R` runs only before a push: its `install()` uses the installed kelpbio and kelpbiodata as they are. The tests stub every fit with kelpbio's simulated fits, so no MCMC runs, and the app stores no fits of its own to rebuild.
-- The app, its tests and its mirai daemons use the installed kelpbio and kelpbiodata, not their checkouts (`load_all()` loads only kelpbioshiny from source). Neither is pinned: the app uses whatever is installed, and the user builds each from its local checkout by hand. After either changes, reinstall it from its local working tree (`R CMD INSTALL ~/Code/HakaiInstitute/kelpbio` or `~/Code/HakaiInstitute/kelpbiodata`) before testing or saying a change is visible. Never switch branches in either checkout, which other sessions use.
-- When kelpbio's simulated data change, rebuild the example workbooks (`Rscript data-raw/test-workbooks.R`), check each still shows what its header says, and commit them. Workbook 6 needs real fits over several seeds to check: confirm before running them.
+| Run the tests | `devtools::test()` |
+| Install, document and test | `Rscript scripts/build.R` |
+| Add R CMD check | `Rscript scripts/build.R --check` |
+| Rebuild the example workbooks | `Rscript data-raw/test-workbooks.R` |
 
 ## Layout
 
 | Path | Contents |
 |------|----------|
-| `R/mod_<step>.R` | One module per step: `mod_<step>_ui(id)` / `mod_<step>_server(id, store)` (`data`, `models`, `estimates`, `export`); `mod_model.R` is the per-model detail page (fit, settings, diagnostics, parameter estimates, description), and `mod_estimates.R` holds each model's predictions and the derived estimates (survey biomass, canopy biomass) |
-| `R/mod_help.R` | The Help tab: `help_ui()` and `help_server()` (its sidebar) hold five pages, `help_guide_ui()` (User guide: the steps and the workflow, built from the app's definitions), `help_format_ui()` (Data format: a tab per sheet name with its columns from `kb_data_columns()`), `help_methods_ui()` (kelpbio's installed Methods vignette, by section), `help_glossary_ui()` (kelpbio's survey terms and the app's `help_topics`) and `help_about_ui()` (with the citations) |
-| `R/steps.R` | `app_purpose` and `app_steps`: the app's one-line purpose, and the step names and one-line descriptions |
-| `R/state.R` | `new_store()`: the per-session store of reactive state and actions, the fit queue and its runner, plus the pure fit-record transitions and status logic |
-| `R/data.R` | Sheet and model definitions (`sheet_info`, `components`), the census rule, labels, sheet checks, prior and sampler settings |
-| `R/functions-ui.R`, `R/help.R`, `R/icons.R`, `R/kelp-art.R` | UI building blocks, help popovers, Lucide icons, the navbar's kelp drawings |
-| `R/mock-kelpbio.R` | Mocks of the kelpbio data figures the app calls, not yet in kelpbio (see below) |
-| `inst/app/` | `ui.R`, `server.R` (call the internals), `global.R` (stops the mirai daemons with the app) and `www/` (CSS, logo, favicon) |
-| `data-raw/` | `test-workbooks.R` and the test workbooks it writes (`workbooks/`), one per kind of user; build-ignored |
-| `app.R` | Deployment entry point (`load_all()` + `run_app()`), build-ignored |
+| `R/mod_<step>.R` | One module per step (`data`, `models`, `estimates`, `export`); `mod_model.R` is a model's page and `mod_help.R` the Help tab |
+| `R/state.R` | `new_store()`: the session's reactive state, actions and fit queue, and the fit status rules |
+| `R/data.R` | Sheet and model definitions, sheet checks, the census rule, and prior and sampler settings |
+| `R/steps.R`, `R/help.R` | Step names and descriptions; help popovers and glossary (`help_topics`) |
+| `R/functions-ui.R`, `R/theme.R`, `R/icons.R`, `R/kelp-art.R` | UI building blocks, theme, icons and the navbar's kelp drawing |
+| `R/mock-kelpbio.R` | Data figures (`kb_plot_data_*()`) planned for kelpbio |
+| `inst/app/` | `ui.R`, `server.R`, `global.R` (upload limit, daemon shutdown) and `www/` (CSS, logo, favicon) |
+| `data-raw/` | `test-workbooks.R` and the example workbooks it writes; build-ignored |
+| `scripts/` | `build.R` and `deploy.R` |
 
-## Key Rules
+## Design rules
 
-- **Pre-release** (version `0.0.0.9000`): no NEWS entries, version bumps, deprecations or backward compatibility; rename freely. From the first release, follow the tidyverse release process: a NEWS bullet for each user-facing change, semantic versions set with `usethis::use_version()`, and lifecycle for deprecations.
-- **Check kelpbio before stating anything about it.** A model's effects, a diagnostic's meaning, or a kelpbio function, argument, dataset or sheet name: read kelpbio's source and `git log` in its local checkout (the version installed) first, never answer from memory.
-- **Real sites and protocols** are in the analysis project `~/Analyses/poissonconsulting/hakai-kelp-biomass-25/` (read-only): check it before naming a real site or describing how a survey or drone map is made, as when checking an example workbook's sites.
-- **Before removing a function or UI element**, grep every caller (mocks and daemon calls included) and list the removals in the summary.
-- **The app computes no numbers and draws no custom figures.** Every estimate, table and figure comes from an unqualified `kb_*()` call or a kelpbio generic (`tidy()`, `glance()`, `summary()`, `converged()`); the app only labels, arranges and formats. `test-architecture.R` scans the installed namespace with codetools to check that app code calls no summary or distribution functions.
-- **Fits run in the background.** Each `kb_fit_*()` call runs on a mirai daemon through one `ExtendedTask` per session; the store polls `kb_progress()` while it runs. The cover calibration's job (`fit_cover_calibration()`) predicts the survey biomass it is fitted to in the same daemon call. `start_daemons()` starts the daemons with the first fit (one per R process, or the option `kelpbioshiny.daemons`) and, under `load_all()`, loads the package from source on them. The runner is injectable (`new_store(session, run_fit =)`), so tests run fits in the session.
-- **kelpbio and kelpbiodata are in Imports** (unpinned, from the local builds); its functions are imported in `R/namespace.R`. The only mocks are the data figures, `kb_plot_data_*()`, in `R/mock-kelpbio.R`, each marked Planned; app code calls no mock internals. To switch one to kelpbio: delete its mock and add `@importFrom kelpbio <fun>` to `R/namespace.R`. kelpbio's derived predictions carry their response as an `rvar` column of draws, which the app drops from tables with `summary_columns()`.
-- **Pre-fit models come from kelpbiodata, examples from kelpbio.** A pre-fit source is a kelpbiodata reference fit (`prefit_fit()`: `fit_<model>_<reference>_<species>`), the references by species in `components[[id]]$prefit`; a model offers only those the installed kelpbiodata holds (`reference_fits()`). A pre-fit cover calibration gives canopy biomass from a canopy sheet alone. The example workbook is kelpbio's simulated data (`example_rows()`: `data_<sheet>_sim_<species>`); `data-raw/test-workbooks.R` builds the other example workbooks (four use cases, a data error and a fit that needs a refit) and lists what each shows.
-- **Every fit keeps 4 chains of 1,000 draws** (`fit_draws`), as the reference fits do, since the derived estimates need fits with the same number of draws. Only `nthin` and `adapt_delta` (passed in `control`) can be changed. A convergence warning advises more thinning; a divergence warning (`fit_convergence()`) a higher `adapt_delta`.
-- **Styling** comes from the theme in `R/theme.R`: an ocean and kelp palette (teal-tinted greys, a dark teal navbar, white cards) with one teal accent and a kelp gold for the navbar's highlights (the open step, the steps done and the kelp drawing), as Bootstrap Sass variables in `bs_theme()`, and bslib components; green, amber and red are kept for status. The theme adds one rule, the navbar's bottom border, which Bootstrap has no variable for. Custom CSS (`inst/app/www/styles.css`) targets only `.kb-*` classes and reads colours from `var(--bs-*)`; it never targets Bootstrap, bslib, Shiny or reactable internals, except one rule that stops Shiny's busy indicators growing empty HTML outputs. No custom JavaScript files; the only scripts are two inline `onclick`s: that of `copy_button()` (`R/functions-ui.R`), shared by every Copy button, and that of the Data format article's links to Methods (`methods_links()` in `R/mod_help.R`), which open the Methods page and scroll to the linked section.
-- **Layout**: every page is `step_layout()`, a sidebar beside the main column, under a `page_header()` (a model's page too). The sidebar navigates where a step has sub-pages (Models, Estimates, Help); on Data it holds the run's setup (species, size data, template, resume), above the main column on a phone (`step_layout(aside_first = TRUE)`), and on Export the run summary. A sheet's data are shown only on the Data step, as workbook tabs (`sheet_tabs()`), one per sheet whether or not it is loaded, each with a status icon (`sheet_state()`: not uploaded, not used, data error, passed with warnings, passed). A tab holds the sheet's check (its messages in banners coloured as the summary line: red, amber, teal, or muted for a sheet not used), and its figure (`sheet_plot()`, in one panel or faceted by site or year) and searchable, filterable table; the tabs are built once in the UI and only their outputs are redrawn. The Upload data card above them holds the uploads, as `file_button()`s: an Excel workbook, or any number of CSV files, each matched to its sheet by its file name (`csv_sheet_id()`). Model pages have no data tab, and their data links open the sheet's tab (`store$view_sheet()`), as do the error and warning links of the summary line above the tabs. The Data step's navbar marker and that summary line are red while a sheet in use fails its check or site names differ, and amber when sheets in use only have warnings. A model's full warnings are on its page, with a one-line verdict per check at the top of its Diagnostics tab; Estimates and Export show one summary notice (`warnings_summary()`) linking to it. Models are listed by what they are for (`model_groups`, `model_order`): survey biomass, then the canopy and dry and carbon groups; the Estimates sidebar lists survey and canopy biomass first, then each model's predictions.
-- **Buttons** use `button()`'s four variants. Primary (filled teal) is the next step of the run, at most one per screen: Continue to models, Fit all, Continue to estimates (once nothing is left to fit), Fit model, View estimates (on a model page once that model is ready), Continue to export, and a dialog's confirming action. A step's next action sits at the right of its header (`page_header()`). Soft (teal tint, `.kb-btn-soft`) is a step still to do among several, such as a model's Fit in the Models list. Outline is every other action: navigation, Refit, Cancel, downloads and Copy. Ghost (no border) is a small adjustment inside a panel: Clear, Reset to defaults, Show all.
-- **No `library()` calls**; shiny and bslib are imported whole, everything else via `@importFrom` or `pkg::fun()`. Internal functions carry plain comments, not roxygen (no Rd).
-- R code is ASCII only: write non-ASCII characters as `\u` escapes.
+- The app computes no numbers and draws no custom figures: every estimate, table and figure comes from a `kb_*()` function or a kelpbio generic (`tidy()`, `glance()`, `summary()`); the app labels, arranges and formats. `test-architecture.R` checks this.
+- kelpbio owns the statistics: model forms, priors, diagnostics and their interpretation are documented there, and the app links to kelpbio's articles rather than restating them.
+- Fits run in the background, one `kb_fit_*()` call at a time per session, on mirai daemons through an `ExtendedTask`; the store polls `kb_progress()`. The daemons start with the first fit (option `kelpbioshiny.daemons` sets their number).
+- Every fit keeps 4 chains of 1,000 draws (`fit_draws`), as the reference fits do, since the derived estimates combine fits draw by draw. Only `nthin`, `adapt_delta` and `seed` can be changed; the seed is drawn once per session, and the R script and `settings.csv` record it.
+- Pre-fit models are kelpbiodata reference fits (`prefit_fit()`), offered only where the installed kelpbiodata holds one; a combined source ("Your data + Hakai Institute") appends the user's data to the reference data and fits the model in the app.
+- Each fact has one home in R (step text in `app_steps`, sheets and sources in `components`, glossary text in `help_topics`) and is reused by the UI, popovers and User guide; a change to steps, sheets, sources, warnings or help topics updates the guide in the same change.
+- Styling comes from the Bootstrap variables in `R/theme.R` and bslib components. Custom CSS targets only `.kb-*` classes and reads colours from `var(--bs-*)`. There are no custom JavaScript files.
+- Buttons use `button()`'s variants: primary for the run's next step (at most one per screen), soft for a step still to do among several, outline for other actions, ghost for small adjustments inside a panel.
+- R code is ASCII only (write `\u` escapes), calls no `library()`, and imports shiny and bslib whole and other packages through `@importFrom` or `pkg::fun()`. Internal functions carry plain comments, not roxygen.
+- Before removing a function or UI element, search for every caller, including mocks and code run on the daemons.
 
 ## Sheets, models and the census
 
-Sheets (`sheet_ids`: weight, size, survey, canopy, wetdry, carbon) and models (`component_ids`: weight, size, wetdry, carbon, cover) are defined apart: each model is fitted to one sheet (`components[[id]]$sheet`; the cover calibration to the survey sheet), and the canopy sheet feeds only canopy biomass. The sheets are checked together (`check_sheets()`), as the survey sheet decides whether the size sheet is a census.
-
-A census measures every counted plant: the size sheet then holds the plants of each survey, joined to it by `survey_id`, the survey sheet has no `plants` tally, and no size model is fitted (the size source is `"census"`). The size sheet's id is `size`, but workbooks, CSV file names, the template and messages name it for its kind (`size_sample` or `size_census`, `sheet_name()`); a workbook or CSV with one of those names sets the choice on upload (`size_data_guess()`). The user can still change it under Size data on the Data step (`store$size_data()`, `size_data_info`), and the template, sheet checks and column lists follow (`sheet_columns(id, species, census)`); a survey sheet that does not match the choice fails its check with advice. *Macrocystis* surveys are always a census (kelpbio has no *Macrocystis* size model; `is_census()`). A census run shows no size model on the Models, Estimates and Export steps (`shown_models()`, `shown_estimates()`).
-
-The derived estimates offer only what a report uses (`survey_sums`, `canopy_sums()`): survey biomass per m² surveyed or in total over the area surveyed (the default in a census), by site-year or by survey; canopy biomass in kg by drone map, by year, or by year within any text column of the canopy sheet (such as region or habitat). Sums never cross years, as biomass is a peak-season standing stock. Where a fit has no data for some sites predicted, the page offers stand-in sites from the fit's data (kelpbio's `representative_site`; `store$stand_ins()`, `stand_in_sites()`), which the flags name and the export script passes; the cover calibration is still fitted to survey biomass without them. kelpbio's other options (mean plant weight, canopy biomass per m², any `pool_by`) stay in the package.
-
-## Documentation and help text
-
-- kelpbio owns the statistics: model forms, priors, diagnostics theory, interpretation and any long-form explanation live in kelpbio's roxygen docs and vignettes/articles. kelpbioshiny never restates them; it links to the relevant kelpbio article or section (`kelpbio_url` and `kelpbio_links` in `R/help.R`). The Help tab shows kelpbio's own text where kelpbio installs it: the Methods page and the survey terms come from its vignettes in the installed package (`kelpbio_vignette()`), with a link to kelpbio's site when kelpbio was installed without them (as from a local checkout), and the Data format page and every sheet's columns from its data dictionary (`kb_data_columns()`, through `sheet_dataset()`).
-- kelpbioshiny documents only how to use the app: what each step is for, what to click, which sheets and columns to provide, and what to do about a warning.
-- One fact, one home inside the app: step names and descriptions (`app_steps`), sheet and column lists and model sources (`components`, `prefit_info`), and glossary text (`help_topics`) are each defined once in R and reused by the UI, the welcome card, the help popovers and the User guide. Never duplicate them as hand-written prose.
-- Wording of labels, notices, popovers and the guide: `.claude/STYLE.md`. Screenshots, if the guide ever needs them, are generated with shinytest2.
-- Definition of done: any change to steps, sheets, sources, warnings or help topics updates the guide in the same PR; the guide snapshot test (`test-mod_help.R`) shows the change for review. Statistical content changes go to kelpbio, not here.
+- Sheets (`sheet_ids`) and models (`component_ids`) are defined apart: each model is fitted to one sheet, the cover calibration to the in situ survey sheet, and the canopy sheet feeds only canopy biomass. The sheets are checked together (`check_sheets()`).
+- In a census every counted plant is measured: the size sheet holds each survey's plants, joined by `survey_id`, and no size model is fitted. *Macrocystis* surveys are always a census. The size sheet is named `size_sample` or `size_census` in workbooks and CSV files, which sets the choice on upload.
+- The derived estimates offer what a report uses: in situ survey biomass per m² or in total, by site and year or by survey, and canopy biomass by canopy map, by year, or by year within a text column of the canopy sheet. Sums never cross years.
 
 ## Testing
 
-The suite is deliberately minimal while the app is in development: one example of each test type, as the pattern to follow. Add no tests during development; keep the existing ones passing. The full suite is written in one pass once development finishes.
+The suite is kept small: it shows when a kelpbio release or a change to the app breaks a run, not every screen.
+Add a test for a new kelpbio call path or for a bug a user found.
 
-| Type | File |
+| Test | File |
 |------|------|
-| Unit test of a pure function (a status rule) | `test-state.R` |
-| Store test: `testServer()` on `new_store()`, fits stubbed, run by `test_runner()` | `test-state.R` |
-| Module test: `testServer()` on a step's server, driven by `session$setInputs()` | `test-mod_data.R` |
-| Snapshot of the User guide text | `test-mod_help.R` |
-| Architecture: codetools on the installed namespace | `test-architecture.R` |
-| Browser smoke test (shinytest2 `AppDriver` on the installed app; install first) | `test-shinytest2.R` |
+| Status rules and the census rule; Fit all, settings and seed; a *Macrocystis* run | `test-state.R` |
+| Example workbook upload; a sheet that fails its check | `test-mod_data.R` |
+| Each fitted model's page | `test-mod_model.R` |
+| Results ZIP and fit bundle, and resuming a run | `test-mod_export.R` |
+| The citation file | `test-mod_help.R` |
+| No statistics in app code; every kelpbio function used exists | `test-architecture.R` |
+| The installed app starts and loads the example (shinytest2) | `test-shinytest2.R` |
 
-- Fits are stubbed at the kelpbio boundary: `local_stub_fits()` replaces the `kb_fit_*()` functions with `local_mocked_bindings()`, each returning kelpbio's fit to its simulated data (`fit_<model>_sim_<species>`), so no MCMC runs. The runner is injected with `new_store(session, run_fit =)`.
-- Browser tests never click Fit: with kelpbio in place it would run real MCMC. They `skip_on_cran()` and use no screenshot snapshots.
-- Never add `exportTestValues()` or test-only outputs to app code.
+- Fits are stubbed at the kelpbio boundary: `local_stub_fits()` returns kelpbio's fits to its simulated data, and `new_store(session, run_fit =)` takes a runner that fits in the session, so no MCMC runs.
+- Browser tests never click Fit, which would run MCMC.
+- App code holds no test-only outputs or `exportTestValues()`.
 
-Shared helpers: `tests/testthat/helpers.R` (`store_app()`) and `tests/testthat/helper-fits.R` (`local_stub_fits()`, `test_runner()`, `finish_fits()`).
+## Example workbooks
+
+`data-raw/test-workbooks.R` builds them from kelpbio's simulated data; its header says what each shows.
+Rebuild and check them whenever kelpbio's simulated data change.
+
+| Workbook | Shows |
+|----------|-------|
+| `kelpbio-1-full-nereo`, `kelpbio-1-full-macro` | Every sheet, fitted through to canopy biomass |
+| `kelpbio-2-demo-seed2-nereo` | Pre-fit models and appending data; with the weight model's seed set to 2, divergences (fixed by `adapt_delta = 0.99`) and, appended to the reference data, unconverged parameters (fixed by `nthin = 2`) |
+| `kelpbio-3-census-nereo` | A census without canopy data |
+| `kelpbio-4-canopy-prefit-nereo` | Canopy biomass from canopy maps alone, with the pre-fit cover calibration |
+| `kelpbio-5-bad-data-nereo` | A data error and a data warning |
+
+## Releases
+
+The package is pre-release (`0.0.0.9000`): no NEWS entries or version bumps yet.
+From the first release, follow the tidyverse release process: a NEWS bullet for each user-facing change, versions set with `usethis::use_version()`, and lifecycle for deprecations.
