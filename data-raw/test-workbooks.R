@@ -62,15 +62,14 @@ census_rows <- function(survey, size) {
 # its data, with canopy, tide and classified areas from the simulated maps,
 # and a map of a site the calibration has no data for ("New site") with the
 # areas and tide of the first site's map, so the two can be compared. The
-# Macrocystis maps leave out Manley and Triquetta, which also have
-# Nereocystis, and Golden and Womanley, for a smaller set of sites of
-# Macrocystis alone.
+# Macrocystis maps leave out HAK038, which also has Nereocystis, and HAK008
+# and HAK012, for a smaller set of sites of Macrocystis alone.
 canopy_prefit_rows <- function(species, canopy) {
   fit <- prefit_fit("cover", species, "hakai")
   sites <- fit_sites(fit)
   maps <- canopy[sample.int(nrow(canopy), length(sites)), c("canopy_area_m2", "canopy_tide_height_m", "classified_area_m2")]
   rows <- data.frame(site = sites, year = max(as.integer(fit$meta$year_levels)) + 1L, maps, row.names = NULL)
-  if (species == "macro") rows <- rows[!rows$site %in% c("Manley", "Triquetta", "Golden", "Womanley"), ]
+  if (species == "macro") rows <- rows[!rows$site %in% c("HAK012", "HAK038", "HAK008"), ]
   rbind(rows, transform(rows[1, ], site = "New site"))
 }
 
