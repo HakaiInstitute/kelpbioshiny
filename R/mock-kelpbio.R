@@ -66,7 +66,7 @@ NULL
       data$cover <- data$canopy_area_m2 / data$plot_area_m2
       ggplot(data, aes(.data$plants, .data$cover)) + points() + labs(x = "Plants counted", y = "Canopy cover fraction")
     },
-    canopy = ggplot(data, aes(.data$year, .data$canopy_area_m2)) + points() + labs(x = "Year", y = "Canopy area (m²)")
+    canopy = ggplot(data, aes(.data$year, .data$canopy_area_m2)) + points() + labs(x = "Year", y = "Canopy area (m\u00b2)")
   )
   if (!is.null(facet)) p <- p + facet_wrap(facet)
   p + expand_limits(y = 0)
