@@ -1,7 +1,7 @@
-# Writes the example workbooks to data-raw/workbooks/, one per kind of run and
-# species, for uploading in a demo or a test. They are built from kelpbio's
-# simulated data and, for the canopy-only run, the sites of kelpbiodata's
-# reference cover calibration. The app's "Use example workbook" button loads
+# Writes the example workbooks to data-raw/workbooks/, one per kind of run,
+# for uploading in a demo or a test. All are Nereocystis but 1-full-macro.
+# They are built from kelpbio's simulated data and, for the canopy-only run,
+# the sites of kelpbiodata's reference cover calibration. The app's "Use example workbook" button loads
 # the first (example_rows()). Years are written as numbers, as a spreadsheet
 # stores them, and the size sheet is named for its kind of size data
 # (size_sample or size_census), which sets Size data on upload. Run from the
@@ -11,9 +11,14 @@
 # Use cases:
 # 1-full: every sheet, so each model is fitted to the data through to canopy
 #   biomass. Nereocystis has a measured sample of plants, Macrocystis a census.
-# 2-prefit: size, survey_in_situ and survey_canopy sheets but no harvests or tissue samples,
-#   so weight, wet:dry, carbon and nitrogen are pre-fit.
-# 3-census (Nereocystis only): weight, size and survey_in_situ sheets, for surveys that
+# 2-demo: weight, size_sample, survey_in_situ and survey_canopy sheets, with
+#   harvests from two sites in two years (demo_weight_rows()) and no tissue
+#   samples, so wet:dry, carbon and nitrogen are pre-fit. Fitted to these
+#   harvests alone, the weight model usually has divergent transitions at the
+#   default sampler settings; raising adapt_delta to 0.99, as the warning
+#   advises, fixes it. The weight model can instead be pre-fit, or fitted to
+#   these harvests appended to the reference data.
+# 3-census: weight, size and survey_in_situ sheets, for surveys that
 #   cover the whole area of interest, so survey biomass in total over the area
 #   surveyed is the estimate. Every counted plant is measured, each survey's
 #   plants drawn from the measured sample of its site-year (census_rows()).
@@ -29,10 +34,6 @@
 # 5-bad-data: every sheet, with a weight sheet missing two years (a data
 #   error) and a survey_in_situ sheet with three surveys whose area surveyed exceeds
 #   their plot (a warning).
-# 6-refit (Nereocystis only): a weight sheet of many plants from a few sites
-#   whose weights differ widely (refit_rows()), whose fit at the default
-#   sampler settings usually has divergent transitions; raising adapt_delta to
-#   0.99, as the warning advises, fixes it.
 
 pkgload::load_all(quiet = TRUE)
 
@@ -61,55 +62,46 @@ census_rows <- function(survey, size) {
 # Canopy maps of each site of the pre-fit cover calibration in the year after
 # its data, with canopy, tide and classified areas from the simulated maps,
 # and a map of a site the calibration has no data for ("New site") with the
-# areas and tide of the first site's map, so the two can be compared. The
-# Macrocystis maps leave out HAK038, which also has Nereocystis, and HAK008
-# and HAK012, for a smaller set of sites of Macrocystis alone.
+# areas and tide of the first site's map, so the two can be compared.
 canopy_prefit_rows <- function(species, canopy) {
   fit <- prefit_fit("cover", species, "hakai")
   sites <- fit_sites(fit)
   maps <- canopy[sample.int(nrow(canopy), length(sites)), c("canopy_area_m2", "canopy_tide_height_m", "classified_area_m2")]
   rows <- data.frame(site = sites, year = max(as.integer(fit$meta$year_levels)) + 1L, maps, row.names = NULL)
-  if (species == "macro") rows <- rows[!rows$site %in% c("HAK012", "HAK038", "HAK008"), ]
   rbind(rows, transform(rows[1, ], site = "New site"))
 }
 
-# Weights of 150 plants in each site-year of three sites over two years,
-# resampled from the simulated weights with the sites' weights spread apart
-# (exp(-1.2) to exp(1.2) times): much data per group with large differences
-# between groups, which the default sampler settings fit with divergent
-# transitions. Seeded on its own, so the data stay the ones tested.
-refit_rows <- function(weight) {
+# Weights of 100 plants in each site-year of two sites over two years,
+# resampled from the simulated weights with their diameters jittered: much
+# data per group from few groups, which the default sampler settings fit with
+# divergent transitions. Seeded on its own, so the data stay the ones tested.
+demo_weight_rows <- function(weight) {
   withr::with_seed(7, {
-    weight <- weight[weight$site %in% unique(weight$site)[1:3] & weight$year %in% unique(weight$year)[1:2], ]
-    weight <- do.call(rbind, lapply(split(weight, interaction(weight$site, weight$year, drop = TRUE)), function(g) {
-      g <- g[sample.int(nrow(g), 150, replace = TRUE), ]
-      g$diameter_mm <- round(g$diameter_mm * exp(stats::rnorm(150, 0, 0.05)), 1)
+    weight <- weight[weight$site %in% c("cedar_bay", "otter_cove") & weight$year %in% c("2020", "2021"), ]
+    do.call(rbind, lapply(split(weight, interaction(weight$site, weight$year, drop = TRUE)), function(g) {
+      g <- g[sample.int(nrow(g), 100, replace = TRUE), ]
+      g$diameter_mm <- round(g$diameter_mm * exp(stats::rnorm(100, 0, 0.05)), 1)
       g
     }))
-    shift <- stats::setNames(seq(-1.2, 1.2, length.out = 3), unique(weight$site))
-    weight$weight_kg <- round(weight$weight_kg * exp(shift[weight$site]), 3)
-    weight
   })
 }
 
 unlink("data-raw/workbooks", recursive = TRUE)
 dir.create("data-raw/workbooks")
 set.seed(2024)
-for (species in names(species_info)) {
-  full <- example_rows(species)
-  write_workbook(full, "1-full", species)
-  write_workbook(full[c("size", "survey", "canopy")], "2-prefit", species)
-  if (species == "nereo") {
-    census <- full[c("weight", "size", "survey")]
-    census$size <- census_rows(full$survey, full$size)
-    census$survey <- census$survey[setdiff(names(census$survey), c("plants", "plot_area_m2", "canopy_area_m2", "canopy_tide_height_m"))]
-    write_workbook(census, "3-census", species, census = TRUE)
-  }
-  write_workbook(list(canopy = canopy_prefit_rows(species, full$canopy)), "4-canopy-prefit", species)
-  bad <- full
-  bad$weight$year[c(3, 17)] <- NA
-  flown <- which(!is.na(bad$survey$plot_area_m2))[1:3]
-  bad$survey$survey_area_m2[flown] <- bad$survey$plot_area_m2[flown] * 1.5
-  write_workbook(bad, "5-bad-data", species)
-  if (species == "nereo") write_workbook(list(weight = refit_rows(full$weight)), "6-refit", species)
-}
+write_workbook(example_rows("macro"), "1-full", "macro")
+full <- example_rows("nereo")
+write_workbook(full, "1-full", "nereo")
+demo <- full[c("weight", "size", "survey", "canopy")]
+demo$weight <- demo_weight_rows(full$weight)
+write_workbook(demo, "2-demo", "nereo")
+census <- full[c("weight", "size", "survey")]
+census$size <- census_rows(full$survey, full$size)
+census$survey <- census$survey[setdiff(names(census$survey), c("plants", "plot_area_m2", "canopy_area_m2", "canopy_tide_height_m"))]
+write_workbook(census, "3-census", "nereo", census = TRUE)
+write_workbook(list(canopy = canopy_prefit_rows("nereo", full$canopy)), "4-canopy-prefit", "nereo")
+bad <- full
+bad$weight$year[c(3, 17)] <- NA
+flown <- which(!is.na(bad$survey$plot_area_m2))[1:3]
+bad$survey$survey_area_m2[flown] <- bad$survey$plot_area_m2[flown] * 1.5
+write_workbook(bad, "5-bad-data", "nereo")
