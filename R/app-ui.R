@@ -23,13 +23,12 @@ step_marker_switch <- function(value) {
   })
 }
 
-# A drawing for each species (`art`: kelp_art() or seabed_art()), switched by
-# the species input of the Data step (data-species), so it follows the choice
-# at once.
-species_art_switch <- function(art = kelp_art) {
+# The kelp drawing of each species (kelp_art()), switched by the species input
+# of the Data step (data-species), so it follows the choice at once.
+species_art_switch <- function() {
   default <- names(species_info)[[1]]
   lapply(names(species_info), function(species) {
-    conditionalPanel(sprintf("(input['data-species'] || '%s') === '%s'", default, species), art(species))
+    conditionalPanel(sprintf("(input['data-species'] || '%s') === '%s'", default, species), kelp_art(species))
   })
 }
 
@@ -101,11 +100,9 @@ app_ui <- function() {
     # Help is not a step, so its tab carries no marker. The spacer above already
     # pushes the tabs right, so Help needs none of its own.
     nav_panel("Help", value = "help", step_main(help_ui())),
-    # A young bull kelp bed on the seabed along the foot of the page.
     footer = div(
       class = "border-top text-center small text-body-secondary pt-4 mt-4",
-      sprintf("kelpbioshiny v%s \u00b7 Hakai Institute \u00b7 Poisson Consulting", utils::packageVersion("kelpbioshiny")),
-      species_art_switch(seabed_art)
+      sprintf("kelpbioshiny v%s \u00b7 Hakai Institute \u00b7 Poisson Consulting", utils::packageVersion("kelpbioshiny"))
     )
   )
 }
