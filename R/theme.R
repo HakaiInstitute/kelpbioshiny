@@ -1,7 +1,10 @@
 # The theme: an ocean and kelp palette (a dark teal navbar, teal-tinted greys,
 # white cards) with one teal accent and a kelp gold for the navbar's highlights,
 # expressed as Bootstrap Sass variables. Everything else in the app reads colours
-# from var(--bs-*) rather than from this palette.
+# from var(--bs-*) rather than from this palette. The colours are sampled from
+# photographs of a California kelp forest: the navbar from its shade, the teal
+# from the water among the fronds, the info blue from the open water beyond,
+# and the gold from sunlit kelp.
 #
 # Teal is Bootstrap's primary: primary and soft buttons, links, the active tab
 # and pill, checked radios and progress bars. Gold marks the open step, the
@@ -9,17 +12,17 @@
 # kept for status (ready, warning, error), always with an icon and text.
 
 app_palette <- list(
-  bg = "#f1f5f5", fg = "#1b2430", card = "#ffffff",
-  primary = "#1d6b72", muted = "#e8eeee", muted_fg = "#56626a",
-  accent = "#e3f0f0", accent_fg = "#164f55", accent_border = "#bcd8d9",
-  secondary_fg = "#2b3542",
-  # info shares the accent's teal: informational notes and data coverage.
-  info = "#1d6b72", info_bg = "#e3f0f0", info_border = "#bcd8d9", info_fg = "#164f55",
+  bg = "#f4f6f7", fg = "#1b2a30", card = "#ffffff",
+  primary = "#2c606e", muted = "#eef2f2", muted_fg = "#55625f",
+  accent = "#e3edef", accent_fg = "#1f4a55", accent_border = "#bdd3d8",
+  secondary_fg = "#2a3a3e",
+  # info is the open water's blue: informational notes and data coverage.
+  info = "#346a9e", info_bg = "#e7eff7", info_border = "#c3d5e8", info_fg = "#214c75",
   # input: the border of inputs, selects and radios, at 3:1 contrast on white (WCAG 1.4.11).
-  border = "#dde5e5", input = "#87959a", ring = "#2f8a92", ring_rgb = "47, 138, 146",
-  # The navbar: white text on dark teal, the open step and the kelp drawing in gold.
-  navbar_bg = "#0f3a47", navbar_border = "#0b2c36", navbar_fg = "rgba(255, 255, 255, 0.75)",
-  navbar_hover = "#ffffff", navbar_active = "#d9b45a", navbar_brand = "#ffffff"
+  border = "#d8e0e1", input = "#86948f", ring = "#387777", ring_rgb = "56, 119, 119",
+  # The navbar: white text on the forest's shade, the open step and the kelp drawing in gold.
+  navbar_bg = "#1b2d33", navbar_border = "#142227", navbar_fg = "rgba(255, 255, 255, 0.75)",
+  navbar_hover = "#ffffff", navbar_active = "#bfb755", navbar_brand = "#ffffff"
 )
 
 app_status_colours <- list(
@@ -55,7 +58,7 @@ app_theme <- function() {
     "border-radius-sm" = "0.375rem",
     "border-radius-lg" = "0.625rem",
     "border-radius-xl" = "0.875rem",
-    "box-shadow-sm" = sprintf("0 0 0 1px %s, 0 1px 2px rgba(14, 26, 32, 0.05)", col$border),
+    "box-shadow-sm" = sprintf("0 0 0 1px %s, 0 1px 3px rgba(14, 26, 32, 0.08)", col$border),
     "link-color" = col$primary,
     "link-decoration" = "none",
     "link-hover-decoration" = "underline",
