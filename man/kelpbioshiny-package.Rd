@@ -6,6 +6,8 @@
 \alias{kelpbioshiny-package}
 \title{kelpbioshiny: Shiny App for Bayesian Kelp Biomass Estimation}
 \description{
+\if{html}{\figure{logo.svg}{options: style='float: right' alt='logo' width='120'}}
+
 A 'shiny' app for annual estimates of kelp biomass by site with the 'kelpbio' package. It steps through loading survey data, fitting or choosing pre-fit sub-models, checking their diagnostics, and exporting the biomass estimates.
 }
 \seealso{
