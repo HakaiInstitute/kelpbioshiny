@@ -25,23 +25,29 @@ kelpbio_links <- list(
 )
 kelpbio_link <- function(key) paste0(kelpbio_url, kelpbio_links[[key]])
 
-# A kelpbio vignette as installed with the package (its doc/ folder), as the
-# list of its sections (id, title, and body without the title), for the Help
-# page to show in place. NULL when this copy of kelpbio was installed without
-# its vignettes, as from a local checkout; the page then links to the article
-# online. Ids gain `prefix`, so they cannot clash with the app's, and links
-# within the article follow; other relative links point to kelpbio's site.
+# A kelpbio article as the list of its sections (id, title, and body without
+# the title), for the Help page to show in place. It is read from the vignette
+# installed with kelpbio (its doc/ folder) or, where kelpbio was installed
+# without its vignettes (as from GitHub, on a deployed app, or from a local
+# checkout), from the article on kelpbio's site. NULL when neither can be read;
+# the page then links to the article online. Ids gain `prefix`, so they cannot
+# clash with the app's, and links within the article follow; other relative
+# links and images point to kelpbio's site.
 kelpbio_vignette <- function(name, prefix) {
-  path <- system.file("doc", paste0(name, ".html"), package = "kelpbio")
-  if (!nzchar(path)) {
+  html <- article_html(name)
+  if (is.null(html)) {
     return(NULL)
   }
-  doc <- xml2::read_html(path)
-  body <- xml2::xml_find_first(doc, "//body")
-  for (node in xml2::xml_find_all(body, ".//*[@id]")) {
+  doc <- xml2::read_html(html)
+  # The site's article sits in its <main>; the installed vignette has none.
+  content <- xml2::xml_find_first(doc, "//main")
+  if (inherits(content, "xml_missing")) content <- xml2::xml_find_first(doc, "//body")
+  # pkgdown's heading anchors: empty links shown on hover on the site.
+  xml2::xml_remove(xml2::xml_find_all(content, ".//a[contains(concat(' ', @class, ' '), ' anchor ')]"))
+  for (node in xml2::xml_find_all(content, ".//*[@id]")) {
     xml2::xml_attr(node, "id") <- paste0(prefix, xml2::xml_attr(node, "id"))
   }
-  for (node in xml2::xml_find_all(body, ".//a[@href]")) {
+  for (node in xml2::xml_find_all(content, ".//a[@href]")) {
     href <- xml2::xml_attr(node, "href")
     if (startsWith(href, "#")) {
       xml2::xml_attr(node, "href") <- paste0("#", prefix, substring(href, 2))
@@ -51,16 +57,51 @@ kelpbio_vignette <- function(name, prefix) {
       xml2::xml_attr(node, "rel") <- "noopener"
     }
   }
-  sections <- xml2::xml_find_all(body, "./div[contains(concat(' ', @class, ' '), ' level2 ')]")
+  # The installed vignette embeds its figures; the site's article links them.
+  for (node in xml2::xml_find_all(content, ".//img[@src]")) {
+    src <- xml2::xml_attr(node, "src")
+    if (!grepl("^[a-z]+:", src)) xml2::xml_attr(node, "src") <- paste0(kelpbio_url, "articles/", src)
+  }
+  sections <- xml2::xml_find_all(content, "./div[contains(concat(' ', @class, ' '), ' level2 ')]")
   lapply(sections, function(section) {
     heading <- xml2::xml_find_first(section, "./h2")
-    title <- xml2::xml_text(heading)
+    title <- trimws(gsub("\\s+", " ", xml2::xml_text(heading)))
+    # The installed vignette puts a section's id on its div, the site on its heading.
+    id <- xml2::xml_attr(section, "id")
+    if (is.na(id)) id <- xml2::xml_attr(heading, "id")
     xml2::xml_remove(heading)
     # The page gives the section's card its id.
-    id <- xml2::xml_attr(section, "id")
     xml2::xml_set_attr(section, "id", NULL)
     list(id = id, title = title, html = HTML(as.character(section)))
   })
+}
+
+# The HTML of a kelpbio article: the installed vignette, or else the article on
+# kelpbio's site, fetched once per R process (article_cache) and given a few
+# seconds, so an unreachable site only falls back to the link. NULL when
+# neither can be read.
+article_cache <- new.env(parent = emptyenv())
+
+article_html <- function(name) {
+  path <- system.file("doc", paste0(name, ".html"), package = "kelpbio")
+  if (nzchar(path)) {
+    return(paste(readLines(path, warn = FALSE, encoding = "UTF-8"), collapse = "\n"))
+  }
+  if (!exists(name, envir = article_cache, inherits = FALSE)) {
+    assign(name, fetch_article(name), envir = article_cache)
+  }
+  get(name, envir = article_cache, inherits = FALSE)
+}
+
+fetch_article <- function(name) {
+  old <- options(timeout = 5)
+  on.exit(options(old))
+  con <- url(paste0(kelpbio_url, "articles/", name, ".html"), encoding = "UTF-8")
+  on.exit(close(con), add = TRUE)
+  tryCatch(
+    paste(suppressWarnings(readLines(con, warn = FALSE)), collapse = "\n"),
+    error = function(e) NULL
+  )
 }
 
 help_topics <- list(
