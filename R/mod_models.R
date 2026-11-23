@@ -77,7 +77,7 @@ mod_models_ui <- function(id) {
     ))
     c(list(title), unname(rows[group$ids]))
   }), recursive = FALSE)
-  head_cell <- function(...) tags$th(class = "bg-body-tertiary text-body-secondary small", ...)
+  head_cell <- function(...) tags$th(class = "text-body-secondary small", ...)
 
   hub <- tagList(
     page_header(
