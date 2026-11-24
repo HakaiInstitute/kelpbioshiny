@@ -158,10 +158,9 @@ mod_estimate_server <- function(id, store) {
       predictions_panel(ns, cid, page$prefit, page$species, page$plants, isolate(grouping()), isolate(input$view))
     })
 
-    # The store holds the choice, so a resumed run shows the grouping it was
-    # saved with, and the Export step uses the grouping shown here. It holds
-    # every estimate's choices, so the grouping is deduplicated, to follow only
-    # this model's.
+    # The store holds the choice, so the Export step uses the grouping shown
+    # here. It holds every estimate's choices, so the grouping is deduplicated,
+    # to follow only this model's.
     grouping <- dedupe(reactive({
       chosen_grouping(cid, store$estimate_choices()[[cid]]$grouping, prediction_choices(cid, page()$prefit, page()$species, page()$plants))
     }))
@@ -404,9 +403,8 @@ mod_derived_estimate_server <- function(id, store) {
     output_key <- reactive(if (store$outputs()[[chosen()]]$available) chosen() else "wet")
     available <- dedupe(reactive(store$estimates()[[eid]]))
     sums <- dedupe(reactive(derived_sums(eid, store$sheets())))
-    # The store holds the scale and sum chosen, so a resumed run shows those it
-    # was saved with, and the Export step uses those shown here; deduplicated,
-    # as it holds every estimate's choices.
+    # The store holds the scale and sum chosen, so the Export step uses those
+    # shown here; deduplicated, as it holds every estimate's choices.
     choice <- dedupe(reactive(store$estimate_choices()[[eid]]))
     per_area <- reactive(chosen_per_area(eid, choice()$scale, store$census()))
     sum_key <- reactive(chosen_sum(choice()$sum, sums()))

@@ -159,12 +159,10 @@ export_script <- function(species, sources, sheets, workbook, priors, samplers, 
 # Downloads ---------------------------------------------------------------------
 # The results hold each estimate the run shows that is available, at the
 # choices made on its page on the Estimates step: each model's predictions, and
-# survey and canopy biomass in every measure available. The fit bundle holds
-# what the Data step needs to resume the run.
+# survey and canopy biomass in every measure available.
 
 download_items <- list(
-  results = list(label = "Results", detail = "ZIP: tables (CSV) and figures (PNG and PDF), a folder per estimate", file = "kelpbio-results-%s.zip", icon = "folder-open"),
-  bundle = list(label = "Fit bundle", detail = "RDS: add it on the Data step to resume this run", file = "kelpbio-fits-%s.rds", icon = "database")
+  results = list(label = "Results", detail = "ZIP: tables (CSV) and figures (PNG and PDF), a folder per estimate", file = "kelpbio-results-%s.zip", icon = "folder-open")
 )
 
 # The width of an exported figure, in inches, and half that for an overall
@@ -390,90 +388,6 @@ save_figure <- function(figure, dir, ext) {
   file
 }
 
-# A fit bundle: the run's data, sources, settings, fits to your data (with the
-# settings each was fitted with and the warnings kelpbio gave), stand-in sites and estimate choices. Pre-fit
-# models are kelpbio's, so they are not saved.
-run_bundle <- function(store) {
-  records <- store$records()
-  fitted <- Filter(function(id) records[[id]]$status == "fitted", component_ids)
-  structure(
-    list(
-      kelpbioshiny = format(utils::packageVersion("kelpbioshiny")), kelpbio = format(utils::packageVersion("kelpbio")),
-      species = store$species(), size_data = store$size_data(), workbook = store$workbook(),
-      sheets = lapply(store$sheets(), function(sheet) list(rows = sheet$rows, file = sheet$file)),
-      sources = store$sources(), priors = store$priors(), samplers = store$samplers(),
-      fits = lapply(records[fitted], function(record) list(fit = record$fit, settings = record$settings, warnings = record$warnings)),
-      stand_ins = store$stand_ins_chosen(), estimate_choices = store$estimate_choices()
-    ),
-    class = "kelpbioshiny_bundle"
-  )
-}
-
-# A fit bundle read from `path`, checked to be one: it errors otherwise. Every
-# field the Data step restores is checked, so a damaged bundle, or one from a
-# version of the app with other models, settings or priors, is refused before
-# any of it reaches the run.
-read_bundle <- function(path) {
-  bundle <- tryCatch(readRDS(path), error = function(e) NULL)
-  if (!inherits(bundle, "kelpbioshiny_bundle")) {
-    stop("The file is not a fit bundle. Download one from the Export step.", call. = FALSE)
-  }
-  if (!valid_bundle(bundle)) {
-    version <- format(utils::packageVersion("kelpbioshiny"))
-    saved <- if (is_string(bundle$kelpbioshiny)) bundle$kelpbioshiny else "an unknown version"
-    stop(paste0(
-      "The fit bundle is damaged or from another version of the app",
-      if (!identical(saved, version)) sprintf(" (saved with kelpbioshiny %s, this is %s)", saved, version), "."
-    ), call. = FALSE)
-  }
-  bundle
-}
-
-is_string <- function(x) is.character(x) && length(x) == 1 && !is.na(x)
-
-# Whether `x` is a list with a value for each of `ids` (all of them, or only
-# some with `all = FALSE`), each passing `check`.
-valid_by_id <- function(x, ids, check, all = TRUE) {
-  is.list(x) && (length(x) == 0 || !is.null(names(x))) &&
-    all(names(x) %in% ids) && (!all || all(ids %in% names(x))) &&
-    all(vapply(names(x), function(id) isTRUE(check(x[[id]], id)), logical(1)))
-}
-
-# A model's priors as the prior editor holds them: the rows of
-# default_priors() for the species, with the same names and families.
-valid_priors <- function(priors, id, species) {
-  defaults <- default_priors(id, species)
-  is.data.frame(priors) && all(names(defaults) %in% names(priors)) &&
-    identical(priors$name, defaults$name) && identical(priors$family, defaults$family) &&
-    is.numeric(priors$a) && is.numeric(priors$b)
-}
-
-valid_sampler <- function(sampler) {
-  is.list(sampler) && setequal(names(sampler), names(default_sampler())) &&
-    all(vapply(sampler, function(x) is.numeric(x) && length(x) == 1, logical(1)))
-}
-
-valid_bundle <- function(bundle) {
-  species <- bundle$species
-  if (!is_string(species) || !species %in% names(species_info)) {
-    return(FALSE)
-  }
-  is_string(bundle$size_data) && bundle$size_data %in% names(size_data_info) &&
-    (is.null(bundle$workbook) || is_string(bundle$workbook)) &&
-    valid_by_id(bundle$sheets, sheet_ids, function(sheet, id) is.data.frame(sheet$rows) && is_string(sheet$file), all = FALSE) &&
-    is.character(bundle$sources) && setequal(names(bundle$sources), component_ids) &&
-    valid_by_id(bundle$priors, component_ids, function(priors, id) valid_priors(priors, id, species)) &&
-    valid_by_id(bundle$samplers, component_ids, function(sampler, id) valid_sampler(sampler)) &&
-    valid_by_id(bundle$fits, component_ids, function(fit, id) {
-      inherits(fit$fit, "kb_fit") && valid_priors(fit$settings$priors, id, species) && valid_sampler(fit$settings$sampler) &&
-        (is.null(fit$warnings) || is.character(fit$warnings))
-    }, all = FALSE) &&
-    valid_by_id(bundle$stand_ins, component_ids, function(sites, id) is.character(sites), all = FALSE) &&
-    valid_by_id(bundle$estimate_choices, estimate_ids, function(choices, id) {
-      is.list(choices) && all(vapply(choices, is_string, logical(1)))
-    }, all = FALSE)
-}
-
 # A download's file, built on its first download by `write(path)`, which reads
 # the reactive values it needs, and reused until any of them changes, as
 # building the figures again on each click would hold up the R process that
@@ -533,13 +447,11 @@ mod_export_ui <- function(id) {
 
 mod_export_server <- function(id, store) {
   moduleServer(id, function(input, output, session) {
-    any_fitted <- reactive(any(record_status(store$records()) == "fitted"))
     suffix <- reactive(species_info[[store$species()]]$suffix)
-    enabled <- reactive(c(results = store$any_estimate(), bundle = any_fitted()))
+    enabled <- reactive(c(results = store$any_estimate()))
 
     files <- list(
-      results = cached_file(function(path) write_results(export_estimates(store), settings_rows(store), path), ".zip"),
-      bundle = cached_file(function(path) saveRDS(run_bundle(store), path), ".rds")
+      results = cached_file(function(path) write_results(export_estimates(store), settings_rows(store), path), ".zip")
     )
 
     # A download button while there is something to download.

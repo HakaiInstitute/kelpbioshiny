@@ -233,21 +233,6 @@ coverage_states <- list(
   none = "Not surveyed: no in situ survey biomass"
 )
 
-# Names for a fileInput's two fields: the file picker, which would otherwise be
-# named by its button (so every CSV picker would read "Choose CSV"), and the
-# read-only box that shows the chosen file.
-file_names <- function(input, picker, chosen) {
-  input |>
-    tagAppendAttributes(
-      .cssSelector = ".shiny-input-file",
-      `aria-label` = picker
-    ) |>
-    tagAppendAttributes(
-      .cssSelector = "input.form-control",
-      `aria-label` = chosen
-    )
-}
-
 mod_data_ui <- function(id) {
   ns <- NS(id)
   species_choices <- lapply(species_info, function(x) {
@@ -308,21 +293,6 @@ mod_data_ui <- function(id) {
         "outline",
         download = TRUE
       )
-    ),
-    div(
-      class = "d-flex flex-column gap-2",
-      div(class = "kb-eyebrow text-body-secondary", "Resume a run"),
-      # A fit bundle from the Export step: the data, fits, sources and settings of a run.
-      fileInput(
-        ns("bundle"),
-        NULL,
-        accept = ".rds",
-        buttonLabel = "Fit bundle (.rds)",
-        placeholder = "No file",
-        width = "100%"
-      ) |>
-        tagAppendAttributes(class = "mb-0") |>
-        file_names("Upload a fit bundle", "Chosen fit bundle")
     )
   ))
 
@@ -458,10 +428,6 @@ mod_data_server <- function(id, store) {
     observeEvent(input$format, store$open_help("format"))
     observeEvent(input$welcome_format, store$open_help("format"))
     observeEvent(input$welcome_methods, store$open_help("methods"))
-    observeEvent(input$bundle, {
-      upload <- input$bundle
-      replace_data(function() store$resume(upload$name, upload$datapath))
-    })
     observeEvent(input$workbook, {
       upload <- input$workbook
       replace_data(function() store$load_workbook(upload$name, upload$datapath))

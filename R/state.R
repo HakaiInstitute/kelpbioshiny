@@ -816,36 +816,6 @@ new_store <- function(session, run_fit = mirai_fit_runner) {
 
   s$clear_data <- function() apply_sheets(list(), NULL)
 
-  # Restores a run from a fit bundle (run_bundle()): its data, sources,
-  # settings, fits and stand-in sites. A file that is not a fit bundle leaves
-  # the run as it was.
-  s$resume <- function(file, path) {
-    bundle <- tryCatch(read_bundle(path), error = function(e) e)
-    if (inherits(bundle, "error")) {
-      s$notify(condition_text(bundle), type = "error", title = sprintf("%s could not be resumed", file), duration = 10)
-      return()
-    }
-    s$species(bundle$species)
-    s$size_data(bundle$size_data)
-    census <- isolate(s$census())
-    sheets <- check_sheets(lapply(bundle$sheets, `[[`, "rows"), lapply(bundle$sheets, `[[`, "file"), bundle$species, census)
-    s$sheets(sheets)
-    s$workbook(bundle$workbook)
-    s$sources(valid_sources(bundle$sources, census, sheets, bundle$species))
-    s$priors(bundle$priors)
-    s$samplers(bundle$samplers)
-    records <- idle_records()
-    for (id in names(bundle$fits)) {
-      fit <- bundle$fits[[id]]
-      records[[id]] <- new_record("fitted", fit = fit$fit, settings = fit$settings, warnings = fit$warnings)
-    }
-    update_records(function(old) records)
-    s$stand_ins_chosen(bundle$stand_ins)
-    s$estimate_choices(bundle$estimate_choices)
-    s$estimate(NULL)
-    s$notify(sprintf("Resumed the run saved in %s.", file))
-  }
-
   # The data checks depend on the species, so a species change checks the sheets again.
   s$set_species <- function(value) {
     if (identical(value, isolate(s$species()))) {

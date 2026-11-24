@@ -84,10 +84,6 @@ guide_extras <- list(
       sprintf(
         "Download the %s, a folder per estimate with its table and figures, or copy an R script that reruns the analysis with kelpbio.",
         tolower(download_items$results$label)
-      ),
-      sprintf(
-        "Save the %s to resume the run later, under Resume a run on the Data step.",
-        tolower(download_items$bundle$label)
       )
     )
   }

@@ -1,9 +1,8 @@
-# Module test of the Export step's downloads: the example run fitted with
-# stubbed fits, each download's file read back, and the fit bundle resumed.
+# Module test of the Export step's results download: the example run fitted
+# with stubbed fits, and the ZIP's files read back.
 
-test_that("each download writes its file, and the fit bundle resumes the run", {
+test_that("the results download writes a folder per estimate", {
   local_stub_fits()
-  bundle <- withr::local_tempfile(fileext = ".rds")
   shiny::testServer(store_app(mod_export_server, "export"), {
     store$fit_all()
     finish_fits(session, runner)
@@ -20,33 +19,6 @@ test_that("each download writes its file, and the fit bundle resumes the run", {
     ) %in% files))
     sites <- unique(store$sheets()$survey$rows$site)
     expect_true(all(sprintf("in_situ_biomass/wet/in_situ_biomass_wet_%s.png", file_name(sites)) %in% files))
-
-    file.copy(output$`export-download_bundle`, bundle)
     expect_true(store$exported())
-  })
-
-  shiny::testServer(store_app(load_example = FALSE), {
-    store$resume("kelpbio-fits-nereo.rds", bundle)
-    session$flushReact()
-
-    expect_named(store$sheets(), c("weight", "size", "survey", "canopy", "wetdry", "carbon", "nitrogen"))
-    expect_identical(unname(record_status(store$records())), rep("fitted", 6))
-    expect_true(all(vapply(store$statuses(), `[[`, "", "kind") == "ready"))
-    expect_identical(store$estimate_choices()$survey$sum, "survey")
-  })
-})
-
-test_that("a file that is not a fit bundle, or a damaged one, is not resumed", {
-  path <- withr::local_tempfile(fileext = ".rds")
-  saveRDS(list(species = "nereo"), path)
-  expect_error(read_bundle(path), "not a fit bundle")
-
-  shiny::testServer(store_app(), {
-    bundle <- run_bundle(store)
-    bundle$sources <- bundle$sources[setdiff(names(bundle$sources), "cover")]
-    saveRDS(bundle, path)
-    expect_error(read_bundle(path), "damaged or from another version")
-    store$resume("damaged.rds", path)
-    expect_named(store$sheets(), c("weight", "size", "survey", "canopy", "wetdry", "carbon", "nitrogen"))
   })
 })
