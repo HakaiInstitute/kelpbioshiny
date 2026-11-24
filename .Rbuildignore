@@ -13,3 +13,5 @@
 ^decisions$
 ^data-raw$
 ^rsconnect$
+^Dockerfile$
+^\.dockerignore$

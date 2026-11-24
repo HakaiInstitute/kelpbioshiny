@@ -1,0 +1,8 @@
+# Only the package goes into the image (see Dockerfile).
+*
+!DESCRIPTION
+!NAMESPACE
+!LICENSE
+!R
+!inst
+!man
