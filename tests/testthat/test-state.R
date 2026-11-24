@@ -67,3 +67,23 @@ test_that("a Macrocystis run is a census: it fits every model but size and gives
     expect_gt(nrow(store$canopy_biomass("wet", "year")), 0)
   })
 })
+
+test_that("an idle session ends, unless a fit is running or an input changes", {
+  withr::local_options(kelpbioshiny.idle_minutes = 10)
+  busy <- shiny::reactiveVal(FALSE)
+  idle_app <- function(input, output, session) watch_idle(input, session, busy)
+  minute <- 60 * 1000
+
+  shiny::testServer(idle_app, {
+    session$elapse(9 * minute)
+    session$setInputs(x = 1)
+    session$elapse(9 * minute)
+    expect_false(session$isClosed())
+    busy(TRUE)
+    session$elapse(20 * minute)
+    expect_false(session$isClosed())
+    busy(FALSE)
+    session$elapse(10 * minute)
+    expect_true(session$isClosed())
+  })
+})

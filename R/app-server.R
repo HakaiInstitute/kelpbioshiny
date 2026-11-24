@@ -1,6 +1,7 @@
 # jarl-ignore unused_function: called from inst/app/server.R.
 app_server <- function(input, output, session) {
   store <- new_store(session)
+  watch_idle(input, session, busy = reactive(!is.null(store$fitting())))
 
   mod_data_server("data", store)
   mod_models_server("models", store)
@@ -58,4 +59,45 @@ app_server <- function(input, output, session) {
     if (input$copied == "script") store$exported(TRUE)
     store$notify(copied_messages[[input$copied]])
   })
+}
+
+# Ends a session left idle for getOption("kelpbioshiny.idle_minutes") minutes,
+# since an open browser tab keeps a deployment's server running. A session is
+# idle while no input changes and `busy()` (a fit queued or running) is false;
+# a notice shows five minutes before the end, and any input change resets the
+# count. Without the option, sessions never end for being idle.
+watch_idle <- function(input, session, busy) {
+  minutes <- getOption("kelpbioshiny.idle_minutes")
+  if (is.null(minutes)) {
+    return(invisible())
+  }
+  idle <- 0
+  observe({
+    reactiveValuesToList(input)
+    idle <<- 0
+    removeNotification("kb-idle", session = session)
+  })
+  first <- TRUE
+  observe({
+    invalidateLater(60 * 1000)
+    if (first) {
+      first <<- FALSE
+      return()
+    }
+    idle <<- if (isolate(busy())) 0 else idle + 1
+    if (idle == minutes - 5) {
+      showNotification(
+        div(
+          role = "status",
+          div(class = "fw-semibold", "Session ending soon"),
+          div("This session ends in 5 minutes unless the app is used, and its data and fits are not kept.")
+        ),
+        duration = NULL,
+        id = "kb-idle",
+        session = session
+      )
+    }
+    if (idle >= minutes) session$close()
+  })
+  invisible()
 }
