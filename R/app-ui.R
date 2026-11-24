@@ -42,7 +42,7 @@ brand <- function() {
     div(
       class = "lh-sm",
       div(class = "fs-5 fw-semibold", "kelpbio"),
-      div(class = "small fw-normal kb-brand-subtitle d-none d-xl-block", "Bayesian kelp biomass estimation")
+      div(class = "small fw-normal kb-brand-subtitle d-none d-xl-block", "Estimate kelp biomass")
     )
   )
 }
