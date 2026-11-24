@@ -1,28 +1,30 @@
-# The theme: an ocean and kelp palette (a dark teal navbar, teal-tinted greys,
-# white cards) with one teal accent and a kelp gold for the navbar's highlights,
-# expressed as Bootstrap Sass variables. Everything else in the app reads colours
-# from var(--bs-*) rather than from this palette. The colours are sampled from
-# photographs of a California kelp forest: the navbar from its shade, the teal
-# from the water among the fronds, the info blue from the open water beyond,
-# and the gold from sunlit kelp.
+# The theme: an ocean and kelp palette (a deep-water navbar, blue-tinted greys,
+# white cards) with one blue accent and a kelp sand for the navbar's
+# highlights, expressed as Bootstrap Sass variables. Everything else in the app
+# reads colours from var(--bs-*) rather than from this palette. The colours are
+# sampled from photographs of a California kelp forest: the blue from the open
+# water, the navbar from the deep water below it, the sand from a backlit kelp
+# blade, and the info green from the water among the fronds.
 #
-# Teal is Bootstrap's primary: primary and soft buttons, links, the active tab
-# and pill, checked radios and progress bars. Gold marks the open step, the
+# Blue is Bootstrap's primary: primary and soft buttons, links, the active tab
+# and pill, checked radios and progress bars. Sand marks the open step, the
 # steps done and the kelp drawing in the navbar only. Green, amber and red are
 # kept for status (ready, warning, error), always with an icon and text.
 
 app_palette <- list(
-  bg = "#f4f6f7", fg = "#1b2a30", card = "#ffffff",
-  primary = "#2c606e", muted = "#eef2f2", muted_fg = "#55625f",
-  accent = "#e3edef", accent_fg = "#1f4a55", accent_border = "#bdd3d8",
-  secondary_fg = "#2a3a3e",
-  # info is the open water's blue: informational notes and data coverage.
-  info = "#346a9e", info_bg = "#e7eff7", info_border = "#c3d5e8", info_fg = "#214c75",
+  bg = "#f4f6f8", fg = "#1b2733", card = "#ffffff",
+  primary = "#346a9e", muted = "#eef2f5", muted_fg = "#546070",
+  accent = "#e6eef6", accent_fg = "#224b74", accent_border = "#c3d5e8",
+  secondary_fg = "#2a3644",
+  # info is the kelp forest's green: informational notes and data coverage, kept
+  # bluer than the status green (success) so it is not read as "ready".
+  info = "#2e6a5f", info_bg = "#e4f0ed", info_border = "#bdd8d1", info_fg = "#1d4943",
   # input: the border of inputs, selects and radios, at 3:1 contrast on white (WCAG 1.4.11).
-  border = "#d8e0e1", input = "#86948f", ring = "#387777", ring_rgb = "56, 119, 119",
-  # The navbar: white text on the forest's shade, the open step and the kelp drawing in gold.
-  navbar_bg = "#1b2d33", navbar_border = "#142227", navbar_fg = "rgba(255, 255, 255, 0.75)",
-  navbar_hover = "#ffffff", navbar_active = "#bfb755", navbar_brand = "#ffffff"
+  border = "#d8dfe6", input = "#8794a0", ring = "#4e879e", ring_rgb = "78, 135, 158",
+  # The navbar: white text on deep water, the open step and the kelp drawing in sand,
+  # a pale tint of the backlit blade: saturated orange vibrates as text on navy.
+  navbar_bg = "#18304a", navbar_border = "#11243a", navbar_fg = "rgba(255, 255, 255, 0.75)",
+  navbar_hover = "#ffffff", navbar_active = "#ecd9b0", navbar_brand = "#ffffff"
 )
 
 app_status_colours <- list(
