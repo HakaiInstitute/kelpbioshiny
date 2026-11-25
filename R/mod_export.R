@@ -2,9 +2,11 @@
 # script that reproduces the run.
 
 # `stand_ins` are the sites standing in for sites a model has no data for, by
-# model (store$stand_ins()).
+# model (store$stand_ins()); `measures` the biomass measures available
+# (store$outputs()); `choices` the rows and scale chosen on the Estimates step
+# (store$estimate_choices()), so the script's tables match the results ZIP.
 export_script <- function(species, sources, sheets, workbook, priors, samplers, census = is_census(species),
-                          stand_ins = list()) {
+                          stand_ins = list(), measures = "wet", choices = list()) {
   sp <- species_info[[species]]$suffix
   used <- component_ids[sources != "none"]
   from_data <- Filter(function(id) fits_here(sources[[id]]) && !is.null(sheets[[components[[id]]$sheet]]), used)
@@ -86,7 +88,6 @@ export_script <- function(species, sources, sheets, workbook, priors, samplers, 
     c(combined, prior_lines, sprintf("%s <- kb_fit_%s_%s(%s)", fit_name(id), model, sp, paste(args, collapse = ", ")))
   }
 
-  measures <- names(output_info)[vapply(output_availability(sources), `[[`, logical(1), "available")]
   prefix <- c(wet = "", dry = "dry_", carbon = "carbon_", nitrogen = "nitrogen_")
   measure_args <- function(m) {
     c(
@@ -103,8 +104,29 @@ export_script <- function(species, sources, sheets, workbook, priors, samplers, 
     sprintf("representative_site = list(%s)", paste(sprintf("%s = %s", names(survey_stand_ins), vapply(survey_stand_ins, vector_code, "")), collapse = ", "))
   }
   canopy_site <- if (length(stand_ins$cover) > 0) sprintf("representative_site = %s", vector_code(stand_ins$cover))
-  survey_call <- function(m) paste(c("fit_weight", size_arg, "survey", measure_args(m), survey_site), collapse = ", ")
-  canopy_call <- function(m) paste(c("fit_cover_calibration", "canopy", measure_args(m), canopy_site), collapse = ", ")
+  pool_code <- function(pool_by) if (!is.null(pool_by)) sprintf("pool_by = %s", vector_code(pool_by))
+  survey_per_area <- chosen_per_area("survey", choices$survey$scale, census)
+  survey_options <- derived_sums("survey", sheets)
+  survey_pool <- survey_options[[chosen_sum(choices$survey$sum, survey_options)]]$pool_by
+  survey_choice <- c(if (!survey_per_area) "per_area = FALSE", pool_code(survey_pool))
+  canopy_options <- derived_sums("canopy", sheets)
+  canopy_pool <- canopy_options[[chosen_sum(choices$canopy$sum, canopy_options)]]$pool_by
+  survey_call <- function(m) paste(c("fit_weight", size_arg, "survey", measure_args(m), survey_choice, survey_site), collapse = ", ")
+  canopy_call <- function(m) paste(c("fit_cover_calibration", "canopy", measure_args(m), pool_code(canopy_pool), canopy_site), collapse = ", ")
+  # The cover calibration is fitted to wet biomass per m\u00b2 of each survey,
+  # without stand-in sites, so it gets its own prediction unless `biomass` is that.
+  calibration_data <- if (is.null(survey_site) && length(survey_choice) == 0) "biomass" else "calibration_biomass"
+  survey_comment <- paste0(
+    "# In situ survey biomass ",
+    if (survey_per_area) "per m\u00b2 surveyed" else "in total",
+    if (census) ", weighing each counted plant",
+    if (is.null(survey_pool)) ", for each in situ survey" else sprintf(", by %s", paste(survey_pool, collapse = " and "))
+  )
+  canopy_comment <- if (is.null(canopy_pool)) {
+    "# Biomass over the canopy mapped in each canopy map of a site"
+  } else {
+    sprintf("# Biomass over the mapped canopy, summed by %s", paste(canopy_pool, collapse = " and "))
+  }
   # The weight and size models are read only for in situ survey biomass or plant weights.
   in_models <- setdiff(used, c("cover", if (census) "size", if (!survey && !plants) survey_ids))
 
@@ -127,7 +149,7 @@ export_script <- function(species, sources, sheets, workbook, priors, samplers, 
       if (survey) {
         c(
           "",
-          if (census) "# In situ survey biomass per m\u00b2 surveyed, weighing each counted plant" else "# In situ survey biomass per m\u00b2 surveyed",
+          survey_comment,
           sprintf("%sbiomass <- kb_predict_biomass_in_situ(%s)", prefix[measures], vapply(measures, survey_call, "")),
           "kb_plot_predictions(biomass, geom = \"bar\")"
         )
@@ -137,16 +159,15 @@ export_script <- function(species, sources, sheets, workbook, priors, samplers, 
           "",
           "# The cover calibration, fitted to the wet in situ survey biomass of the in situ surveys",
           "# with canopy imagery",
-          # The app fits it to in situ survey biomass without stand-in sites.
-          if (!is.null(survey_site)) sprintf("calibration_biomass <- kb_predict_biomass_in_situ(fit_weight, %s, survey)", size_arg),
-          fit_lines("cover", if (is.null(survey_site)) "biomass" else "calibration_biomass")
+          if (calibration_data == "calibration_biomass") sprintf("calibration_biomass <- kb_predict_biomass_in_situ(fit_weight, %s, survey)", size_arg),
+          fit_lines("cover", calibration_data)
         )
       },
       if (canopy) {
         c(
           "",
           if (cover_prefit) c(fit_lines("cover"), ""),
-          "# Biomass over the canopy mapped in each canopy map of a site",
+          canopy_comment,
           sprintf("%stotals <- kb_predict_biomass_canopy(%s)", prefix[measures], vapply(measures, canopy_call, "")),
           "kb_plot_predictions(totals, geom = \"bar\")"
         )
@@ -519,7 +540,8 @@ mod_export_server <- function(id, store) {
       settings <- store$run_settings()
       code <- export_script(
         store$species(), store$sources(), store$sheets(), store$workbook(),
-        lapply(settings, `[[`, "priors"), lapply(settings, `[[`, "sampler"), store$census(), store$stand_ins()
+        lapply(settings, `[[`, "priors"), lapply(settings, `[[`, "sampler"), store$census(), store$stand_ins(),
+        measures = names(Filter(function(x) x$available, store$outputs())), choices = store$estimate_choices()
       )
       tags$pre(id = session$ns("script"), class = "m-0 px-3 py-3 small bg-white border-0", .noWS = "inside", tags$code(.noWS = "inside", code))
     })

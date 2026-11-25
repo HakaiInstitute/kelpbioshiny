@@ -22,3 +22,23 @@ test_that("the results download writes a folder per estimate", {
     expect_true(store$exported())
   })
 })
+
+test_that("the R script uses the rows and scale chosen on the Estimates step", {
+  rows <- example_rows("nereo")
+  sheets <- check_sheets(rows, lapply(rows, function(x) "example.xlsx"), "nereo")
+  sources <- default_sources(sheets)
+  priors <- lapply(component_ids, default_priors)
+  samplers <- lapply(component_ids, function(id) default_sampler(1L))
+
+  default <- export_script("nereo", sources, sheets, "example.xlsx", priors, samplers)
+  expect_match(default, 'kb_predict_biomass_in_situ(fit_weight, fit_size, survey, pool_by = c("site", "year"))', fixed = TRUE)
+  expect_match(default, "kb_predict_biomass_canopy(fit_cover_calibration, canopy)", fixed = TRUE)
+
+  chosen <- export_script(
+    "nereo", sources, sheets, "example.xlsx", priors, samplers,
+    choices = list(survey = list(sum = "survey", scale = "total"), canopy = list(sum = "year"))
+  )
+  expect_match(chosen, "kb_predict_biomass_in_situ(fit_weight, fit_size, survey, per_area = FALSE)", fixed = TRUE)
+  expect_match(chosen, 'kb_predict_biomass_canopy(fit_cover_calibration, canopy, pool_by = "year")', fixed = TRUE)
+  expect_match(chosen, "calibration_biomass <- kb_predict_biomass_in_situ(fit_weight, fit_size, survey)", fixed = TRUE)
+})
