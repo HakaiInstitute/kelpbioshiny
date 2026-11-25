@@ -334,7 +334,13 @@ write_results <- function(estimates, settings, path) {
   dir <- tempfile("kb-results-")
   dir.create(dir)
   on.exit(unlink(dir, recursive = TRUE))
-  write_csv <- function(rows, file) utils::write.csv(as.data.frame(rows), file, row.names = FALSE, na = "", fileEncoding = "UTF-8")
+  # Without scientific notation, which spreadsheets can misread.
+  write_csv <- function(rows, file) {
+    withr::with_options(
+      list(scipen = 100),
+      utils::write.csv(as.data.frame(rows), file, row.names = FALSE, na = "", fileEncoding = "UTF-8")
+    )
+  }
   estimated <- Filter(function(x) is.null(x$error), estimates)
   n_figures <- sum(lengths(lapply(estimated, `[[`, "figures")))
   done <- 0

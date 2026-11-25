@@ -209,9 +209,9 @@ mod_estimate_server <- function(id, store) {
       app_table(rows, columns = Filter(Negate(is.null), list(
         site = if ("site" %in% names(rows)) reactable::colDef(name = column_label("site")),
         year = if ("year" %in% names(rows)) reactable::colDef(name = column_label("year")),
-        diameter_mm = if (predictor && "diameter_mm" %in% names(rows)) reactable::colDef(name = column_label("diameter_mm"), cell = number_text, align = "right", class = "kb-tabular"),
+        diameter_mm = if (predictor && "diameter_mm" %in% names(rows)) reactable::colDef(name = column_label("diameter_mm"), cell = value_text, align = "right", class = "kb-tabular"),
         fronds = if (predictor && "fronds" %in% names(rows)) reactable::colDef(name = column_label("fronds"), align = "right", class = "kb-tabular"),
-        cover = if (predictor && "cover" %in% names(rows)) reactable::colDef(name = column_label("cover"), cell = number_text, align = "right", class = "kb-tabular"),
+        cover = if (predictor && "cover" %in% names(rows)) reactable::colDef(name = column_label("cover"), cell = value_text, align = "right", class = "kb-tabular"),
         estimate = number(column_label("estimate")),
         lower = number(column_label("lower")),
         upper = number(column_label("upper")),

@@ -723,8 +723,19 @@ data_strength_notice <- function(rows) {
 
 sentence_case <- function(x) paste0(toupper(substr(x, 1, 1)), substring(x, 2))
 
-# Estimates arrive from kelpbio rounded to 3 significant figures; show them as given.
-number_text <- function(value) as.character(value)
+# Estimates arrive from kelpbio rounded to 3 significant figures; show them at
+# 3 significant figures, with trailing zeros, without scientific notation, and
+# with thousands separators from 10,000.
+number_text <- function(value) {
+  if (is.na(value)) {
+    return("")
+  }
+  text <- formatC(value, digits = 3, format = "fg", flag = "#", big.mark = if (abs(value) >= 10000) "," else "")
+  sub("\\.$", "", text)
+}
+
+# A predictor value, such as a diameter, as given.
+value_text <- function(value) as.character(value)
 
 
 # The column definitions for `data`, each at least as wide as its name and
