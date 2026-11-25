@@ -92,17 +92,6 @@ add("data-warn-nitrogen-fraction", "Data (nitrogen)", "Warning: 5 samples have a
     x$nitrogen_mass_ug[i] <- x$nitrogen_mass_ug[i] * 5
     x
   }))
-add("data-warn-comma-in-site", "Data (every sheet with sites)", "Warning: site has a value containing a comma or square bracket, on each sheet with sites.",
-  local({
-    rows <- base
-    old <- base$weight$site[1]
-    for (id in names(rows)) {
-      if ("site" %in% names(rows[[id]])) {
-        rows[[id]]$site[rows[[id]]$site == old] <- paste0(old, ", north")
-      }
-    }
-    rows
-  }))
 
 # Data step: app warnings and errors --------------------------------------------
 
