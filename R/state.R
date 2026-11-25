@@ -250,7 +250,7 @@ fit_all_plan <- function(statuses, invalid = character()) {
 # not: a model's predictions need the model ready (fitted to your data or
 # pre-fit); in situ survey biomass needs the weight and size models ready and a survey
 # sheet; canopy biomass needs a fitted cover calibration and a canopy sheet.
-estimate_availability <- function(id, statuses, sources, sheets, mismatches) {
+estimate_availability <- function(id, statuses, sources, sheets) {
   unavailable <- function(reason) list(available = FALSE, reason = reason)
   if (id %in% component_ids) {
     status <- statuses[[id]]
@@ -272,9 +272,6 @@ estimate_availability <- function(id, statuses, sources, sheets, mismatches) {
       "failed" = unavailable(sprintf("The %s model failed to fit.", model)),
       unavailable(sprintf("The %s model is not fitted yet.", model))
     ))
-  }
-  if (length(mismatches) > 0) {
-    return(unavailable(sprintf("Site names differ across sheets: %s. %s", and_list(sprintf("\"%s\"", mismatches)), mismatch_advice)))
   }
   if (id == "canopy") {
     canopy <- sheets$canopy
@@ -626,7 +623,7 @@ new_store <- function(session, run_fit = mirai_fit_runner) {
   # Each estimate on the Estimates step: list(available, reason).
   s$estimates <- reactive({
     lapply(estimate_ids, estimate_availability,
-      statuses = s$statuses(), sources = s$sources(), sheets = s$sheets(), mismatches = s$mismatches()
+      statuses = s$statuses(), sources = s$sources(), sheets = s$sheets()
     )
   })
   # A run has an estimate of its own to save once it has a biomass estimate or

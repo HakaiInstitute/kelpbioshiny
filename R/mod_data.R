@@ -1050,7 +1050,7 @@ coverage_panel <- function(ns, sources, species, cov, view) {
         "alert-triangle",
         warning_help$mismatch$title,
         sprintf(
-          "%s. Biomass cannot be estimated until they match. %s",
+          "%s. %s",
           and_list(sprintf("\"%s\"", cov$mismatched)),
           mismatch_advice
         ),

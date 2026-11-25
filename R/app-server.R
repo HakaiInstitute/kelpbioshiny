@@ -11,18 +11,18 @@ app_server <- function(input, output, session) {
 
   # The states of the step markers in the navbar (step_marker_switch()): "todo",
   # "done", "warning", "error" or "busy". Data is done once data are loaded,
-  # with an error while a sheet in use fails its check or site names differ
-  # (either blocks the estimates), and a warning while a sheet in use passed
-  # its check with warnings; Models
+  # with an error while a sheet in use fails its check (which blocks the
+  # estimates), and a warning while a sheet in use passed its check with
+  # warnings or site names differ across sheets only in case or spacing; Models
   # once every model in use is ready, and Export once the estimates have been
   # downloaded or the R script copied. Estimates has no task to complete, so it
   # keeps its number.
   output$mark_data <- reactive({
     if (!store$has_data()) {
       "todo"
-    } else if (length(sheet_errors(store$sheets(), store$sources())) > 0 || length(store$mismatches()) > 0) {
+    } else if (length(sheet_errors(store$sheets(), store$sources())) > 0) {
       "error"
-    } else if (length(sheet_warnings(store$sheets(), store$sources())) > 0) {
+    } else if (length(sheet_warnings(store$sheets(), store$sources())) > 0 || length(store$mismatches()) > 0) {
       "warning"
     } else {
       "done"

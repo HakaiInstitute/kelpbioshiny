@@ -923,8 +923,8 @@ site_years <- function(rows) {
 normalise_site <- function(site) gsub("[[:space:]_-]", "", tolower(site))
 
 # Site names that differ across the sheets only in case, spacing, hyphens or
-# underscores. They are treated as different sites, so biomass waits until they
-# are renamed to match.
+# underscores. They are treated as different sites, with a warning, as they are
+# likely the same site misspelled.
 site_mismatches <- function(sheets) {
   sites <- unique(unlist(lapply(sheets, function(sheet) {
     as.character(sheet$rows$site)
@@ -933,7 +933,7 @@ site_mismatches <- function(sheets) {
   sort(sites[key %in% key[duplicated(key)]])
 }
 
-mismatch_advice <- "Rename the sites in the workbook so the names match exactly, then upload again."
+mismatch_advice <- "They are treated as different sites. If they are the same site, rename them in the workbook so the names match exactly, then upload again."
 
 # The surveys with canopy imagery, which the cover calibration is fitted to.
 drone_surveys <- function(rows) {
