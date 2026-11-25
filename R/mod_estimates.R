@@ -429,8 +429,10 @@ mod_derived_estimate_server <- function(id, store) {
       key <- output_key()
       outputs <- store$outputs()
       unavailable <- lapply(Filter(function(k) !outputs[[k]]$available, names(outputs)), function(k) outputs[[k]]$reason)
-      estimate_notices(ns, store, unique(c(derived_components[[eid]], output_components[[key]])), extra = lapply(
-        unavailable, function(reason) notice("minus-circle", reason, tone = "muted")
+      warned <- if (!inherits(estimates(), "error")) attr(estimates(), "kb_warnings")
+      estimate_notices(ns, store, unique(c(derived_components[[eid]], output_components[[key]])), extra = c(
+        lapply(warned, estimate_warning_notice),
+        lapply(unavailable, function(reason) notice("minus-circle", reason, tone = "muted"))
       ))
     })
 

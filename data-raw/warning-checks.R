@@ -149,14 +149,14 @@ add("fit-warn-cover-presence-separation", "Models (cover calibration, after Fit)
 
 # Estimates step ---------------------------------------------------------------
 
-add("estimate-warn-canopy-high-tide", "Estimates (canopy biomass)", "Warning: 3 rows have canopy imaged at a canopy_tide_height_m above 2 m. Not shown by the app yet: R console only.",
+add("estimate-warn-canopy-high-tide", "Estimates (canopy biomass)", "Warning: 3 rows have canopy imaged at a canopy_tide_height_m above 2 m.",
   change("canopy", function(x) {
     x$canopy_tide_height_m[1:3] <- 2.5
     x
   }))
-add("estimate-warn-canopy-maps-overlap", "Estimates (canopy biomass, Total by year)", "Warning: some pool_by groups hold more than one row for a site-year, so their totals overlap. Not shown by the app yet: R console only.",
+add("estimate-warn-canopy-maps-overlap", "Estimates (canopy biomass, Total by year)", "Warning: some pool_by groups hold more than one row for a site-year, so their totals overlap.",
   change("canopy", function(x) rbind(x, x[1, ])))
-add("estimate-warn-plants-beyond-weight-data", "Estimates (in situ survey biomass; census)", "Warning: 3 values of diameter_mm lie far outside the fitted range of the weight data. Not shown by the app yet: R console only.",
+add("estimate-warn-plants-beyond-weight-data", "Estimates (in situ survey biomass; census)", "Warning: 3 values of diameter_mm lie far outside the fitted range of the weight data.",
   local({
     rows <- base[c("weight", "survey", "wetdry", "carbon", "nitrogen")]
     rows$survey$plants <- NULL
@@ -202,7 +202,6 @@ readme <- c(
   "Uploads that each show one warning or error, written by `data-raw/warning-checks.R` (not committed).",
   "Each is the Nereocystis example workbook with one change, unless noted; upload it and look where Step says.",
   "fit- files need the model fitted (MCMC); estimate- files need the models fitted, then the estimate opened.",
-  "The app does not yet show kelpbio's warnings from the biomass estimates, so the estimate- warnings appear only in the R console.",
   "CSV cases are in `csv/<case>/`; upload the files inside, as a CSV file's name sets its sheet.",
   "Divergent transitions and unconverged parameters are in `data-raw/workbooks/kelpbio-2-demo-seed2-nereo.xlsx`.",
   "",

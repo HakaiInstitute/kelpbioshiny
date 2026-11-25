@@ -303,7 +303,10 @@ derived_export <- function(store, eid, measure, choice) {
     folder = derived_folder(eid, measure),
     title = sprintf("%s: %s (%s)", estimate_label(eid), labels$label, labels$unit),
     rows = sums[[sum_key]]$label,
-    note = paste("Estimates with their lower and upper 95% compatibility limits.", support_export_note),
+    note = paste(c(
+      "Estimates with their lower and upper 95% compatibility limits.", support_export_note,
+      if (!is.null(attr(rows, "kb_warnings"))) paste("Warning:", attr(rows, "kb_warnings"))
+    ), collapse = " "),
     table = biomass_table(rows, store$stand_ins()),
     figures = if (by_survey) lapply(unique(as.character(rows$site)), figure) else pages()
   )

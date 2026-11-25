@@ -413,6 +413,18 @@ fit_job <- function(fn, args) {
   )
 }
 
+# A kelpbio result with the warnings it gave in words (attribute kb_warnings),
+# so the app shows them with the result rather than in the R console.
+with_kb_warnings <- function(expr) {
+  warnings <- character()
+  result <- withCallingHandlers(expr, warning = function(w) {
+    warnings <<- c(warnings, condition_text(w))
+    invokeRestart("muffleWarning")
+  })
+  attr(result, "kb_warnings") <- if (length(warnings) > 0) unique(warnings)
+  result
+}
+
 mirai_fit_runner <- function() {
   current <- NULL
   task <- ExtendedTask$new(function(fn, args) {
@@ -588,11 +600,11 @@ new_store <- function(session, run_fit = mirai_fit_runner) {
     a <- survey_inputs()
     sites <- s$representative_site("survey")
     survey_cache(a, list(measure, per_area, pool_by, sites), function() {
-      kb_predict_biomass_in_situ(
+      with_kb_warnings(kb_predict_biomass_in_situ(
         a$weight, a$size, a$survey, a$wetdry, a$carbon, a$nitrogen,
         measure = measure, per_area = per_area, pool_by = pool_by,
         representative_site = sites, progress = "none"
-      )
+      ))
     })
   }
   canopy_cache <- result_cache()
@@ -600,10 +612,10 @@ new_store <- function(session, run_fit = mirai_fit_runner) {
     a <- canopy_inputs()
     sites <- s$representative_site("canopy")
     canopy_cache(a, list(measure, pool_by, sites), function() {
-      kb_predict_biomass_canopy(
+      with_kb_warnings(kb_predict_biomass_canopy(
         a$fit, a$canopy, a$wetdry, a$carbon, a$nitrogen,
         measure = measure, pool_by = pool_by, representative_site = sites
-      )
+      ))
     })
   }
 

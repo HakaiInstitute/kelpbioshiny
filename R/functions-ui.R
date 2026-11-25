@@ -548,6 +548,10 @@ warning_help <- list(
     title = "Warning from the fit",
     advice = "Check the data and settings the warning names, and refit if you change them."
   ),
+  estimate = list(
+    title = "Warning from the estimate",
+    advice = "Check the data the warning names."
+  ),
   prior = list(
     title = "Prior sensitivity", note = TRUE,
     advice = "If the flagged prior was not chosen on purpose, make it less informative on the Settings tab and refit."
@@ -681,6 +685,10 @@ settings_link <- function(text, settings_id) {
 # A warning kelpbio gave while fitting, as kelpbio words it.
 fit_warning_notice <- function(text) {
   notice("alert-triangle", warning_help$fit$title, text, warning_help$fit$advice, tone = "warning")
+}
+
+estimate_warning_notice <- function(text) {
+  notice("alert-triangle", warning_help$estimate$title, text, warning_help$estimate$advice, tone = "warning")
 }
 
 convergence_notice <- function(settings_id, warning = "convergence") {

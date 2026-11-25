@@ -96,3 +96,11 @@ test_that("a combined source names the site-years your data share with the refer
   expect_identical(shared, paste(reference$site[1], reference$year[1]))
   expect_identical(reference_overlap("weight", "nereo", rows, "user"), character())
 })
+
+test_that("a kelpbio warning from a biomass estimate is kept with the estimate", {
+  canopy <- kelpbio::data_survey_canopy_sim_nereo
+  canopy$canopy_tide_height_m[1:3] <- 2.5
+
+  rows <- with_kb_warnings(kb_predict_biomass_canopy(kelpbio::fit_cover_calibration_sim_nereo, canopy))
+  expect_match(attr(rows, "kb_warnings"), "canopy_tide_height_m above 2 m")
+})
