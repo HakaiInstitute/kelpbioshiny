@@ -87,3 +87,12 @@ test_that("an idle session ends, unless a fit is running or an input changes", {
     expect_true(session$isClosed())
   })
 })
+
+test_that("a combined source names the site-years your data share with the reference data", {
+  reference <- kelpbiodata::data_weight_hakai_nereo
+  rows <- data.frame(site = c(as.character(reference$site[1]), "new_site"), year = c(as.character(reference$year[1]), "2024"))
+
+  shared <- reference_overlap("weight", "nereo", rows, "combined_hakai")
+  expect_identical(shared, paste(reference$site[1], reference$year[1]))
+  expect_identical(reference_overlap("weight", "nereo", rows, "user"), character())
+})

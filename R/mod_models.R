@@ -232,13 +232,19 @@ mod_models_server <- function(id, store) {
     # models shows here.
     output$readiness <- renderUI({
       mismatches <- store$mismatches()
-      if (length(mismatches) > 0) {
-        notice(
-          "alert-triangle", warning_help$mismatch$title,
-          sprintf("%s. %s", and_list(sprintf("\"%s\"", mismatches)), mismatch_advice),
-          tone = "warning"
-        )
-      }
+      overlaps <- Filter(length, store$overlaps())
+      sources <- store$sources()
+      notices <- c(
+        if (length(mismatches) > 0) {
+          list(notice(
+            "alert-triangle", warning_help$mismatch$title,
+            sprintf("%s. %s", and_list(sprintf("\"%s\"", mismatches)), mismatch_advice),
+            tone = "warning"
+          ))
+        },
+        lapply(names(overlaps), function(id) overlap_notice(id, sources[[id]], overlaps[[id]]))
+      )
+      if (length(notices) > 0) div(class = "d-flex flex-column gap-2", notices)
     })
 
     output$subnav <- renderUI({

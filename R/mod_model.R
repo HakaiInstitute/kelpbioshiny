@@ -206,6 +206,8 @@ mod_model_server <- function(id, store) {
           prior_notice(store$sensitivity[[cid]](), prior_summary(fit()), ns("settings_prior"))
         )
       }
+      shared <- store$overlaps()[[cid]]
+      if (length(shared) > 0) notice_ui <- tagList(overlap_notice(cid, store$sources()[[cid]], shared), notice_ui)
       if (length(notice_ui) > 0) div(class = "d-flex flex-column gap-2 mb-3", notice_ui)
     })
 

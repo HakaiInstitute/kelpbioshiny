@@ -54,6 +54,22 @@ fit_rows <- function(id, species, rows, source) {
   dplyr::bind_rows(rows, reference)
 }
 
+# The site-years of your rows that the reference dataset of a combined source
+# also holds, as "site year". Their plants may be in both, and so fitted twice;
+# the app warns rather than dropping rows, as plants of the same size at the
+# same site-year are common.
+reference_overlap <- function(id, species, rows, source) {
+  if (!is_combined(source) || !all(c("site", "year") %in% names(rows))) {
+    return(character())
+  }
+  reference <- getExportedValue(
+    "kelpbiodata",
+    reference_data_name(id, species, prefit_reference(source))
+  )
+  shared <- intersect(site_years(rows), site_years(reference))
+  sub("|", " ", shared, fixed = TRUE)
+}
+
 # The name of the kelpbiodata reference fit of a model to a reference dataset.
 prefit_name <- function(id, species, reference) {
   sprintf(

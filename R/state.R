@@ -622,6 +622,13 @@ new_store <- function(session, run_fit = mirai_fit_runner) {
 
   s$has_data <- reactive(length(s$sheets()) > 0)
   s$mismatches <- reactive(site_mismatches(s$sheets()))
+  # By model, the site-years of your data its combined source's reference data
+  # also hold (reference_overlap()).
+  s$overlaps <- reactive({
+    sheets <- s$sheets()
+    sources <- s$sources()
+    lapply(component_ids, function(id) reference_overlap(id, s$species(), sheets[[components[[id]]$sheet]]$rows, sources[[id]]))
+  })
   # In situ survey biomass can be predicted, so the cover calibration can be fitted.
   s$survey_ready <- reactive(isTRUE(s$estimates()$survey$available))
   s$outputs <- reactive(output_availability(s$sources(), s$statuses()))

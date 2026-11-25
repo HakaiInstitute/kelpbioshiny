@@ -199,7 +199,8 @@ help_topics <- list(
     title = "Pre-fit models",
     body = paste(
       "A pre-fit model was fitted in advance to reference data, so it needs no data or fitting here.",
-      "A Your data + reference source fits the model here to your data together with the reference data."
+      "A Your data + reference source fits the model here to your data together with the reference data.",
+      "Upload only data not already in the reference data: the app warns when your data share site-years with it."
     ),
     link = "prefit"
   ),

@@ -558,8 +558,29 @@ warning_help <- list(
   ),
   failed = list(title = "The fit failed", advice = "Refit the model to see its results."),
   data_check = list(title = "The data check failed", advice = "Correct the sheet and upload it again."),
-  mismatch = list(title = "Site names differ across sheets", advice = mismatch_advice)
+  mismatch = list(title = "Site names differ across sheets", advice = mismatch_advice),
+  overlap = list(
+    title = "Site-years also in the reference data",
+    advice = "If they are the same surveys, their plants are fitted twice and the estimates are too precise. Remove those site-years from your sheet and upload it again."
+  )
 )
+
+# The warning for a model whose data share site-years with the reference data
+# of its combined source (reference_overlap()), naming the first few.
+overlap_notice <- function(id, source, shared) {
+  shown <- utils::head(shared, 5)
+  more <- length(shared) - length(shown)
+  notice(
+    "alert-triangle", sprintf("%s: %s", label_of(id), warning_help$overlap$title),
+    sprintf(
+      "The %s sheet and the %s data both hold %s.",
+      sheet_name(id), prefit_info[[prefit_reference(source)]]$name,
+      if (more > 0) and_list(c(shown, sprintf("%d more site-years", more))) else and_list(shown)
+    ),
+    warning_help$overlap$advice,
+    tone = "warning"
+  )
+}
 
 # The warnings of each model in `ids`, in words: "convergence", "divergent
 # transitions" and "fit" (a warning kelpbio gave while fitting) for a ready
