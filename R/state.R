@@ -306,30 +306,35 @@ estimate_availability <- function(id, statuses, sources, sheets) {
   list(available = TRUE)
 }
 
-output_availability <- function(sources) {
-  available <- function() list(available = TRUE)
-  unavailable <- function(reason) list(available = FALSE, reason = reason)
-  list(
-    wet = available(),
-    dry = if (sources[["wetdry"]] == "none") {
-      unavailable("Dry biomass unavailable: no wet:dry model")
-    } else {
-      available()
-    },
-    carbon = if (sources[["carbon"]] == "none") {
-      unavailable("Carbon unavailable: no carbon model")
-    } else if (sources[["wetdry"]] == "none") {
-      unavailable("Carbon unavailable: carbon needs the wet:dry model")
-    } else {
-      available()
-    },
-    nitrogen = if (sources[["nitrogen"]] == "none") {
-      unavailable("Nitrogen unavailable: no nitrogen model")
-    } else if (sources[["wetdry"]] == "none") {
-      unavailable("Nitrogen unavailable: nitrogen needs the wet:dry model")
-    } else {
-      available()
+# Each biomass measure: wet always, and dry, carbon and nitrogen once the
+# models they need are in use and ready (fitted to your data or pre-fit).
+output_availability <- function(sources, statuses) {
+  reason <- function(label, id) {
+    if (sources[[id]] == "none") {
+      return(sprintf("%s unavailable: no %s model", label, lower_label(id)))
     }
+    if (!is_ready_status(statuses[[id]])) {
+      state <- switch(statuses[[id]]$kind,
+        "no-data" = "has no data",
+        "data-error" = "has a data error",
+        "queued" = ,
+        "fitting" = "is fitting",
+        "failed" = "failed to fit",
+        "is not fitted yet"
+      )
+      return(sprintf("%s unavailable: the %s model %s", label, lower_label(id), state))
+    }
+    NULL
+  }
+  availability <- function(label, ids) {
+    reasons <- unlist(lapply(ids, reason, label = label))
+    if (length(reasons) == 0) list(available = TRUE) else list(available = FALSE, reason = reasons[[1]])
+  }
+  list(
+    wet = list(available = TRUE),
+    dry = availability("Dry biomass", "wetdry"),
+    carbon = availability("Carbon", c("carbon", "wetdry")),
+    nitrogen = availability("Nitrogen", c("nitrogen", "wetdry"))
   )
 }
 
@@ -619,7 +624,7 @@ new_store <- function(session, run_fit = mirai_fit_runner) {
   s$mismatches <- reactive(site_mismatches(s$sheets()))
   # In situ survey biomass can be predicted, so the cover calibration can be fitted.
   s$survey_ready <- reactive(isTRUE(s$estimates()$survey$available))
-  s$outputs <- reactive(output_availability(s$sources()))
+  s$outputs <- reactive(output_availability(s$sources(), s$statuses()))
   # Each estimate on the Estimates step: list(available, reason).
   s$estimates <- reactive({
     lapply(estimate_ids, estimate_availability,
