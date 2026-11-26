@@ -2,7 +2,8 @@
 # for uploading in a demo or a test. All are Nereocystis but 1-full-macro.
 # They are built from kelpbio's simulated data and, for the canopy-only run,
 # the sites of kelpbiodata's reference cover calibration. The app's "Use example workbook" button loads
-# the first (example_rows()). Years are written as numbers, as a spreadsheet
+# 1-full (example_rows()), and the R script of such a run downloads it from
+# GitHub (example_url()), so commit it whenever it is rebuilt. Years are written as numbers, as a spreadsheet
 # stores them, and the size sheet is named for its kind of size data
 # (size_sample or size_census), which sets Size data on upload. Run from the
 # package root:

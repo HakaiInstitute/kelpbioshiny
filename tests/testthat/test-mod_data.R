@@ -8,7 +8,8 @@ test_that("Use example workbook loads the example sheets", {
     session$setInputs(`data-example` = 1)
 
     expect_named(store$sheets(), c("weight", "size", "survey", "canopy", "wetdry", "carbon", "nitrogen"))
-    expect_identical(store$workbook(), "example-nereo.xlsx")
+    expect_identical(store$workbook(), "kelpbio-1-full-nereo.xlsx")
+    expect_identical(store$workbook_url(), example_url("nereo"))
   })
 })
 

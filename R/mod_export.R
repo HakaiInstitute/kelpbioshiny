@@ -5,8 +5,9 @@
 # model (store$stand_ins()); `measures` the biomass measures available
 # (store$outputs()); `choices` the rows and scale chosen on the Estimates step
 # (store$estimate_choices()), so the script's tables match the results ZIP.
+# `workbook_url` is where the workbook can be downloaded, for the example.
 export_script <- function(species, sources, sheets, workbook, priors, samplers, census = is_census(species),
-                          stand_ins = list(), measures = "wet", choices = list()) {
+                          stand_ins = list(), measures = "wet", choices = list(), workbook_url = NULL) {
   sp <- species_info[[species]]$suffix
   used <- component_ids[sources != "none"]
   from_data <- Filter(function(id) fits_here(sources[[id]]) && !is.null(sheets[[components[[id]]$sheet]]), used)
@@ -27,7 +28,15 @@ export_script <- function(species, sources, sheets, workbook, priors, samplers, 
   read_call <- function(id, call) sprintf("%s <- %s", id, call)
   read <- c(
     # File names are the user's, so they are quoted as R strings.
-    if (length(from_book) > 0) sprintf("path <- %s", encodeString(workbook %||% "kelp-data.xlsx", quote = "\"")),
+    if (length(from_book) > 0 && !is.null(workbook_url)) {
+      c(
+        "# The example workbook, downloaded from GitHub",
+        "path <- tempfile(fileext = \".xlsx\")",
+        sprintf("download.file(\"%s\", path, mode = \"wb\")", workbook_url)
+      )
+    } else if (length(from_book) > 0) {
+      sprintf("path <- %s", encodeString(workbook %||% "kelp-data.xlsx", quote = "\""))
+    },
     vapply(from_book, function(id) read_call(id, sprintf("readxl::read_excel(path, sheet = \"%s\")", sheet_name(id, census))), ""),
     vapply(from_csv, function(id) read_call(id, sprintf("readr::read_csv(%s)", encodeString(sheets[[id]]$file, quote = "\""))), ""),
     if (survey && census && "plants" %in% names(sheets$survey$rows)) {
@@ -544,7 +553,8 @@ mod_export_server <- function(id, store) {
       code <- export_script(
         store$species(), store$sources(), store$sheets(), store$workbook(),
         lapply(settings, `[[`, "priors"), lapply(settings, `[[`, "sampler"), store$census(), store$stand_ins(),
-        measures = names(Filter(function(x) x$available, store$outputs())), choices = store$estimate_choices()
+        measures = names(Filter(function(x) x$available, store$outputs())), choices = store$estimate_choices(),
+        workbook_url = store$workbook_url()
       )
       tags$pre(id = session$ns("script"), class = "m-0 px-3 py-3 small bg-white border-0", .noWS = "inside", tags$code(.noWS = "inside", code))
     })

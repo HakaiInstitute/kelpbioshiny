@@ -479,6 +479,8 @@ new_store <- function(session, run_fit = mirai_fit_runner) {
   s$session <- session
   s$species <- reactiveVal("nereo")
   s$workbook <- reactiveVal(NULL)
+  # Where the loaded workbook can be downloaded: only the example's is known.
+  s$workbook_url <- reactiveVal(NULL)
   s$sheets <- reactiveVal(list())
   s$sources <- reactiveVal(default_sources(list()))
   s$priors <- reactiveVal(lapply(component_ids, default_priors, species = "nereo"))
@@ -742,12 +744,13 @@ new_store <- function(session, run_fit = mirai_fit_runner) {
 
   # New data start a new run: fits are discarded and the Estimates step opens
   # on its default estimate again.
-  apply_sheets <- function(sheets, file) {
+  apply_sheets <- function(sheets, file, url = NULL) {
     update_records(function(records) idle_records())
     s$estimate(NULL)
     s$stand_ins_chosen(list())
     s$sheets(sheets)
     s$workbook(file)
+    s$workbook_url(url)
     census <- isolate(s$census())
     species <- isolate(s$species())
     s$sources(valid_sources(default_sources(sheets, census, species), census, sheets, species))
@@ -770,8 +773,8 @@ new_store <- function(session, run_fit = mirai_fit_runner) {
   s$load_example <- function() {
     s$size_data("sample")
     species <- isolate(s$species())
-    file <- sprintf("example-%s.xlsx", species)
-    apply_sheets(checked_sheets(example_rows(species), file), file)
+    file <- example_file(species)
+    apply_sheets(checked_sheets(example_rows(species), file), file, example_url(species))
   }
 
   # A Nereocystis size sheet named for one kind of size data (in a workbook's

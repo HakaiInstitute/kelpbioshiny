@@ -338,7 +338,7 @@ mod_data_ui <- function(id) {
             "Loaded ",
             span(
               class = "font-monospace text-body",
-              textOutput(ns("workbook_name"), inline = TRUE),
+              uiOutput(ns("workbook_name"), inline = TRUE),
               .noWS = c("after-begin", "before-end")
             )
           )
@@ -608,7 +608,11 @@ mod_data_server <- function(id, store) {
       }
     })
 
-    output$workbook_name <- renderText(store$workbook())
+    # The example links to its file, so it can be opened outside the app.
+    output$workbook_name <- renderUI({
+      url <- store$workbook_url()
+      if (is.null(url)) store$workbook() else external_link(url, store$workbook())
+    })
 
     # When the loaded sheets change, open the first sheet with a data error, or
     # else keep the open tab if it holds a sheet, or else open the first sheet.

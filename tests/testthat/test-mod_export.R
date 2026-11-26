@@ -41,6 +41,9 @@ test_that("the R script uses the rows and scale chosen on the Estimates step", {
   expect_match(chosen, "kb_predict_biomass_in_situ(fit_weight, fit_size, survey, per_area = FALSE)", fixed = TRUE)
   expect_match(chosen, 'kb_predict_biomass_canopy(fit_cover_calibration, canopy, pool_by = "year")', fixed = TRUE)
   expect_match(chosen, "calibration_biomass <- kb_predict_biomass_in_situ(fit_weight, fit_size, survey)", fixed = TRUE)
+
+  example <- export_script("nereo", sources, sheets, example_file("nereo"), priors, samplers, workbook_url = example_url("nereo"))
+  expect_match(example, sprintf('download.file("%s", path, mode = "wb")', example_url("nereo")), fixed = TRUE)
 })
 
 test_that("canopy totals by map are offered only when a site-year has several maps", {

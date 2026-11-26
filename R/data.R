@@ -1390,6 +1390,13 @@ repeated_maps <- function(rows) {
   anyDuplicated(paste(rows$site, rows$year, sep = "|")) > 0
 }
 
+# The example workbook of a species, as data-raw/test-workbooks.R writes it to
+# the repository, where the exported R script downloads it from.
+example_file <- function(species) sprintf("kelpbio-1-full-%s.xlsx", species)
+example_url <- function(species) {
+  paste0(source_url, "/raw/main/data-raw/workbooks/", example_file(species))
+}
+
 # The example workbook of a species: kelpbio's simulated data, one sheet each,
 # with a measured sample of Nereocystis plants and a census of Macrocystis
 # plants.
