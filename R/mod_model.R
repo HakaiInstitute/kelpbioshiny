@@ -103,7 +103,7 @@ mod_model_server <- function(id, store) {
       if (ready() && page()$mode == "user") nav_select("tab", "diagnostics", session = session)
     }, ignoreInit = TRUE)
 
-    sync_source_select(input, session, "source", cid, store)
+    sync_source_select(input, session, "source", cid, store, view = cid)
 
     observeEvent(input$back, store$open("hub"))
     # Opens the model's sheet on the Data step, or the step without a sheet.

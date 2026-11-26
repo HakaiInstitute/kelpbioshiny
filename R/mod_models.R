@@ -20,23 +20,35 @@ source_select <- function(input_id, id) {
 
 # Keeps a source select and the store in step, in both directions. A change that
 # would discard fits asks first; Cancel puts the select back.
-sync_source_select <- function(input, session, input_id, id, store) {
+#
+# Each model has two selects, on the hub and on its page (`view`). A select
+# reports a value set from the server as if the user had chosen it, and over a
+# slow connection that echo can cross a later choice; taken as a choice, it sends
+# the two selects back and forth without end. So only the select in the open
+# view takes choices, and it is sent only this model's source and only when it
+# differs from what the select reported; the other select is sent every change,
+# in order, and its echoes are ignored.
+sync_source_select <- function(input, session, input_id, id, store, view) {
   if (length(components[[id]]$sources) == 1) {
     return()
   }
+  source <- dedupe(reactive(store$sources()[[id]]))
+  shown <- function() identical(isolate(store$open()), view)
+  send <- function(choices = NULL) {
+    updateSelectInput(session, input_id, choices = choices, selected = isolate(source()))
+  }
   observeEvent(input[[input_id]], {
     value <- input[[input_id]]
-    if (!identical(value, store$sources()[[id]])) {
-      store$confirm_reset(
-        id,
-        function() store$set_source(id, value),
-        function() updateSelectInput(session, input_id, selected = store$sources()[[id]])
-      )
+    if (shown() && !identical(value, isolate(source()))) {
+      store$confirm_reset(id, function() store$set_source(id, value), send)
     }
+  }, ignoreInit = TRUE)
+  observeEvent(source(), {
+    if (!shown() || !identical(source(), isolate(input[[input_id]]))) send()
   }, ignoreInit = TRUE)
   observe({
     has_sheet <- !is.null(store$sheets()[[components[[id]]$sheet]])
-    updateSelectInput(session, input_id, choices = source_choices(id, has_sheet, store$census(), store$species()), selected = store$sources()[[id]])
+    send(source_choices(id, has_sheet, store$census(), store$species()))
   })
 }
 
@@ -163,7 +175,7 @@ mod_models_server <- function(id, store) {
       observeEvent(input[[paste0("nav_", cid)]], store$open(cid))
       observeEvent(input[[paste0("fit_model_", cid)]], store$queue_fits(cid))
       observeEvent(input[[paste0("cancel_", cid)]], store$cancel_fit(cid))
-      sync_source_select(input, session, paste0("source_", cid), cid, store)
+      sync_source_select(input, session, paste0("source_", cid), cid, store, view = "hub")
       # The badge, then a link only when the model needs action (status_next()).
       # An error is in full on the Data step and the model's page, so a long
       # message does not crowd the column.
