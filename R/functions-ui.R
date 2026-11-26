@@ -470,16 +470,30 @@ panel_arrow <- function(id, icon, label, side) {
 # The page shown of a figure's panels (`pages`, a reactive of panel_pages()),
 # moved by the arrows of panel_nav_ui(`id`) and reset to the first when the
 # pages change.
+#
+# The pages come from kelpbio's estimates, which take seconds to compute, so
+# only the outputs and a click read them: the page chosen is kept with the
+# pages it was chosen in rather than reset by an observer, and the arrows are
+# updated only while shown. Otherwise every change of source or data would
+# compute the estimates while their step is closed.
 panel_nav <- function(id, pages, input = getDefaultReactiveDomain()$input,
                       output = getDefaultReactiveDomain()$output,
                       session = getDefaultReactiveDomain()) {
   ns <- session$ns
   prev_id <- paste0(id, "_prev")
   next_id <- paste0(id, "_next")
-  index <- reactiveVal(1L)
-  observeEvent(pages(), index(1L))
-  observeEvent(input[[prev_id]], index(max(index() - 1L, 1L)))
-  observeEvent(input[[next_id]], index(min(index() + 1L, length(pages()))))
+  chosen <- reactiveVal(list(pages = NULL, index = 1L))
+  index <- reactive({
+    pages <- pages()
+    if (identical(chosen()$pages, pages)) min(chosen()$index, length(pages)) else 1L
+  })
+  move <- function(step) {
+    pages <- pages()
+    chosen(list(pages = pages, index = min(max(index() + step, 1L), length(pages))))
+  }
+  observeEvent(input[[prev_id]], move(-1L))
+  observeEvent(input[[next_id]], move(1L))
+  hidden <- reactive(!isFALSE(session$clientData[[paste0("output_", ns(id), "_hidden")]]))
   output[[id]] <- renderUI({
     pages <- pages()
     if (length(pages) < 2) {
@@ -509,6 +523,9 @@ panel_nav <- function(id, pages, input = getDefaultReactiveDomain()$input,
   })
   # Run after the arrows are drawn, as they are drawn again with new pages.
   observe({
+    if (hidden()) {
+      return()
+    }
     pages()
     updateActionButton(session, prev_id, disabled = index() <= 1L)
     updateActionButton(session, next_id, disabled = index() >= length(pages()))
