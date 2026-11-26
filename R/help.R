@@ -168,7 +168,7 @@ help_topics <- list(
     title = "Thinning (nthin)",
     body = paste(
       "Keeps every nth draw from each chain. The sampler runs n times as many iterations to keep the same number of draws,",
-      "so the kept draws are less alike and ESS goes up. Fitting takes about n times as long."
+      sprintf("so the kept draws are less alike and ESS goes up. Fitting takes about n times as long, so the app allows at most %d.", nthin_max)
     ),
     link = "diagnostics"
   ),

@@ -1104,9 +1104,13 @@ new_seed <- function() sample.int(seed_max, 1L)
 # kelpbio takes any integer seed; the app offers positive ones.
 seed_max <- .Machine$integer.max
 
+# kelpbio takes any positive nthin; the app caps it, as a fit takes about
+# nthin times as long and the app's fits run on a shared server.
+nthin_max <- 30
+
 # The message for each invalid sampler setting, by setting: nthin must be a
-# positive whole number, as kelpbio checks it, adapt_delta a number from
-# 0.5 to 0.999, and seed a whole number from 1 to seed_max.
+# whole number from 1 to nthin_max, adapt_delta a number from 0.5 to 0.999,
+# and seed a whole number from 1 to seed_max.
 sampler_errors <- function(sampler) {
   errors <- lapply(names(sampler), function(name) {
     tryCatch(
@@ -1114,7 +1118,7 @@ sampler_errors <- function(sampler) {
         x_name <- paste0("`", name, "`")
         if (name == "nthin") {
           chk::chk_whole_number(sampler[[name]], x_name = x_name)
-          chk::chk_gt(sampler[[name]], value = 0, x_name = x_name)
+          chk::chk_range(sampler[[name]], range = c(1, nthin_max), x_name = x_name)
         } else if (name == "seed") {
           chk::chk_whole_number(sampler[[name]], x_name = x_name)
           chk::chk_range(sampler[[name]], range = c(1, seed_max), x_name = x_name)

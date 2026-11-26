@@ -52,6 +52,15 @@ test_that("a fit keeps its settings and is out of date once they change", {
   })
 })
 
+test_that("nthin above 30 is an invalid setting", {
+  shiny::testServer(store_app(), {
+    store$update_sampler("size", "nthin", 30)
+    expect_length(store$setting_errors()$size$sampler, 0)
+    store$update_sampler("size", "nthin", 31)
+    expect_match(store$setting_errors()$size$sampler[["nthin"]], "between 1 and 30")
+  })
+})
+
 test_that("a Macrocystis run is a census: it fits every model but size and gives both biomass estimates", {
   log <- local_stub_fits()
   shiny::testServer(store_app(load_example = FALSE), {
