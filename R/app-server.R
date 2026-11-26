@@ -1,6 +1,9 @@
 # jarl-ignore unused_function: called from inst/app/server.R.
 app_server <- function(input, output, session) {
   store <- new_store(session)
+  # Sent after the first flush, so the loading screen (loading_screen()) lifts
+  # once the first outputs are in the page.
+  removeUI("#kb-loading")
   watch_idle(input, session, busy = reactive(!is.null(store$fitting())))
 
   mod_data_server("data", store)

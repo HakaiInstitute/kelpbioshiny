@@ -47,6 +47,20 @@ brand <- function() {
   )
 }
 
+# Covers the page from its first paint until the server removes it with the
+# session's first outputs (app_server()), so a first visit shows the app loading
+# rather than empty panels while its scripts download and it connects.
+loading_screen <- function() {
+  div(
+    id = "kb-loading",
+    class = "kb-loading d-flex flex-column align-items-center justify-content-center gap-3",
+    role = "status",
+    kelp_art(names(species_info)[[1]], "kb-loading-art"),
+    div(class = "fs-5 fw-semibold", "kelpbio"),
+    div(class = "d-flex align-items-center gap-2 text-body-secondary", lucide("loader-2", "kb-spin"), "Loading")
+  )
+}
+
 # A tab's content as the page's main landmark. Only the open tab is shown, so
 # only one main is visible at a time.
 step_main <- function(...) tags$main(class = "py-4", ...)
@@ -90,7 +104,7 @@ app_ui <- function() {
       # stylesheet again when it changes rather than using a cached copy.
       tags$link(rel = "stylesheet", href = paste0("styles.css?v=", styles_version())),
       tags$link(rel = "icon", type = "image/png", href = "favicon-96x96.png")
-    )),
+    ), loading_screen()),
     nav_spacer(),
     nav_item(fit_activity()),
     nav_panel(step_title("data"), value = "data", step_main(mod_data_ui("data"))),

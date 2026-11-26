@@ -20,6 +20,21 @@
   }
 }
 
+/* The loading screen over the page until the app connects (loading_screen()). */
+.kb-loading {
+  position: fixed;
+  inset: 0;
+  z-index: 2000;
+  background-color: var(--bs-body-bg);
+  color: var(--bs-body-color);
+}
+
+.kb-kelp-art.kb-loading-art {
+  width: 3rem;
+  height: 3.9rem;
+  color: var(--bs-primary);
+}
+
 .kb-tabular {
   font-variant-numeric: tabular-nums;
 }
