@@ -226,7 +226,7 @@ help_topics <- list(
     title = "In situ survey biomass",
     body = paste(
       "The biomass of the plants counted in an in situ survey, per square metre of the area surveyed or in total over it.",
-      "By site and year, the in situ surveys of a site-year are pooled: their summed biomass, divided by their summed area for biomass per square metre."
+      "By site and year, the in situ surveys of a site-year, each covering a separate area, are pooled: their summed biomass, divided by their summed area for biomass per square metre."
     ),
     link = "survey_biomass"
   ),
@@ -251,6 +251,7 @@ help_topics <- list(
     body = paste(
       "The cover calibration relates the wet biomass of each in situ survey to the tide-corrected canopy cover of its plot.",
       "Canopy biomass applies it to the canopy mapped over each site in a canopy map.",
+      "Several maps of a site-year are repeated measurements of one bed, so totals by site and year, by year, or by group average the maps of each site-year before summing.",
       "The uncertainty in every model is carried through to the limits."
     ),
     link = "total_biomass"

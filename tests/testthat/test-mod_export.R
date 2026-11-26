@@ -32,7 +32,7 @@ test_that("the R script uses the rows and scale chosen on the Estimates step", {
 
   default <- export_script("nereo", sources, sheets, "example.xlsx", priors, samplers)
   expect_match(default, 'kb_predict_biomass_in_situ(fit_weight, fit_size, survey, pool_by = c("site", "year"))', fixed = TRUE)
-  expect_match(default, "kb_predict_biomass_canopy(fit_cover_calibration, canopy)", fixed = TRUE)
+  expect_match(default, 'kb_predict_biomass_canopy(fit_cover_calibration, canopy, pool_by = c("site", "year"))', fixed = TRUE)
 
   chosen <- export_script(
     "nereo", sources, sheets, "example.xlsx", priors, samplers,
@@ -41,4 +41,14 @@ test_that("the R script uses the rows and scale chosen on the Estimates step", {
   expect_match(chosen, "kb_predict_biomass_in_situ(fit_weight, fit_size, survey, per_area = FALSE)", fixed = TRUE)
   expect_match(chosen, 'kb_predict_biomass_canopy(fit_cover_calibration, canopy, pool_by = "year")', fixed = TRUE)
   expect_match(chosen, "calibration_biomass <- kb_predict_biomass_in_situ(fit_weight, fit_size, survey)", fixed = TRUE)
+})
+
+test_that("canopy totals by map are offered only when a site-year has several maps", {
+  rows <- example_rows("nereo")
+  expect_false("map" %in% names(derived_sums("canopy", list(canopy = list(rows = rows$canopy)))))
+  rows$canopy <- rbind(rows$canopy, rows$canopy[1, ])
+  sums <- derived_sums("canopy", list(canopy = list(rows = rows$canopy)))
+  expect_identical(names(sums)[1:3], c("site_year", "map", "year"))
+  expect_null(sums$map$pool_by)
+  expect_identical(sums$site_year$pool_by, c("site", "year"))
 })

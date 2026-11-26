@@ -95,23 +95,24 @@ demo_weight_rows <- function(weight) {
 }
 
 # Three in situ surveys and three canopy maps of otter_cove 2020: a third survey
-# beside its two, and two more maps of the whole site flown at lower tides, with
-# the classified area of its map.
+# of a sparse plot beside its two denser ones, and two more maps of the whole
+# site, one flown at a lower tide and one at a higher tide than its map, with
+# the classified area of its map, so the replicates differ visibly.
 repeated_rows <- function(survey, canopy) {
   key <- survey$site == "otter_cove" & survey$year == 2020
   third <- survey[which(key)[1], ]
   third$survey_id <- "otter_cove-2020-3"
   third$survey_area_m2 <- 100
-  third$plants <- 540
+  third$plants <- 160
   third$plot_area_m2 <- 230
-  third$canopy_area_m2 <- 95.5
+  third$canopy_area_m2 <- 30.5
   third$canopy_tide_height_m <- 0.9
   survey <- rbind(survey[seq_len(max(which(key))), ], third, survey[-seq_len(max(which(key))), ])
 
   key <- canopy$site == "otter_cove" & canopy$year == 2020
   maps <- canopy[rep(which(key), 2), ]
-  maps$canopy_area_m2 <- c(7350, 7980)
-  maps$canopy_tide_height_m <- c(0.6, 0.25)
+  maps$canopy_area_m2 <- c(9600, 4100)
+  maps$canopy_tide_height_m <- c(0.3, 1.6)
   canopy <- rbind(canopy[seq_len(max(which(key))), ], maps, canopy[-seq_len(max(which(key))), ])
   list(survey = survey, canopy = canopy)
 }

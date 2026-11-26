@@ -1361,13 +1361,14 @@ survey_sums <- list(
 )
 
 # The canopy sheet's own grouping columns (canopy_groups()), such as a region
-# or habitat, each give totals by group and year.
-canopy_sums <- function(groups = character()) {
+# or habitat, each give totals by group and year. kelpbio averages the maps of a
+# site-year before pooling, so totals by site and year are one per site-year;
+# one row per map is offered only when some site-year has several (`repeated`).
+canopy_sums <- function(groups = character(), repeated = FALSE) {
   c(
-    list(
-      site_year = list(label = "Total by canopy map", pool_by = NULL),
-      year = list(label = "Total by year", pool_by = "year")
-    ),
+    list(site_year = list(label = "Total by site and year", pool_by = c("site", "year"))),
+    if (repeated) list(map = list(label = "Total by canopy map", pool_by = NULL)),
+    list(year = list(label = "Total by year", pool_by = "year")),
     stats::setNames(
       lapply(groups, function(g) {
         list(
@@ -1378,6 +1379,11 @@ canopy_sums <- function(groups = character()) {
       groups
     )
   )
+}
+
+# Whether some site-year of the canopy sheet has more than one map.
+repeated_maps <- function(rows) {
+  anyDuplicated(paste(rows$site, rows$year, sep = "|")) > 0
 }
 
 # The example workbook of a species: kelpbio's simulated data, one sheet each,

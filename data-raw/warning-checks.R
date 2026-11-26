@@ -66,6 +66,13 @@ add("data-warn-survey-area-over-plot", "Data (survey_in_situ)", "Warning: 3 surv
     x$survey_area_m2[i] <- round(x$plot_area_m2[i] * 1.2, 1)
     x
   }))
+add("data-warn-canopy-partial-maps", "Data (survey_canopy), and Estimates (canopy biomass)", "Warning: some site-years have maps whose classified_area_m2 differ by more than half; each map should cover the whole site.",
+  change("canopy", function(x) {
+    half <- x[1, ]
+    half$canopy_area_m2 <- half$canopy_area_m2 / 2
+    half$classified_area_m2 <- half$classified_area_m2 / 2
+    rbind(x, half)
+  }))
 add("data-warn-plot-area-in-cm2", "Data (survey_in_situ)", "Warning: plot_area_m2 has a median unusually large for m\u00b2.",
   change("survey", function(x) transform(x, plot_area_m2 = plot_area_m2 * 10000, canopy_area_m2 = canopy_area_m2 * 10000)))
 add("data-warn-tide-height-unusual", "Data (survey_in_situ)", "Warning: canopy_tide_height_m has a median unusually large for m.",
@@ -143,8 +150,6 @@ add("estimate-warn-canopy-high-tide", "Estimates (canopy biomass)", "Warning: 3 
     x$canopy_tide_height_m[1:3] <- 2.5
     x
   }))
-add("estimate-warn-canopy-maps-overlap", "Estimates (canopy biomass, Total by year)", "Warning: some pool_by groups hold more than one row for a site-year, so their totals overlap.",
-  change("canopy", function(x) rbind(x, x[1, ])))
 add("estimate-warn-plants-beyond-weight-data", "Estimates (in situ survey biomass; census)", "Warning: 3 values of diameter_mm lie far outside the fitted range of the weight data.",
   local({
     rows <- base[c("weight", "survey", "wetdry", "carbon", "nitrogen")]

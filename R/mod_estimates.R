@@ -385,7 +385,11 @@ derived_info <- list(
 derived_sums <- function(eid, sheets) {
   switch(eid,
     survey = survey_sums,
-    canopy = canopy_sums(if (!is.null(sheets$canopy)) canopy_groups(sheets$canopy$rows) else character())
+    canopy = if (is.null(sheets$canopy)) {
+      canopy_sums()
+    } else {
+      canopy_sums(canopy_groups(sheets$canopy$rows), repeated_maps(sheets$canopy$rows))
+    }
   )
 }
 
@@ -688,7 +692,8 @@ derived_labels <- function(eid, key, per_area) {
 derived_caption <- function(eid, labels, sum_key, site = NULL) {
   by <- switch(sum_key,
     survey = sprintf(" of each in situ survey at %s", if (is.null(site)) "the chosen site" else site),
-    site_year = if (eid == "canopy") " of each canopy map" else " by site and year",
+    map = " of each canopy map",
+    site_year = " by site and year",
     year = " summed over sites by year",
     sprintf(" summed by %s and year", sum_key)
   )
