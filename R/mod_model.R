@@ -88,14 +88,15 @@ mod_model_server <- function(id, store) {
     errors <- reactive(store$setting_errors()[[cid]])
 
     # A pre-fit model shows only its diagnostics and description, and a census
-    # no tabs; the page opens on the first tab shown.
+    # no tabs. A pre-fit model opens on its parameters, as its diagnostics take
+    # seconds to draw and are drawn only once their tab is opened.
     tab_mode <- dedupe(reactive(if (page()$mode %in% c("prefit", "census")) page()$mode else "fit"))
     observeEvent(tab_mode(), {
       hidden <- switch(tab_mode(), prefit = own_fit_tabs, census = fit_tabs, character())
       for (tab in names(model_tabs)) {
         if (tab %in% hidden) nav_hide("tab", tab, session = session) else nav_show("tab", tab, session = session)
       }
-      nav_select("tab", if (tab_mode() == "prefit") "diagnostics" else "settings", session = session)
+      nav_select("tab", if (tab_mode() == "prefit") "parameters" else "settings", session = session)
     })
     # Once a fit to your data is ready, its page shows the diagnostics.
     ready <- dedupe(reactive(kind() == "ready"))
