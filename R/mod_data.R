@@ -996,9 +996,9 @@ issues_summary <- function(ns, sheets, cov, sources) {
       items[[i]]
     )
   })
-  # Red while anything blocks the estimates (a sheet error or differing site
-  # names), as the Data step's marker in the navbar.
-  tone <- if (any(names(warnings) != "sheet warnings")) {
+  # Red while a sheet error blocks the estimates, and amber for warnings
+  # (including differing site names), as the Data step's marker in the navbar.
+  tone <- if ("sheet errors" %in% names(warnings)) {
     list(
       box = "bg-danger-subtle border-danger-subtle",
       icon = lucide("x-circle", "text-danger")
