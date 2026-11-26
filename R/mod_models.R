@@ -176,11 +176,15 @@ mod_models_server <- function(id, store) {
       observeEvent(input[[paste0("fit_model_", cid)]], store$queue_fits(cid))
       observeEvent(input[[paste0("cancel_", cid)]], store$cancel_fit(cid))
       sync_source_select(input, session, paste0("source_", cid), cid, store, view = "hub")
+      # Routed through dedupe(), so a change to one model re-renders only its
+      # own row, not every model's.
+      model_status <- dedupe(reactive(store$statuses()[[cid]]))
+      invalid <- dedupe(reactive(cid %in% store$invalid()))
       # The badge, then a link only when the model needs action (status_next()).
       # An error is in full on the Data step and the model's page, so a long
       # message does not crowd the column.
       output[[paste0("status_", cid)]] <- renderUI({
-        status <- store$statuses()[[cid]]
+        status <- model_status()
         step <- status_next(status)
         tagList(status_badge(status), if (!is.null(step)) div(class = "small mt-1", actionLink(session$ns(paste0("next_", cid)), step$label)))
       })
@@ -195,8 +199,8 @@ mod_models_server <- function(id, store) {
       })
       output[[paste0("fit_", cid)]] <- renderUI({
         fit_control(
-          session$ns(paste0("fit_model_", cid)), session$ns(paste0("cancel_", cid)), store$statuses()[[cid]],
-          cid %in% store$invalid(), variant = "soft", size = "sm", model = cid
+          session$ns(paste0("fit_model_", cid)), session$ns(paste0("cancel_", cid)), model_status(),
+          invalid(), variant = "soft", size = "sm", model = cid
         )
       })
     })
