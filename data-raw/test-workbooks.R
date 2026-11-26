@@ -23,7 +23,9 @@
 #     some parameters do not converge; raising nthin to 2, as the warning
 #     advises, fixes it.
 #   The weight model can also be pre-fit. Without seed 2, most fits show the
-#   same warnings.
+#   same warnings. otter_cove 2020 has three in situ surveys and three canopy
+#   maps (repeated_rows()), to show how estimates pool several surveys and
+#   several maps of one site-year.
 # 3-census: weight, size and survey_in_situ sheets, for surveys that
 #   cover the whole area of interest, so survey biomass in total over the area
 #   surveyed is the estimate. Every counted plant is measured, each survey's
@@ -92,6 +94,28 @@ demo_weight_rows <- function(weight) {
   })
 }
 
+# Three in situ surveys and three canopy maps of otter_cove 2020: a third survey
+# beside its two, and two more maps of the whole site flown at lower tides, with
+# the classified area of its map.
+repeated_rows <- function(survey, canopy) {
+  key <- survey$site == "otter_cove" & survey$year == 2020
+  third <- survey[which(key)[1], ]
+  third$survey_id <- "otter_cove-2020-3"
+  third$survey_area_m2 <- 100
+  third$plants <- 540
+  third$plot_area_m2 <- 230
+  third$canopy_area_m2 <- 95.5
+  third$canopy_tide_height_m <- 0.9
+  survey <- rbind(survey[seq_len(max(which(key))), ], third, survey[-seq_len(max(which(key))), ])
+
+  key <- canopy$site == "otter_cove" & canopy$year == 2020
+  maps <- canopy[rep(which(key), 2), ]
+  maps$canopy_area_m2 <- c(7350, 7980)
+  maps$canopy_tide_height_m <- c(0.6, 0.25)
+  canopy <- rbind(canopy[seq_len(max(which(key))), ], maps, canopy[-seq_len(max(which(key))), ])
+  list(survey = survey, canopy = canopy)
+}
+
 unlink("data-raw/workbooks", recursive = TRUE)
 dir.create("data-raw/workbooks")
 set.seed(2024)
@@ -100,6 +124,7 @@ full <- example_rows("nereo")
 write_workbook(full, "1-full", "nereo")
 demo <- full[c("weight", "size", "survey", "canopy")]
 demo$weight <- demo_weight_rows(full$weight)
+demo[c("survey", "canopy")] <- repeated_rows(demo$survey, demo$canopy)
 write_workbook(demo, "2-demo-seed2", "nereo")
 census <- full[c("weight", "size", "survey")]
 census$size <- census_rows(full$survey, full$size)
