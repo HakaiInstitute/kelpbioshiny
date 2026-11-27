@@ -1,6 +1,7 @@
 # syntax=docker/dockerfile:1
-# The app's image, built by scripts/deploy-azure.R. kelpbio and kelpbiodata are
-# private: the GitHub token is a build secret, so no layer keeps it.
+# The app's image, built by scripts/deploy-azure.R. The GitHub token, which
+# lifts GitHub's rate limit on installs from GitHub, is a build secret, so no
+# layer keeps it.
 ARG R_VERSION=4.6.2
 FROM rocker/r-ver:${R_VERSION}
 

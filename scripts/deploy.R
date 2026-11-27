@@ -13,8 +13,6 @@
 #     only when its commit changes), and the deploy runs in an R process on that
 #     library alone: the locally built packages in the user library are never
 #     touched or deployed.
-#   * kelpbiodata is private: shinyapps.io installs it only if the account has a
-#     GitHub login with private repository access (Account > Profile).
 #   * The app is deployed from the working tree as it is, uncommitted changes
 #     included, and runs it from source (app.R).
 
