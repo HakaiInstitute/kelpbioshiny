@@ -10,7 +10,6 @@
 ^[.]?air[.]toml$
 ^\.vscode$
 ^app\.R$
-^decisions$
 ^data-raw$
 ^rsconnect$
 ^Dockerfile$
