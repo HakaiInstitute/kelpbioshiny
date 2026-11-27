@@ -16,15 +16,11 @@ package; see its documentation for details.
 
 ## Installation
 
-Install from GitHub, with kelpbio and kelpbiodata:
+Install from GitHub:
 
 ``` r
 # install.packages("pak")
-pak::pak(c(
-  "HakaiInstitute/kelpbio",
-  "HakaiInstitute/kelpbiodata",
-  "HakaiInstitute/kelpbioshiny"
-))
+pak::pak("HakaiInstitute/kelpbioshiny")
 ```
 
 ## Usage

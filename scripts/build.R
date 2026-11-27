@@ -7,7 +7,9 @@
 # "Tasks: Run Task" > "kelpbioshiny: ..." (.vscode/tasks.json).
 #
 #   * The install comes first so the shinytest2 tests, which run the installed
-#     app in a separate R process, test the current source.
+#     app in a separate R process, test the current source. It installs the app
+#     alone: the Remotes would otherwise replace the locally installed kelpbio
+#     and kelpbiodata with their GitHub versions.
 #   * Linting is handled by jarl in CI (.github/workflows/lint-with-jarl.yaml,
 #     configured by jarl.toml); this script does not lint.
 
@@ -30,7 +32,7 @@ if (length(unknown)) {
 full_check <- "--check" %in% args
 message("Build: install, document, test", if (full_check) " + R CMD check")
 
-devtools::install(build = FALSE, quick = TRUE, upgrade = FALSE)
+devtools::install(build = FALSE, quick = TRUE, dependencies = FALSE, upgrade = FALSE)
 
 if (requireNamespace("roxygen2md", quietly = TRUE)) {
   roxygen2md::roxygen2md()

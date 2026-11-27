@@ -5,8 +5,11 @@
 ARG R_VERSION=4.6.2
 FROM rocker/r-ver:${R_VERSION}
 
-ARG KELPBIO_REF
-ARG KELPBIODATA_REF
+# The main commits of kelpbio and kelpbiodata, which the DESCRIPTION's Remotes
+# install: a new commit on either rebuilds the dependency layer, and the build
+# stops if main has moved on since deploy-azure.R read it.
+ARG KELPBIO_SHA
+ARG KELPBIODATA_SHA
 
 ENV PKG_SYSREQS=true
 
@@ -16,20 +19,18 @@ RUN Rscript -e 'install.packages("pak")'
 # does not recompile kelpbio's Stan models.
 COPY DESCRIPTION /src/DESCRIPTION
 RUN --mount=type=secret,id=github_pat \
-  test -n "$KELPBIO_REF" && test -n "$KELPBIODATA_REF" && \
-  GITHUB_PAT="$(cat /run/secrets/github_pat)" Rscript -e ' \
-    pak::pkg_install( \
-      c( \
-        "deps::/src", \
-        Sys.getenv("KELPBIO_REF"), \
-        Sys.getenv("KELPBIODATA_REF"), \
-        "knitr", \
-        "rmarkdown" \
-      ), \
-      upgrade = FALSE, \
-      ask = FALSE \
-    ); \
-    pak::cache_clean()'
+  test -n "$KELPBIO_SHA" && test -n "$KELPBIODATA_SHA" && \
+  GITHUB_PAT="$(cat /run/secrets/github_pat)" Rscript - <<'EOF'
+pak::pkg_install(c("deps::/src", "knitr", "rmarkdown"), ask = FALSE)
+pak::cache_clean()
+for (pkg in c("kelpbio", "kelpbiodata")) {
+  installed <- utils::packageDescription(pkg)$RemoteSha
+  expected <- Sys.getenv(paste0(toupper(pkg), "_SHA"))
+  if (!identical(installed, expected)) {
+    stop(pkg, " installed at ", installed, ", not ", expected, ".", call. = FALSE)
+  }
+}
+EOF
 
 # The Help pages show kelpbio's articles from its installed doc/ folder, which
 # an install from GitHub leaves out: they are rendered here from kelpbio's
@@ -38,10 +39,9 @@ RUN --mount=type=secret,id=github_pat \
   apt-get update && apt-get install -y --no-install-recommends pandoc && \
   GITHUB_PAT="$(cat /run/secrets/github_pat)" Rscript - <<'EOF' && \
   apt-get purge -y pandoc && apt-get autoremove -y && rm -rf /var/lib/apt/lists/*
-ref <- Sys.getenv("KELPBIO_REF")
 tarball <- tempfile(fileext = ".tar.gz")
 download.file(
-  paste0("https://api.github.com/repos/", sub("@.*", "", ref), "/tarball/", sub(".*@", "", ref)),
+  paste0("https://api.github.com/repos/HakaiInstitute/kelpbio/tarball/", Sys.getenv("KELPBIO_SHA")),
   tarball,
   headers = c(Authorization = paste("Bearer", Sys.getenv("GITHUB_PAT"))),
   quiet = TRUE

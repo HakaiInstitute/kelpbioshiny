@@ -1,8 +1,6 @@
 # Workflow derived from https://github.com/r-lib/actions/tree/v2/examples
 # Work is pushed to dev, which the dev to main pull request collects, so the
-# push runs stand in for pull request runs. kelpbio and kelpbiodata are
-# installed from their main branches here rather than as Remotes, which would
-# override the commits scripts/deploy.R and the Dockerfile pin.
+# push runs stand in for pull request runs.
 on:
   push:
     branches: [main, dev]
@@ -36,10 +34,8 @@ jobs:
 
       - uses: r-lib/actions/setup-r-dependencies@f9a764fea8d5c63df6ef9a5c7795bf7deb5d7e05 # v2.14.0
         with:
-          extra-packages: |
+          extra-packages: >-
             any::rcmdcheck
-            HakaiInstitute/kelpbio
-            HakaiInstitute/kelpbiodata
           needs: check
 
       - uses: r-lib/actions/check-r-package@f9a764fea8d5c63df6ef9a5c7795bf7deb5d7e05 # v2.14.0

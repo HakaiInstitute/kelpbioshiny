@@ -3,14 +3,14 @@
 #   Rscript scripts/deploy-azure.R          build for Azure, push, deploy
 #   Rscript scripts/deploy-azure.R --local  build and run at http://localhost:3838
 #
-# Run from the package root, with the kelpbio and kelpbiodata checkouts beside
-# it (~/Code/HakaiInstitute/) and Docker running; to deploy, the Azure CLI must
+# Run from the package root with Docker running; to deploy, the Azure CLI must
 # be signed in (az login).
 #
-#   * kelpbio and kelpbiodata are installed from GitHub at the commits checked
-#     out locally, which must be committed and pushed. The GitHub token
-#     (GITHUB_PAT, else `gh auth token`) is passed as a build secret, so the
-#     image does not keep it.
+#   * kelpbio and kelpbiodata are installed from their main branches on GitHub,
+#     through the DESCRIPTION's Remotes. Their main commits are passed to the
+#     build, so a new commit on either rebuilds the image's dependency layer.
+#     The GitHub token (GITHUB_PAT, else `gh auth token`) is passed as a build
+#     secret, so the image does not keep it.
 #   * The app is built from the working tree as it is. Each deploy's image is
 #     tagged with the kelpbioshiny commit, "dirty" when the app files have
 #     uncommitted changes, and the time, so each deploy makes a new revision to
@@ -108,34 +108,19 @@ run <- function(command, args) {
   }
 }
 
-# The GitHub ref of a sibling checkout's HEAD, which must be clean and pushed.
-pushed_ref <- function(pkg) {
-  path <- normalizePath(file.path("..", pkg), mustWork = TRUE)
-  if (length(git(path, "status", "--porcelain", "--untracked-files=no"))) {
-    stop(
-      pkg,
-      " has uncommitted changes: commit and push them first.",
-      call. = FALSE
-    )
-  }
-  sha <- git(path, "rev-parse", "HEAD")
-  if (!length(git(path, "branch", "-r", "--contains", sha))) {
-    stop(
-      pkg,
-      " HEAD (",
-      substr(sha, 1, 7),
-      ") is not pushed: push it first.",
-      call. = FALSE
-    )
-  }
-  message(
-    pkg,
-    ": ",
-    git(path, "branch", "--show-current"),
-    " @ ",
-    substr(sha, 1, 7)
+# The commit at the tip of a package's main branch on GitHub.
+main_sha <- function(pkg) {
+  out <- system2(
+    "git",
+    c("ls-remote", paste0("https://github.com/HakaiInstitute/", pkg), "refs/heads/main"),
+    stdout = TRUE
   )
-  paste0("HakaiInstitute/", pkg, "@", sha)
+  sha <- sub("\\s.*", "", out)
+  if (length(sha) != 1 || !grepl("^[0-9a-f]{40}$", sha)) {
+    stop("Could not read the main commit of ", pkg, ".", call. = FALSE)
+  }
+  message(pkg, ": main @ ", substr(sha, 1, 7))
+  sha
 }
 
 github_pat <- Sys.getenv("GITHUB_PAT")
@@ -161,9 +146,9 @@ build_args <- c(
   "--build-arg",
   paste0("R_VERSION=", R.version$major, ".", R.version$minor),
   "--build-arg",
-  paste0("KELPBIO_REF=", pushed_ref("kelpbio")),
+  paste0("KELPBIO_SHA=", main_sha("kelpbio")),
   "--build-arg",
-  paste0("KELPBIODATA_REF=", pushed_ref("kelpbiodata"))
+  paste0("KELPBIODATA_SHA=", main_sha("kelpbiodata"))
 )
 
 if (local) {

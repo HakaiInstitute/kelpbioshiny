@@ -3,16 +3,15 @@
 #   Rscript scripts/deploy.R            build the deploy library, then deploy
 #   Rscript scripts/deploy.R --dry-run  build the deploy library only
 #
-# Run from the package root, with the kelpbio and kelpbiodata checkouts beside
-# it (~/Code/HakaiInstitute/).
+# Run from the package root.
 #
 #   * shinyapps.io installs every package from a repository it can reach, so
-#     kelpbio and kelpbiodata are installed from GitHub at the commits checked
-#     out locally, which must be committed and pushed. They go into a library
-#     of their own (kept between runs, so kelpbio's Stan models are recompiled
-#     only when its commit changes), and the deploy runs in an R process on that
-#     library alone: the locally built packages in the user library are never
-#     touched or deployed.
+#     kelpbio and kelpbiodata are installed from their main branches on GitHub,
+#     through the DESCRIPTION's Remotes. They go into a library of their own
+#     (kept between runs, so kelpbio's Stan models are recompiled only when its
+#     main commit changes), and the deploy runs in an R process on that library
+#     alone: the locally built packages in the user library are never touched
+#     or deployed.
 #   * The app is deployed from the working tree as it is, uncommitted changes
 #     included, and runs it from source (app.R).
 
@@ -56,43 +55,7 @@ git <- function(path, ...) {
   system2("git", c("-C", shQuote(path), ...), stdout = TRUE)
 }
 
-# The GitHub ref of a sibling checkout's HEAD, which must be clean and pushed.
-pushed_ref <- function(pkg) {
-  path <- normalizePath(file.path("..", pkg), mustWork = TRUE)
-  if (length(git(path, "status", "--porcelain", "--untracked-files=no"))) {
-    stop(
-      pkg,
-      " has uncommitted changes: commit and push them first.",
-      call. = FALSE
-    )
-  }
-  sha <- git(path, "rev-parse", "HEAD")
-  if (!length(git(path, "branch", "-r", "--contains", sha))) {
-    stop(
-      pkg,
-      " HEAD (",
-      substr(sha, 1, 7),
-      ") is not pushed: push it first.",
-      call. = FALSE
-    )
-  }
-  message(
-    pkg,
-    ": ",
-    git(path, "branch", "--show-current"),
-    " @ ",
-    substr(sha, 1, 7)
-  )
-  paste0("HakaiInstitute/", pkg, "@", sha)
-}
-
-refs <- c(
-  "deps::.",
-  pushed_ref("kelpbio"),
-  pushed_ref("kelpbiodata"),
-  "pkgload",
-  "rsconnect"
-)
+refs <- c("deps::.", "pkgload", "rsconnect")
 
 dirty <- git(".", "status", "--porcelain", "--", app_files)
 if (length(dirty)) {
@@ -115,6 +78,10 @@ message("Deploy library: ", lib)
 callr::r(
   function(refs, lib) {
     pak::pkg_install(refs, lib = lib, upgrade = FALSE, ask = FALSE)
+    for (pkg in c("kelpbio", "kelpbiodata")) {
+      sha <- utils::packageDescription(pkg, lib.loc = lib)$RemoteSha
+      message(pkg, ": ", substr(sha, 1, 7))
+    }
   },
   args = list(refs = refs, lib = lib),
   show = TRUE
