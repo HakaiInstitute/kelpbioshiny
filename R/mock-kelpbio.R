@@ -1,12 +1,11 @@
 # jarl-ignore-file unused_function: the app calls the mocks by built name through kelpbio_fn().
 # Mock kelpbio functions -----------------------------------------------------------
 #
-# The app calls kelpbio for every model result. What kelpbio does not have yet
-# is mocked here: the figures of a sheet's data on the Data step. Each mock is
-# marked Planned (not in kelpbio; named and shaped following the package
-# conventions). To switch one over once kelpbio has it: delete it here and add
-# `@importFrom kelpbio <fun>` to R/namespace.R. Everything with a leading dot
-# is mock plumbing and goes with the file, as do the ggplot2 imports below.
+# The app calls kelpbio for every model result. Two things are the exceptions
+# to that rule and stay in the app: the figures of a sheet's data on the Data
+# step and the plants counted in each survey of a census. They are named and
+# shaped following kelpbio's conventions, so either could move to kelpbio: then
+# delete it here and add `@importFrom kelpbio <fun>` to R/namespace.R.
 
 #' @importFrom ggplot2 ggplot aes facet_wrap expand_limits labs
 #' @noRd
@@ -29,8 +28,7 @@ NULL
   out
 }
 
-# Planned; the names are a proposal, following kb_check_data_<model>_<species>().
-# A figure of a sheet's data, to look at before fitting: weight by size, the
+# Named following kb_check_data_<model>_<species>(). A figure of a sheet's data, to look at before fitting: weight by size, the
 # size distribution, the dry:wet ratio and carbon and nitrogen fractions of the samples, the
 # canopy cover fraction of each plot with canopy imagery by the plants counted, and
 # the canopy area mapped at each site by year. All the data in one panel, or a
