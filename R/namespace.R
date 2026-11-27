@@ -21,3 +21,8 @@
 #' @importFrom kelpbio kb_predict_nitrogen
 #' @importFrom kelpbio kb_predict_cover_calibration kb_predict_size kb_predict_weight kb_predict_wetdry
 NULL
+
+# kb_sensitivity() needs priorsense, which kelpbio only suggests: importing a
+# function from it keeps it a dependency of the app.
+#' @importFrom priorsense powerscale_sensitivity
+NULL

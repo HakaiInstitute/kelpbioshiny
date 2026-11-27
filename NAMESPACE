@@ -73,6 +73,7 @@ importFrom(kelpbio,
   pp_check,
   prior_summary
 )
+importFrom(priorsense,powerscale_sensitivity)
 importFrom(rlang,
   "%||%",
   .data
