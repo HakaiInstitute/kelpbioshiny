@@ -1,10 +1,11 @@
 # Writes the example workbooks to data-raw/workbooks/, one per kind of run,
 # for uploading in a demo or a test. All are Nereocystis but 1-full-macro.
 # They are built from kelpbio's simulated data and, for the canopy-only run,
-# the sites of kelpbiodata's reference cover calibration. The app's "Use example workbook" button loads
-# 1-full (example_rows()), and the R script of such a run downloads it from
-# GitHub (example_url()), so commit it whenever it is rebuilt. Years are written as numbers, as a spreadsheet
-# stores them, and the size sheet is named for its kind of size data
+# the sites of kelpbiodata's reference cover calibration. The app's "Use
+# example workbook" button loads 1-full (example_rows()), and the R script of
+# such a run downloads it from GitHub (example_url()), so commit it whenever it
+# is rebuilt. Years are written as numbers, as a spreadsheet stores them, and
+# the size sheet is named for its kind of size data
 # (size_sample or size_census), which sets Size data on upload. Run from the
 # package root:
 #   Rscript data-raw/test-workbooks.R
@@ -31,18 +32,18 @@
 #   cover the whole area of interest, so survey biomass in total over the area
 #   surveyed is the estimate. Every counted plant is measured, each survey's
 #   plants drawn from the measured sample of its site-year (census_rows()).
-#   There are no canopy imagery columns or survey_canopy sheet, so no cover calibration or
-#   canopy biomass; wet:dry, carbon and nitrogen are pre-fit.
-# 4-canopy-prefit: a survey_canopy sheet alone, with canopy maps of the sites of the
-#   pre-fit Hakai Institute cover calibration mapped again in a year after its
+#   There are no canopy imagery columns or survey_canopy sheet, so no cover
+#   calibration or canopy biomass; wet:dry, carbon and nitrogen are pre-fit.
+# 4-canopy-prefit: a survey_canopy sheet alone, with canopy maps of the sites of
+#   the pre-fit Hakai Institute cover calibration mapped again in a year after its
 #   data, so canopy biomass takes each site's effect but treats the year as new,
 #   and one map of a new site with the same areas as the first site's, whose
 #   limits are wider as the site is new too.
 #
 # Errors:
 # 5-bad-data: every sheet, with a weight sheet missing two years (a data
-#   error) and a survey_in_situ sheet with three surveys whose area surveyed exceeds
-#   their plot (a warning).
+#   error) and a survey_in_situ sheet with three surveys whose area surveyed
+#   exceeds their plot (a warning).
 
 pkgload::load_all(quiet = TRUE)
 
