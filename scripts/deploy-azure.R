@@ -112,7 +112,11 @@ run <- function(command, args) {
 main_sha <- function(pkg) {
   out <- system2(
     "git",
-    c("ls-remote", paste0("https://github.com/HakaiInstitute/", pkg), "refs/heads/main"),
+    c(
+      "ls-remote",
+      paste0("https://github.com/HakaiInstitute/", pkg),
+      "refs/heads/main"
+    ),
     stdout = TRUE
   )
   sha <- sub("\\s.*", "", out)
