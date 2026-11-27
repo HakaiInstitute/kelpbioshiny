@@ -376,7 +376,7 @@ start_daemons <- function() {
   n <- getOption("kelpbioshiny.daemons", 1L)
   mirai::daemons(n, .compute = compute_profile)
   # A fit's function is sent as a reference to its namespace, which a daemon
-  # loads: from source when the app was loaded with load_all() (as app.R does),
+  # loads: from source when the app was loaded with load_all(), as in development,
   # so the daemons run the same code as the app; otherwise installed.
   source_path <- if (requireNamespace("pkgload", quietly = TRUE) && pkgload::is_dev_package("kelpbioshiny")) {
     pkgload::pkg_path(system.file(package = "kelpbioshiny"))

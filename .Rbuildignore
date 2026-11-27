@@ -9,9 +9,7 @@
 ^jarl\.toml$
 ^[.]?air[.]toml$
 ^\.vscode$
-^app\.R$
 ^data-raw$
-^rsconnect$
 ^Dockerfile$
 ^\.dockerignore$
 ^warning-checks$

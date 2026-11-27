@@ -15,7 +15,7 @@ Its one export is `run_app()`, and a run moves through four steps: Data, Models,
 - Commit to `dev`; changes reach `main` through a pull request.
 - CI runs R CMD check and jarl on pushes to `dev` and `main`.
 - Before pushing, run `Rscript scripts/build.R` (install, document, test) and `jarl check .`.
-- `scripts/deploy-azure.R` deploys the Docker image to Azure; `scripts/deploy.R` deploys a preview to shinyapps.io.
+- `scripts/deploy-azure.R` deploys the Docker image to Azure.
 
 ## Design rules
 
