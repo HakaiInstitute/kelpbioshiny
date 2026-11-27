@@ -1,14 +1,20 @@
 # Workflow derived from https://github.com/r-lib/actions/tree/v2/examples
-# Runs on pull requests to main, against kelpbio and kelpbiodata from their dev
-# branches on GitHub (installed here rather than as Remotes, so local builds
-# keep the locally installed kelpbio and kelpbiodata).
+# Work is pushed to dev, which the dev to main pull request collects, so the
+# push runs stand in for pull request runs. kelpbio and kelpbiodata are
+# installed from their main branches here rather than as Remotes, which would
+# override the commits scripts/deploy.R and the Dockerfile pin.
 on:
-  pull_request:
-    branches: main
+  push:
+    branches: [main, dev]
 
 name: R-CMD-check.yaml
 
 permissions: read-all
+
+# A new push to a branch cancels its run still in progress.
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
 
 jobs:
   R-CMD-check:
@@ -32,8 +38,8 @@ jobs:
         with:
           extra-packages: |
             any::rcmdcheck
-            HakaiInstitute/kelpbio@dev
-            HakaiInstitute/kelpbiodata@dev
+            HakaiInstitute/kelpbio
+            HakaiInstitute/kelpbiodata
           needs: check
 
       - uses: r-lib/actions/check-r-package@f9a764fea8d5c63df6ef9a5c7795bf7deb5d7e05 # v2.14.0
