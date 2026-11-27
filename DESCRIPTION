@@ -1,44 +1,50 @@
 Package: kelpbioshiny
-Title: Shiny App for Bayesian Kelp Biomass Estimation
+Title: Web App for Bayesian Kelp Biomass Estimation
 Version: 0.0.0.9000
 Authors@R: c(
     person("Seb", "Dalgarno", , "seb@poissonconsulting.ca", role = c("aut", "cre"),
            comment = c(ORCID = "0000-0002-3658-4517")),
-    person("Tula Foundation", role = c("fnd", "cph")))
-Description: A 'shiny' app for annual estimates of kelp biomass by site with
-    the 'kelpbio' package. It steps through loading survey data, fitting or
-    choosing pre-fit sub-models, checking their diagnostics, and exporting the
-    biomass estimates.
+    person("Tula Foundation", role = c("fnd", "cph"))
+  )
+Description: A web app for annual estimates of kelp biomass by site
+    with the 'kelpbio' package. Load survey data,
+    fit or choose pre-fit sub-models, check their diagnostics,
+    and view and export biomass estimates.
 License: MIT + file LICENSE
 URL: https://github.com/HakaiInstitute/kelpbioshiny
 BugReports: https://github.com/HakaiInstitute/kelpbioshiny/issues
 Depends:
     R (>= 4.2.0)
 Imports:
-    bayesplot,
     bslib,
     chk,
+    cli,
+    dplyr,
     generics,
-    ggplot2,
+    ggplot2 (>= 4.0.0),
     htmltools,
-    jsonlite,
+    kelpbio,
+    kelpbiodata,
     mirai,
+    priorsense,
     reactable,
     readxl,
     rlang,
-    scales,
     shiny,
     stats,
-    tibble,
-    universals,
     utils,
-    withr
+    withr,
+    writexl,
+    xml2
 Suggests:
     codetools,
     pkgload,
     shinytest2,
     testthat (>= 3.0.0)
-Encoding: UTF-8
-Roxygen: list(markdown = TRUE)
+Remotes:
+    HakaiInstitute/kelpbio,
+    HakaiInstitute/kelpbiodata
 Config/roxygen2/version: 8.1.0.9000
 Config/testthat/edition: 3
+Encoding: UTF-8
+Roxygen: list(markdown = TRUE)

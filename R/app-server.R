@@ -1,17 +1,36 @@
 # jarl-ignore unused_function: called from inst/app/server.R.
 app_server <- function(input, output, session) {
   store <- new_store(session)
+  # Sent after the first flush, so the loading screen (loading_screen()) lifts
+  # once the first outputs are in the page.
+  removeUI("#kb-loading")
+  watch_idle(input, session, busy = reactive(!is.null(store$fitting())))
 
   mod_data_server("data", store)
   mod_models_server("models", store)
   mod_estimates_server("estimates", store)
   mod_export_server("export", store)
+  help_server(input, output, session)
 
   # The states of the step markers in the navbar (step_marker_switch()): "todo",
-  # "done", "warning" or "busy". Models is done once every model in use is
-  # ready, Estimates once an estimate has been opened, and Export once the
-  # estimates have been downloaded or the R script copied.
-  output$mark_data <- reactive(if (store$has_data()) "done" else "todo")
+  # "done", "warning", "error" or "busy". Data is done once data are loaded,
+  # with an error while a sheet in use fails its check (which blocks the
+  # estimates), and a warning while a sheet in use passed its check with
+  # warnings or site names differ across sheets only in case or spacing; Models
+  # once every model in use is ready, and Export once the estimates have been
+  # downloaded or the R script copied. Estimates has no task to complete, so it
+  # keeps its number.
+  output$mark_data <- reactive({
+    if (!store$has_data()) {
+      "todo"
+    } else if (length(sheet_errors(store$sheets(), store$sources())) > 0) {
+      "error"
+    } else if (length(sheet_warnings(store$sheets(), store$sources())) > 0 || length(store$mismatches()) > 0) {
+      "warning"
+    } else {
+      "done"
+    }
+  })
   output$mark_models <- reactive({
     if (!is.null(store$fitting())) {
       "busy"
@@ -21,20 +40,20 @@ app_server <- function(input, output, session) {
       "todo"
     }
   })
-  output$mark_estimates <- reactive(if (store$reviewed() && store$any_estimate()) "done" else "todo")
   output$mark_export <- reactive(if (store$exported() && store$any_estimate()) "done" else "todo")
-  for (step in names(steps)) outputOptions(output, paste0("mark_", step), suspendWhenHidden = FALSE)
+  for (step in c("data", "models", "export")) outputOptions(output, paste0("mark_", step), suspendWhenHidden = FALSE)
 
   output$fitting_active <- reactive(!is.null(store$fitting()))
   outputOptions(output, "fitting_active", suspendWhenHidden = FALSE)
 
   output$activity_label <- renderText({
     req(store$fitting())
+    sprintf("%s %s", label_of(store$fitting()), percent_text(store$progress()))
+  })
+  output$activity_queued <- renderText({
+    req(store$fitting())
     queued <- sum(record_status(store$records()) == "queued")
-    paste0(
-      sprintf("Fitting %s %s", lower_label(store$fitting()), percent_text(store$progress())),
-      if (queued > 0) sprintf(" \u00b7 %d queued", queued)
-    )
+    if (queued > 0) sprintf("\u00b7 %d queued", queued)
   })
 
   observeEvent(input$activity, store$go_to("models"))
@@ -43,4 +62,45 @@ app_server <- function(input, output, session) {
     if (input$copied == "script") store$exported(TRUE)
     store$notify(copied_messages[[input$copied]])
   })
+}
+
+# Ends a session left idle for getOption("kelpbioshiny.idle_minutes") minutes,
+# since an open browser tab keeps a deployment's server running. A session is
+# idle while no input changes and `busy()` (a fit queued or running) is false;
+# a notice shows five minutes before the end, and any input change resets the
+# count. Without the option, sessions never end for being idle.
+watch_idle <- function(input, session, busy) {
+  minutes <- getOption("kelpbioshiny.idle_minutes")
+  if (is.null(minutes)) {
+    return(invisible())
+  }
+  idle <- 0
+  observe({
+    reactiveValuesToList(input)
+    idle <<- 0
+    removeNotification("kb-idle", session = session)
+  })
+  first <- TRUE
+  observe({
+    invalidateLater(60 * 1000)
+    if (first) {
+      first <<- FALSE
+      return()
+    }
+    idle <<- if (isolate(busy())) 0 else idle + 1
+    if (idle == minutes - 5) {
+      showNotification(
+        div(
+          role = "status",
+          div(class = "fw-semibold", "Session ending soon"),
+          div("This session ends in 5 minutes unless the app is used, and its data and fits are not kept.")
+        ),
+        duration = NULL,
+        id = "kb-idle",
+        session = session
+      )
+    }
+    if (idle >= minutes) session$close()
+  })
+  invisible()
 }

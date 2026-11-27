@@ -1,2 +1,6 @@
 [lint]
 default-exclude = true
+
+# The Shiny server closures keep their state with `<<-`; `:::` stays undesirable.
+[lint.undesirable_operator]
+operators = ["->>", ":::"]

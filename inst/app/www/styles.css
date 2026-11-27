@@ -1,6 +1,7 @@
 /* App classes only. Colours, radii, spacing and component looks come from the
    bs_theme() Sass variables in R/theme.R; nothing here targets Bootstrap, bslib,
-   Shiny or reactable internals. */
+   Shiny or reactable internals, except the one Shiny busy indicator rule at the
+   end. */
 
 .kb-icon {
   width: 1rem;
@@ -17,6 +18,21 @@
   to {
     transform: rotate(360deg);
   }
+}
+
+/* The loading screen over the page until the app connects (loading_screen()). */
+.kb-loading {
+  position: fixed;
+  inset: 0;
+  z-index: 2000;
+  background-color: var(--bs-body-bg);
+  color: var(--bs-body-color);
+}
+
+.kb-kelp-art.kb-loading-art {
+  width: 3rem;
+  height: 3.9rem;
+  color: var(--bs-primary);
 }
 
 .kb-tabular {
@@ -94,34 +110,96 @@
   border-radius: var(--bs-border-radius-lg);
 }
 
-/* Navbar: the brand and the not-yet-done step markers take the navbar's own
-   text colour. */
-.kb-brand-logo {
-  height: 2.25rem;
-  width: auto;
-}
-
+/* Navbar: the brand text and the not-yet-done step markers take the navbar's
+   own text colour; the kelp drawing and the steps done take its highlight
+   (the open step's colour). */
 /* Block, so the drawing adds no line-box space below it. */
 .kb-kelp-art {
+  color: var(--bs-navbar-active-color);
   display: block;
-  width: 1.75rem;
-  height: 2.25rem;
+  width: 2.1rem;
+  height: 2.7rem;
   flex-shrink: 0;
-}
-
-.kb-brand-divider {
-  align-self: stretch;
-  border-left: 1px solid currentColor;
-  opacity: 0.35;
 }
 
 .kb-brand-subtitle {
   opacity: 0.75;
 }
 
+.kb-step-done {
+  background-color: var(--bs-primary);
+  color: var(--bs-white);
+}
+
+.kb-step-title .kb-step-done {
+  background-color: var(--bs-navbar-active-color);
+  color: var(--bs-body-color);
+}
+
 .kb-step-todo {
   border: 1px solid currentColor;
   opacity: 0.8;
+}
+
+/* A figure's frame (figure_plot()) holds space until the figure is first
+   drawn, with a placeholder in it: the figure's own size where it is known,
+   else a set height. */
+.kb-figure-unsized:not(:has(img)) {
+  min-height: 16rem;
+}
+
+.kb-figure-frame:has(img) .kb-figure-skeleton {
+  display: none;
+}
+
+/* The placeholder pulses between a pale grey and white, close to the white
+   figure that replaces it. */
+.kb-figure-placeholder {
+  opacity: 0.6;
+  animation: kb-figure-glow 2s ease-in-out infinite;
+}
+
+@keyframes kb-figure-glow {
+  50% {
+    opacity: 0;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .kb-figure-placeholder {
+    animation: none;
+  }
+}
+
+/* The placeholder shows a figure is loading, so Shiny's busy spinner (sized by
+   its --shiny-spinner-size variable) shows only once there is a figure to
+   redraw. */
+.kb-figure-frame:not(:has(img)) {
+  --shiny-spinner-size: 0px;
+}
+
+/* The arrows that page through a figure's panels show while the pointer is
+   over the figure or an arrow has focus, and always on a touch screen. */
+.kb-panel-nav {
+  opacity: 0;
+  transition: opacity 0.15s ease-in-out;
+}
+
+.kb-figure-frame:hover .kb-panel-nav,
+.kb-figure-frame:focus-within .kb-panel-nav {
+  opacity: 1;
+}
+
+@media (hover: none) {
+  .kb-panel-nav {
+    opacity: 1;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .kb-panel-nav {
+    transition: none;
+  }
 }
 
 /* A small figure, such as a single population-level estimate. */
@@ -131,6 +209,60 @@
 
 /* A section the user guide's contents jump to, which stops short of the
    window's top edge. */
+/* A link tile (Methods): its stretched link opens it from anywhere on it. */
+.kb-tile {
+  border: var(--bs-border-width) solid var(--bs-border-color);
+  transition: border-color 0.15s ease-in-out, background-color 0.15s ease-in-out;
+}
+
+.kb-tile:hover,
+.kb-tile:has(a:focus-visible) {
+  border-color: var(--bs-primary);
+  background-color: var(--bs-tertiary-bg);
+}
+
+/* A file upload button: its file input is visually hidden, so the button
+   shows the focus ring when the input has keyboard focus. */
+.kb-file-button:has(input:focus-visible) {
+  box-shadow: 0 0 0 0.25rem rgba(var(--bs-primary-rgb), 0.25);
+}
+
+/* A sheet tab's status (errors, warnings, the CSV it came from) takes no space
+   when it has nothing to say. */
+.kb-sheet-status:empty {
+  display: none !important;
+}
+
+/* A kelpbio vignette shown on the Help tab (Methods, Glossary): its own
+   headings, figures and code, set to the app's sizes. */
+.kb-article > :last-child {
+  margin-bottom: 0;
+}
+
+.kb-article h3 {
+  font-size: 1rem;
+  font-weight: 600;
+  margin-top: 1.5rem;
+}
+
+.kb-article h4 {
+  font-size: 0.9375rem;
+  font-weight: 600;
+  margin-top: 1.25rem;
+}
+
+.kb-article img {
+  max-width: 100%;
+  height: auto;
+}
+
+.kb-article pre {
+  background-color: var(--bs-tertiary-bg);
+  border-radius: var(--bs-border-radius);
+  padding: 0.75rem;
+  font-size: 0.8125rem;
+}
+
 .kb-anchor {
   scroll-margin-top: 1.5rem;
 }
@@ -151,17 +283,15 @@
   height: 0.875rem;
 }
 
+.kb-with-help .kb-help {
+  margin-left: 0.25rem;
+}
+
 @media (min-width: 992px) {
   .kb-aside {
     position: sticky;
     top: 1.5rem;
   }
-}
-
-/* The workbook file input fills narrow screens but stays compact on wide ones. */
-.kb-file-input {
-  width: 100%;
-  max-width: 20rem;
 }
 
 /* Coverage grid: one square per site-year, filled where a model has data,
@@ -214,4 +344,68 @@
    jump on each tick; a zero spinner size reserves none here. */
 .kb-progress {
   --shiny-spinner-size: 0px;
+}
+
+/* Shiny's busy indicators give a recalculating output room for a spinner, but
+   show none on HTML outputs, so an empty notice or button output grows and
+   moves the page below it while it recalculates. */
+[data-shiny-busy-spinners] .recalculating.shiny-html-output:not(.shiny-table-output) {
+  min-height: 0;
+}
+
+/* The workflow diagram in the user guide: sheets, models and estimates in
+   columns, an arrow between each, one group per estimate. */
+.kb-flow {
+  display: grid;
+  grid-template-columns: minmax(10rem, 1fr) 2rem minmax(10rem, 1fr) 2rem minmax(10rem, 1fr);
+  row-gap: 0.75rem;
+  min-width: 40rem;
+}
+
+.kb-flow-heading {
+  font-weight: 500;
+  color: var(--bs-secondary-color);
+}
+
+.kb-flow-group {
+  grid-column: 1 / -1;
+  display: grid;
+  grid-template-columns: subgrid;
+  row-gap: 0.5rem;
+  padding-top: 0.75rem;
+  border-top: var(--bs-border-width) solid var(--bs-border-color);
+}
+
+.kb-flow-node {
+  border: var(--bs-border-width) solid var(--bs-border-color);
+  border-radius: var(--bs-border-radius);
+  padding: 0.5rem 0.75rem;
+}
+
+.kb-flow-sheet {
+  background-color: var(--bs-tertiary-bg);
+}
+
+.kb-flow-model {
+  background-color: var(--bs-primary-bg-subtle);
+  border-color: var(--bs-primary-border-subtle);
+}
+
+.kb-flow-estimate {
+  background-color: var(--bs-success-bg-subtle);
+  border-color: var(--bs-success-border-subtle);
+  align-self: center;
+}
+
+.kb-flow-arrow {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--bs-secondary-color);
+}
+
+.kb-flow-line {
+  align-self: center;
+  border-top: var(--bs-border-width) dashed var(--bs-border-color);
+  margin-left: 0.5rem;
 }

@@ -1,99 +1,429 @@
-# Workflow definitions. Every model result comes from kelpbio functions (mocked in
-# R/mock-kelpbio.R); this file holds the app's labels and choices.
+# Workflow definitions. Every model result comes from kelpbio functions (the
+# data figures are mocked in R/mock-kelpbio.R); this file holds the app's labels
+# and choices.
 
 # Pre-fit models, by the reference dataset they were fitted to. A model's pre-fit
-# source is "prefit_" and the reference, e.g. "prefit_hakai"; the reference is
-# the value of the kelpbio accessor's reference argument
-# (kb_prefit_weight_nereo(reference = "hakai")).
+# source is "prefit_" and the reference, e.g. "prefit_hakai"; the fit is the
+# kelpbiodata reference fit of that name (fit_weight_hakai_nereo).
 prefit_info <- list(
-  coastwide = list(label = "Pre-fit coastwide", data = "data compiled from surveys along the coast"),
-  hakai = list(label = "Pre-fit Hakai Institute", data = "Hakai Institute survey data")
-)
-
-prefit_source <- function(reference) paste0("prefit_", reference)
-is_prefit <- function(source) startsWith(source, "prefit_")
-prefit_reference <- function(source) sub("^prefit_", "", source)
-
-component_ids <- c("density", "size", "weight", "blade", "wetdry", "carbon", "cover")
-names(component_ids) <- component_ids
-
-# A model's sources: "user" (your data), its pre-fit sources, and "none" (not
-# used). Your data is the default when there is a sheet; otherwise the first
-# pre-fit source, or none. No model is required: a run can, for example, use
-# only a size sheet and a pre-fit weight model to predict plant weights.
-# `columns` are the sheet's required columns, by species where they differ.
-components <- list(
-  density = list(
-    label = "Density", detail = "Stipes per square metre by site-year", sheet = "density",
-    columns = list(nereo = c("site", "year", "stipes", "area_m2"), macro = c("site", "year", "plants", "area_m2")),
-    sources = c("user", "none")
+  coastwide = list(
+    label = "Pre-fit Coastwide",
+    name = "Coastwide",
+    data = "data compiled from in situ surveys along the coast"
   ),
-  size = list(
-    label = "Size", detail = "Distribution of plant size", sheet = "size",
-    columns = list(nereo = c("site", "year", "diameter_mm"), macro = c("site", "year", "fronds")),
-    sources = c("user", prefit_source("hakai"), "none")
-  ),
-  weight = list(
-    label = "Weight", detail = "Wet weight by plant size", sheet = "weight",
-    columns = list(nereo = c("site", "year", "diameter_mm", "weight_kg"), macro = c("site", "year", "fronds", "weight_kg")),
-    sources = c("user", prefit_source(c("coastwide", "hakai")))
-  ),
-  blade = list(
-    label = "Blade fraction", detail = "Proportion of wet weight in blades", sheet = "blade",
-    columns = c("site", "year", "blade_weight_kg", "total_weight_kg"), sources = c("user", "none")
-  ),
-  wetdry = list(
-    label = "Wet:dry", detail = "Ratio of dry to wet mass", sheet = "wetdry",
-    columns = c("wet_mass_g", "dry_mass_g"), sources = c("user", prefit_source("hakai"), "none")
-  ),
-  carbon = list(
-    label = "Carbon", detail = "Carbon fraction of dry mass", sheet = "carbon",
-    columns = c("sample_mass_mg", "carbon_mass_ug"), sources = c("user", prefit_source("hakai"), "none")
-  ),
-  # Optional: scales biomass per unit area up to total biomass per site-year.
-  # Fitted to the drone surveys with the biomass predictions for their
-  # site-years added, so once every other model in use is ready. The sheet holds
-  # the surveys only, so its check is the surveys check (`check`).
-  cover = list(
-    label = "Cover", detail = "Relates plot wet biomass to canopy cover from drone surveys", sheet = "cover",
-    columns = c("site", "year", "canopy_m2", "polygon_m2", "tide_height_m"), sources = c("user", "none"),
-    check = "cover_surveys"
+  hakai = list(
+    label = "Pre-fit Hakai Institute",
+    name = "Hakai Institute",
+    data = "Hakai Institute in situ survey data"
   )
 )
 
-sheet_columns <- function(id, species) {
-  columns <- components[[id]]$columns
-  if (is.list(columns)) columns[[species]] else columns
+prefit_source <- function(reference) {
+  if (length(reference) > 0) paste0("prefit_", reference) else character()
+}
+is_prefit <- function(source) startsWith(source, "prefit_")
+# The reference of a pre-fit or combined source.
+prefit_reference <- function(source) sub("^(prefit|combined)_", "", source)
+
+# A combined source fits the model to your data bound to the rows of a
+# kelpbiodata reference dataset, e.g. "combined_hakai" binds
+# data_weight_hakai_nereo; the cover calibration has none. A model fitted to
+# your data or a combined source is fitted in the app (fits_here()).
+combined_source <- function(reference) {
+  if (length(reference) > 0) paste0("combined_", reference) else character()
+}
+is_combined <- function(source) startsWith(source, "combined_")
+fits_here <- function(source) source == "user" | is_combined(source)
+# Where the reference data and fits come from, shown with kelpbiodata's
+# attribution statement on the About page and in the results of a run that
+# uses them (uses_reference()).
+reference_licence <- "The pre-fit models and the Hakai Institute reference data come from the kelpbiodata package, under the CC BY 4.0 licence."
+
+# Whether a run uses kelpbiodata's reference data or fits, whose outputs carry
+# its attribution statement.
+uses_reference <- function(sources) {
+  sources <- unlist(sources)
+  any(is_prefit(sources) | is_combined(sources))
 }
 
-# The models that combine into biomass per unit area; the cover model builds on them.
-biomass_ids <- component_ids[component_ids != "cover"]
-
-# The kelpbio name a model's sheet is checked under (as in kb_check_data_<name>_<species>()).
-check_name <- function(id) components[[id]]$check %||% id
-
-# The kelpbio function for a model and species: kelpbio_fn("fit", "cover", "nereo")
-# is kb_fit_cover_nereo(). In the package these resolve to the functions
-# imported from kelpbio.
-kelpbio_verbs <- c(check = "check_data", priors = "priors", fit = "fit", prefit = "prefit")
-kelpbio_fn <- function(verb, id, species) {
-  name <- if (verb == "check") check_name(id) else id
-  get(sprintf("kb_%s_%s_%s", kelpbio_verbs[[verb]], name, species), mode = "function")
+# The name of the kelpbiodata reference dataset of a model, by reference.
+reference_data_name <- function(id, species, reference) {
+  name <- if (id == "size") "size_sample" else id
+  sprintf("data_%s_%s_%s", name, reference, species_info[[species]]$suffix)
 }
 
-# The example workbooks the Data step offers, by kb_example_data()'s `example`,
-# in the order shown.
-example_workbooks <- list(
-  full = list(label = "All sheets", detail = "Density, size, weight, wet:dry, carbon and cover, each fitted to the data, through to total biomass"),
-  density_size = list(label = "Density and size", detail = "As a typical monitoring program collects; weight, wet:dry and carbon are pre-fit"),
-  bad_weight = list(label = "A sheet with a data error", detail = "Density and size, and a weight sheet with missing years"),
-  size_only = list(label = "Size only", detail = "Plant diameters, to predict the weight of each plant")
+# The rows a model is fitted to: the sheet's rows, bound to the reference
+# dataset's for a combined source.
+fit_rows <- function(id, species, rows, source) {
+  if (!is_combined(source)) {
+    return(rows)
+  }
+  reference <- getExportedValue(
+    "kelpbiodata",
+    reference_data_name(id, species, prefit_reference(source))
+  )
+  dplyr::bind_rows(rows, reference)
+}
+
+# The site-years of your rows that the reference dataset of a combined source
+# also holds, as "site year". Their plants may be in both, and so fitted twice;
+# the app warns rather than dropping rows, as plants of the same size at the
+# same site-year are common.
+reference_overlap <- function(id, species, rows, source) {
+  if (!is_combined(source) || !all(c("site", "year") %in% names(rows))) {
+    return(character())
+  }
+  reference <- getExportedValue(
+    "kelpbiodata",
+    reference_data_name(id, species, prefit_reference(source))
+  )
+  shared <- intersect(site_years(rows), site_years(reference))
+  sub("|", " ", shared, fixed = TRUE)
+}
+
+# The name of the kelpbiodata reference fit of a model to a reference dataset.
+prefit_name <- function(id, species, reference) {
+  sprintf(
+    "fit_%s_%s_%s",
+    model_name(id),
+    reference,
+    species_info[[species]]$suffix
+  )
+}
+
+prefit_fit <- function(id, species, reference) {
+  getExportedValue("kelpbiodata", prefit_name(id, species, reference))
+}
+
+# The reference fits and datasets the installed kelpbiodata holds, read once.
+reference_fits <- local({
+  names <- NULL
+  function() {
+    names <<- names %||% utils::data(package = "kelpbiodata")$results[, "Item"]
+  }
+})
+
+species_info <- list(
+  nereo = list(
+    latin = "Nereocystis luetkeana",
+    common = "bull kelp",
+    suffix = "nereo"
+  ),
+  macro = list(
+    latin = "Macrocystis pyrifera",
+    common = "giant kelp",
+    suffix = "macro"
+  )
 )
 
-# Biomass per unit area combines these models at the least, so each must be in
-# use (fitted to your data or pre-fit).
-biomass_core_ids <- c("density", "size", "weight")
-biomass_possible <- function(sources) all(sources[biomass_core_ids] != "none")
+# Sheets ----------------------------------------------------------------------------
+# A workbook holds one sheet per kind of data, named by its id; `row` is what
+# one row of the sheet holds. Each sheet holds one of kelpbio's datasets
+# (sheet_dataset()), whose columns come from kelpbio's data dictionary
+# (kb_data_columns()). Each sheet but the canopy sheet is the data of one
+# model (components); the survey sheet is the cover calibration's.
+
+sheet_ids <- c(
+  "weight",
+  "size",
+  "survey",
+  "canopy",
+  "wetdry",
+  "carbon",
+  "nitrogen"
+)
+names(sheet_ids) <- sheet_ids
+
+sheet_info <- list(
+  weight = list(label = "Weight"),
+  size = list(label = "Size"),
+  survey = list(label = "In situ survey"),
+  canopy = list(label = "Canopy"),
+  wetdry = list(label = "Wet:dry"),
+  carbon = list(label = "Carbon"),
+  nitrogen = list(label = "Nitrogen")
+)
+
+# What one row of a sheet holds, for the kind of size data, from kelpbio
+# (kb_datasets()): markdown with column names in backticks, starting lower
+# case to follow "One row per". Both species' datasets read the same.
+sheet_row <- function(id, census = FALSE) {
+  row <- kb_datasets(sheet_dataset(id, "nereo", census))$row
+  paste0(tolower(substr(row, 1, 1)), substring(row, 2))
+}
+
+# A sheet's row as HTML, with its column names in code font, so it sits inside
+# a sentence with no white space added around it.
+row_html <- function(row) {
+  gsub("`([^`]*)`", "<code>\\1</code>", htmltools::htmlEscape(row))
+}
+
+# A sheet's row as plain text, for the template.
+row_text <- function(row) gsub("`", "", row, fixed = TRUE)
+
+# The kelpbio dataset a sheet holds, for a species and kind of size data, as
+# kb_data_columns() names it.
+sheet_dataset <- function(id, species, census = is_census(species)) {
+  switch(
+    id,
+    size = if (census) paste0("size_census_", species) else "size_sample_nereo",
+    survey = ,
+    canopy = sheet_name(id),
+    paste0(id, "_", species)
+  )
+}
+
+# A sheet's columns for a species and kind of size data, optional ones
+# included: a census has no plants tally on its surveys.
+sheet_columns <- function(id, species, census = is_census(species)) {
+  columns <- kb_data_columns(sheet_dataset(id, species, census))$column
+  if (id == "survey" && census) {
+    columns <- setdiff(columns, "plants")
+  }
+  columns
+}
+
+sheet_label <- function(id) sheet_info[[id]]$label
+
+# Census ------------------------------------------------------------------------------
+# The kind of size data, chosen on the Data step: a measured sample of plants,
+# to which a size model is fitted while the surveys tally their plants, or a
+# census, which measures every counted plant, so the size sheet holds the
+# plants of each survey and in situ survey biomass weighs each plant. Macrocystis
+# surveys are always a census, as kelpbio has no Macrocystis size model.
+size_data_info <- list(
+  sample = list(
+    label = "Sample of plants measured",
+    detail = "Size model fitted"
+  ),
+  census = list(
+    label = "All plants measured",
+    detail = "A census; no size model fitted"
+  )
+)
+
+is_census <- function(species, size_data = "sample") {
+  species == "macro" || size_data == "census"
+}
+
+# A sheet's name in a workbook, a CSV file name, the template and the
+# messages: the size sheet is named for its kind of size data, and the in situ
+# survey and canopy sheets for how they survey the kelp; the app's sheet ids
+# stay "size", "survey" and "canopy".
+size_sheet_names <- c(sample = "size_sample", census = "size_census")
+survey_sheet_names <- c(survey = "survey_in_situ", canopy = "survey_canopy")
+sheet_name <- function(id, census = FALSE) {
+  if (id == "size") {
+    return(size_sheet_names[[if (census) "census" else "sample"]])
+  }
+  if (id %in% names(survey_sheet_names)) survey_sheet_names[[id]] else id
+}
+
+# The kind of size data that sheet or file names (`names`) show: "sample" or
+# "census" when exactly one of the size sheet names is among them, else NULL.
+# The sheet a CSV file holds, from its name (weight.csv, size_census.csv), or
+# NULL.
+csv_sheet_id <- function(file) {
+  name <- sub("\\.csv$", "", file, ignore.case = TRUE)
+  if (name %in% c(size_sheet_names, "size")) {
+    return("size")
+  }
+  ids <- Filter(function(id) sheet_name(id) == name, setdiff(sheet_ids, "size"))
+  if (length(ids) > 0) ids[[1]]
+}
+
+size_data_guess <- function(names) {
+  kinds <- names(size_sheet_names)[size_sheet_names %in% names]
+  if (length(kinds) == 1) kinds
+}
+
+# The survey rows as kelpbio takes them: in a census, without a blank plants
+# column (one with counts is left in, so the check flags it), as the counts
+# then come from the plant rows.
+survey_rows <- function(rows, census) {
+  if (census && "plants" %in% names(rows) && all(is.na(rows$plants))) {
+    rows[setdiff(names(rows), "plants")]
+  } else {
+    rows
+  }
+}
+
+# A plant table with no rows, to check the survey sheet of a census before
+# its size sheet passes its check.
+empty_plants <- function(species) {
+  plants <- data.frame(survey_id = character(), size = numeric())
+  names(plants)[2] <- if (species == "macro") "fronds" else "diameter_mm"
+  plants
+}
+
+# Models ------------------------------------------------------------------------------
+
+component_ids <- c("weight", "size", "wetdry", "carbon", "nitrogen", "cover")
+names(component_ids) <- component_ids
+
+# A model's sources: "user" (your data), "combined" (your data with each
+# reference dataset kelpbiodata holds for it; not the cover calibration), its pre-fit sources, "census" (the size
+# model only: the size sheet's plants are weighed directly) and "none" (not
+# used). Your data is the default when there is a sheet; otherwise the first
+# pre-fit source, or none. No model is required: a run can, for example, use
+# only a size sheet and a pre-fit weight model to predict plant weights.
+# `sheet` is the sheet the model is fitted to, and `prefit` the references of
+# its reference fits, by species, offered where kelpbiodata holds them. kelpbio
+# names the cover model cover_calibration (`model`).
+components <- list(
+  weight = list(
+    label = "Weight",
+    detail = "Wet weight by plant size",
+    sheet = "weight",
+    sources = c("user", "combined", "prefit"),
+    prefit = list(nereo = c("coastwide", "hakai"), macro = "hakai")
+  ),
+  size = list(
+    label = "Size",
+    detail = "Distribution of plant size by site-year",
+    sheet = "size",
+    sources = c("user", "combined", "prefit", "none"),
+    prefit = list(nereo = "hakai")
+  ),
+  wetdry = list(
+    label = "Wet:dry",
+    detail = "Ratio of dry to wet mass",
+    sheet = "wetdry",
+    sources = c("user", "combined", "prefit", "none"),
+    prefit = list(nereo = "hakai", macro = "hakai")
+  ),
+  carbon = list(
+    label = "Carbon",
+    detail = "Carbon fraction of dry mass",
+    sheet = "carbon",
+    sources = c("user", "combined", "prefit", "none"),
+    prefit = list(nereo = "hakai", macro = "hakai")
+  ),
+  nitrogen = list(
+    label = "Nitrogen",
+    detail = "Nitrogen fraction of dry mass",
+    sheet = "nitrogen",
+    sources = c("user", "combined", "prefit", "none"),
+    prefit = list(nereo = "hakai", macro = "hakai")
+  ),
+  # Optional: scales in situ survey biomass up to the mapped canopy. It is
+  # fitted to the in situ survey biomass of the surveys with canopy imagery, once the
+  # weight and size models are ready; a pre-fit calibration needs neither.
+  cover = list(
+    label = "Cover calibration",
+    detail = "In situ survey biomass by canopy cover",
+    sheet = "survey",
+    sources = c("user", "prefit", "none"),
+    prefit = list(nereo = "hakai", macro = "hakai"),
+    model = "cover_calibration"
+  )
+)
+
+# The models whose results in situ survey biomass combines; the cover calibration is
+# fitted to it, so a change to either makes the calibration out of date.
+survey_ids <- c("weight", "size")
+
+# The models by what they are for, in the order the Models and Estimates steps
+# list them.
+model_groups <- list(
+  survey = list(label = "For in situ survey biomass", ids = survey_ids),
+  canopy = list(label = "For canopy biomass", ids = "cover"),
+  measure = list(
+    label = "For dry, carbon and nitrogen biomass",
+    ids = c("wetdry", "carbon", "nitrogen")
+  )
+)
+model_order <- unlist(lapply(model_groups, `[[`, "ids"), use.names = FALSE)
+
+# The model fitted to a sheet, or NULL for the canopy sheet.
+sheet_component <- function(id) {
+  ids <- Filter(function(cid) components[[cid]]$sheet == id, component_ids)
+  if (length(ids) > 0) ids[[1]]
+}
+
+# The source of the model fitted to a sheet, which says whether the sheet is in
+# use. The survey sheet makes in situ survey biomass whether or not the cover
+# calibration is fitted to it, and the canopy sheet is fitted by no model, so
+# both are always in use.
+sheet_source <- function(id, sources) {
+  model <- sheet_component(id)
+  if (is.null(model) || id == "survey") "user" else sources[[model]]
+}
+
+# A source that uses its model's sheet.
+uses_sheet <- function(source) fits_here(source) | source == "census"
+
+# The sheets in use that fail their check.
+sheet_errors <- function(sheets, sources) {
+  Filter(
+    function(id) {
+      !is.null(sheets[[id]]$error) && uses_sheet(sheet_source(id, sources))
+    },
+    names(sheets)
+  )
+}
+
+# The sheets in use whose checks passed with warnings.
+sheet_warnings <- function(sheets, sources) {
+  Filter(
+    function(id) {
+      is.null(sheets[[id]]$error) &&
+        !is.null(sheets[[id]]$warnings) &&
+        uses_sheet(sheet_source(id, sources))
+    },
+    names(sheets)
+  )
+}
+
+# The models and estimates a run shows: a census has no size model, so no size
+# predictions.
+shown_models <- function(census) {
+  if (census) setdiff(component_ids, "size") else component_ids
+}
+shown_estimates <- function(census) {
+  if (census) setdiff(estimate_ids, "size") else estimate_ids
+}
+
+# kelpbio has no Macrocystis size model: Macrocystis in situ surveys are a census.
+has_model <- function(id, species) !(id == "size" && species == "macro")
+
+# The sources a model offers for a species, its pre-fit models in place of
+# "prefit": a census has only the census.
+model_sources <- function(id, census = FALSE, species = "nereo") {
+  if (id == "size" && census) {
+    return("census")
+  }
+  references <- components[[id]]$prefit[[species]]
+  datasets <- references[
+    reference_data_name(id, species, references) %in% reference_fits()
+  ]
+  references <- references[
+    prefit_name(id, species, references) %in% reference_fits()
+  ]
+  sources <- as.list(components[[id]]$sources)
+  sources[sources == "combined"] <- list(combined_source(datasets))
+  sources[sources == "prefit"] <- list(prefit_source(references))
+  unlist(sources)
+}
+
+# The kelpbio name of a model (as in kb_fit_<name>_<species>()).
+model_name <- function(id) components[[id]]$model %||% id
+
+# The kelpbio function for a model and species: kelpbio_fn("fit", "cover", "nereo")
+# is kb_fit_cover_calibration_nereo(). In the package these resolve to the functions
+# imported from kelpbio.
+kelpbio_verbs <- c(
+  check = "check_data",
+  plot_data = "plot_data",
+  priors = "priors",
+  fit = "fit"
+)
+kelpbio_fn <- function(verb, id, species) {
+  get(
+    sprintf("kb_%s_%s_%s", kelpbio_verbs[[verb]], model_name(id), species),
+    mode = "function"
+  )
+}
 
 label_of <- function(id) components[[id]]$label
 lower_label <- function(id) tolower(label_of(id))
@@ -102,10 +432,10 @@ source_label <- function(source) {
   if (is_prefit(source)) {
     return(prefit_info[[prefit_reference(source)]]$label)
   }
-  switch(source,
-    user = "Your data",
-    none = "Not used"
-  )
+  if (is_combined(source)) {
+    return(paste("Your data +", prefit_info[[prefit_reference(source)]]$name))
+  }
+  switch(source, user = "Your data", census = "Census", none = "Not used")
 }
 
 source_labels <- function(sources) vapply(sources, source_label, character(1))
@@ -116,30 +446,8 @@ source_note <- function(source) {
   paste0(tolower(substr(label, 1, 1)), substring(label, 2))
 }
 
-species_info <- list(
-  nereo = list(latin = "Nereocystis luetkeana", common = "bull kelp", suffix = "nereo"),
-  macro = list(latin = "Macrocystis pyrifera", common = "giant kelp", suffix = "macro")
-)
-
-output_info <- list(
-  wet = list(label = "Wet biomass", unit = "kg/m\u00b2"),
-  dry = list(label = "Dry biomass", unit = "kg/m\u00b2"),
-  carbon = list(label = "Carbon", unit = "kg/m\u00b2")
-)
-
-# The estimates on the Estimates step: each model's predictions, then biomass
-# per unit area and total biomass from the combined models.
-estimate_ids <- c(component_ids, biomass = "biomass", total = "total")
-estimate_label <- function(id) switch(id, biomass = "Biomass per unit area", total = "Total biomass", label_of(id))
-
-output_components <- list(
-  wet = c("density", "size", "weight", "blade"),
-  dry = c("density", "size", "weight", "blade", "wetdry"),
-  carbon = biomass_ids
-)
-
-default_source <- function(id, has_sheet) {
-  options <- components[[id]]$sources
+default_source <- function(id, has_sheet, census = FALSE, species = "nereo") {
+  options <- model_sources(id, census, species)
   if (has_sheet && "user" %in% options) {
     return("user")
   }
@@ -147,106 +455,599 @@ default_source <- function(id, has_sheet) {
   if (length(prefit) > 0) {
     return(prefit[[1]])
   }
-  "none"
+  options[[length(options)]]
 }
 
-default_sources <- function(sheets) {
-  vapply(component_ids, function(id) default_source(id, !is.null(sheets[[id]])), character(1))
+# The cover calibration has data once some surveys have canopy imagery.
+model_has_data <- function(id, sheets) {
+  sheet <- sheets[[components[[id]]$sheet]]
+  !is.null(sheet) && (id != "cover" || nrow(drone_surveys(sheet$rows)) > 0)
 }
+
+default_sources <- function(sheets, census = FALSE, species = "nereo") {
+  vapply(
+    component_ids,
+    function(id) {
+      default_source(id, model_has_data(id, sheets), census, species)
+    },
+    character(1)
+  )
+}
+
+# The sources kept where the species and kind of size data offer them, and
+# otherwise back to their default: the size source is census while it is a
+# census, and a pre-fit model the species has no reference fit for is dropped.
+valid_sources <- function(sources, census, sheets, species = "nereo") {
+  for (id in component_ids) {
+    if (!sources[[id]] %in% model_sources(id, census, species)) {
+      sources[[id]] <- default_source(
+        id,
+        model_has_data(id, sheets),
+        census,
+        species
+      )
+    }
+  }
+  sources
+}
+
+# Each sheet's data figure (kb_plot_data_<model>_<species>(), or the survey and
+# canopy figures shared by both species): its caption, by species where it
+# differs, and its height as a share of its width in one panel.
+data_plot_info <- list(
+  weight = list(
+    caption = c(
+      nereo = "Wet weight of each plant by diameter.",
+      macro = "Wet weight of each plant by frond count."
+    ),
+    aspect = 4 / 8
+  ),
+  size = list(
+    caption = c(
+      nereo = "Distribution of plant diameter.",
+      macro = "Distribution of frond counts."
+    ),
+    aspect = 4 / 8
+  ),
+  survey = list(
+    caption = "Canopy cover fraction of each in situ survey plot with canopy imagery, by the plants counted in it.",
+    aspect = 4 / 8
+  ),
+  canopy = list(
+    caption = "Canopy area mapped at each site, by year.",
+    aspect = 4 / 8
+  ),
+  wetdry = list(
+    caption = "Distribution of the ratio of dry to wet mass of the tissue samples.",
+    aspect = 4 / 8
+  ),
+  carbon = list(
+    caption = "Distribution of the carbon fraction of dry mass of the tissue samples.",
+    aspect = 4 / 8
+  ),
+  nitrogen = list(
+    caption = "Distribution of the nitrogen fraction of dry mass of the tissue samples.",
+    aspect = 4 / 8
+  )
+)
+
+data_plot_caption <- function(id, species) {
+  caption <- data_plot_info[[id]]$caption
+  if (length(caption) > 1) caption[[species]] else caption
+}
+
+# Whether a sheet has a figure: the survey figure shows the surveys with canopy imagery.
+sheet_has_plot <- function(id, rows) {
+  id != "survey" || nrow(drone_surveys(rows)) > 0
+}
+
+# The panels a sheet's figure can be split into, by kelpbio's `facet`: a site
+# or year column. The canopy figure has year on its x-axis.
+sheet_facets <- function(id, rows) {
+  c(
+    site = if ("site" %in% names(rows)) "Site",
+    year = if (id != "canopy" && "year" %in% names(rows)) "Year"
+  )
+}
+
+# A sheet's data figure, in one panel or a panel per `facet`. In a census the
+# survey figure counts each survey's plants in the size sheet (`size_census`).
+sheet_plot <- function(id, rows, species, facet = NULL, size_census = NULL) {
+  switch(
+    id,
+    survey = kb_plot_data_in_situ(
+      rows,
+      size_census = size_census,
+      facet = facet
+    ),
+    canopy = kb_plot_data_canopy(rows, facet = facet),
+    kelpbio_fn("plot_data", id, species)(rows, facet = facet)
+  )
+}
+
+# Each biomass measure (kelpbio's `measure`), with its unit per m\u00b2 (area)
+# and in total.
+output_info <- list(
+  wet = list(
+    label = "Wet biomass",
+    unit = c(area = "kg/m\u00b2", total = "kg")
+  ),
+  dry = list(
+    label = "Dry biomass",
+    unit = c(area = "kg/m\u00b2", total = "kg")
+  ),
+  carbon = list(
+    label = "Carbon",
+    unit = c(area = "g C/m\u00b2", total = "kg C")
+  ),
+  nitrogen = list(
+    label = "Nitrogen",
+    unit = c(area = "g N/m\u00b2", total = "kg N")
+  )
+)
+
+# The models a measure needs besides those of the biomass itself.
+output_components <- list(
+  wet = character(),
+  dry = "wetdry",
+  carbon = c("wetdry", "carbon"),
+  nitrogen = c("wetdry", "nitrogen")
+)
+
+# The estimates on the Estimates step: each model's predictions, then survey
+# biomass and canopy biomass from the combined models.
+estimate_ids <- c(component_ids, survey = "survey", canopy = "canopy")
+# In situ survey biomass first, as canopy biomass builds on it.
+derived_ids <- c("survey", "canopy")
+estimate_label <- function(id) {
+  switch(
+    id,
+    survey = "In situ survey biomass",
+    canopy = "Canopy biomass",
+    label_of(id)
+  )
+}
+
+# The models each derived estimate uses, whose warnings show on its page.
+derived_components <- list(survey = survey_ids, canopy = c(survey_ids, "cover"))
 
 # Sheets --------------------------------------------------------------------------------
 
-# A sheet: its rows and the result of the model's kelpbio data check, which
-# either passes or aborts with a message naming the column. Messages and
-# warnings the check reports become the sheet's note.
-new_sheet <- function(id, rows, file, species) {
+# A condition's message as one line of text: kelpbio's messages are formatted
+# by cli, wrapped to the console width and with a bullet before each line
+# after the first.
+condition_text <- function(cnd) {
+  message <- withr::with_options(
+    list(cli.width = Inf, cli.num_colors = 1),
+    conditionMessage(cnd)
+  )
+  # A message formatted when it was signalled can still hold ANSI styles.
+  message <- cli::ansi_strip(message)
+  lines <- trimws(strsplit(message, "\n", fixed = TRUE)[[1]])
+  lines[-1] <- sub("^(\u2139|\u2716|\u2714|\u2022|!|i|x|v|\\*) ", "", lines[-1])
+  paste(lines[lines != ""], collapse = " ")
+}
+
+# A sheet: its rows and the result of its data check, which either passes or
+# aborts with a message naming the column. Warnings the check gives
+# (implausible values) become the sheet's warnings, one per element, and its
+# messages its note. `check` runs the check.
+new_sheet <- function(id, rows, file, check, name = id) {
+  warnings <- character()
   notes <- character()
   result <- tryCatch(
     withCallingHandlers(
-      kelpbio_fn("check", id, species)(rows, x_name = sprintf("`%s`", components[[id]]$sheet)),
+      check(),
       warning = function(w) {
-        notes <<- c(notes, conditionMessage(w))
+        warnings <<- c(warnings, condition_text(w))
         invokeRestart("muffleWarning")
       },
       message = function(m) {
-        notes <<- c(notes, trimws(conditionMessage(m)))
+        notes <<- c(notes, condition_text(m))
         invokeRestart("muffleMessage")
       }
     ),
     error = function(e) e
   )
   list(
-    component = id, name = components[[id]]$sheet, file = file, rows = rows,
-    error = if (inherits(result, "error")) conditionMessage(result),
+    component = id,
+    name = name,
+    file = file,
+    rows = rows,
+    error = if (inherits(result, "error")) condition_text(result),
+    warnings = if (length(warnings) > 0) unique(warnings),
     note = if (length(notes) > 0) paste(notes, collapse = " ")
   )
 }
 
-# Uploaded rows as a data frame with site and year as text: spreadsheets store
-# years as numbers, and the kelpbio checks take site and year as text.
+# The kelpbio check of a sheet. In a census the size sheet is checked as a
+# size census and the survey sheet with it (`size`, its rows once they pass
+# their check), so plants that match no survey show on the survey sheet.
+check_sheet <- function(id, rows, species, census, size = NULL) {
+  x_name <- sprintf("`%s`", sheet_name(id, census))
+  switch(
+    id,
+    size = if (!census) {
+      kb_check_data_size_sample_nereo(rows, x_name = x_name)
+    } else if (species == "macro") {
+      kb_check_data_size_census_macro(rows, x_name = x_name)
+    } else {
+      kb_check_data_size_census_nereo(rows, x_name = x_name)
+    },
+    survey = if (census) {
+      kb_check_data_survey_in_situ(
+        survey_rows(rows, TRUE),
+        size_census = size,
+        x_name = x_name
+      )
+    } else {
+      kb_check_data_survey_in_situ(rows, x_name = x_name)
+    },
+    canopy = kb_check_data_survey_canopy(rows, x_name = x_name),
+    kelpbio_fn("check", id, species)(rows, x_name = x_name)
+  )
+}
+
+# Every sheet checked, from the rows and file of each, by sheet id. The survey
+# sheet of a census is checked with the size sheet's plants, so a change to any
+# sheet checks them all again. A survey sheet that does not match the kind of
+# size data says how to change it.
+check_sheets <- function(rows, files, species, census = is_census(species)) {
+  sheets <- list()
+  for (id in intersect(sheet_ids, names(rows))) {
+    size <- if (!is.null(sheets$size) && is.null(sheets$size$error)) {
+      rows$size
+    } else {
+      empty_plants(species)
+    }
+    sheets[[id]] <- new_sheet(
+      id,
+      rows[[id]],
+      files[[id]],
+      function() check_sheet(id, rows[[id]], species, census, size),
+      sheet_name(id, census)
+    )
+  }
+  survey <- sheets$survey
+  if (!is.null(survey$error) && species == "nereo") {
+    tally <- "plants" %in% names(survey$rows) && !all(is.na(survey$rows$plants))
+    if (!census && !tally) {
+      sheets$survey$error <- paste(
+        survey$error,
+        sprintf(
+          "If the size sheet holds every counted plant, choose %s under Size data.",
+          size_data_info$census$label
+        )
+      )
+    } else if (census && tally) {
+      sheets$survey$error <- paste(
+        survey$error,
+        sprintf(
+          "If the size sheet holds a sample of the plants, choose %s under Size data.",
+          size_data_info$sample$label
+        )
+      )
+    }
+  }
+  sheets
+}
+
+# Uploaded rows as a data frame with site, year and survey_id as text:
+# spreadsheets store years and survey numbers as numbers, which kelpbio uses as
+# text.
 as_sheet_rows <- function(rows) {
   rows <- as.data.frame(rows)
-  for (column in intersect(c("site", "year"), names(rows))) rows[[column]] <- as.character(rows[[column]])
+  for (column in intersect(c("site", "year", "survey_id"), names(rows))) {
+    rows[[column]] <- as.character(rows[[column]])
+  }
   rows
 }
 
-# The rows of each sheet in an Excel workbook named after a model's sheet, by
-# model; other sheets are ignored.
-read_workbook <- function(path) {
-  present <- readxl::excel_sheets(path)
-  ids <- Filter(function(id) components[[id]]$sheet %in% present, component_ids)
-  lapply(ids, function(id) as_sheet_rows(readxl::read_excel(path, sheet = components[[id]]$sheet)))
+# What each sheet column holds and the values it accepts, as kelpbio's
+# kb_check_data_*() documents them; `sheet_column_info` holds the columns whose
+# meaning differs by sheet.
+column_info <- list(
+  site = c(
+    "Site name, spelled the same way in every sheet",
+    "Text, without commas or square brackets"
+  ),
+  year = c(
+    "Year of the in situ survey or harvest, in the peak season",
+    "Year, e.g. 2024"
+  ),
+  survey_id = c(
+    "In situ survey identifier, unique to each survey, also of the same site on the same day",
+    "Text or number"
+  ),
+  diameter_mm = c(
+    "Diameter of the plant (mm): the maximum sub-bulb diameter, or another measure such as bulb diameter, the same in the weight and size sheets",
+    "Greater than 0"
+  ),
+  fronds = c(
+    "Fronds reaching 1 m above the holdfast; leave out plants with none",
+    "Whole number, greater than 0"
+  ),
+  weight_kg = c("Wet weight of the plant (kg)", "Greater than 0"),
+  partial = c(
+    "Whether the plant counts as half, such as on the edge of a transect",
+    "TRUE or FALSE; optional"
+  ),
+  survey_area_m2 = c(
+    "Area surveyed, such as the transects of a dive (m\u00b2)",
+    "Greater than 0, at most plot_area_m2"
+  ),
+  plants = c("Plants counted in the in situ survey", "Whole number, 0 or more"),
+  plot_area_m2 = c(
+    "Area of the plot polygon the canopy is measured over in the canopy imagery (m\u00b2)",
+    "Greater than 0; blank for an in situ survey without canopy imagery"
+  ),
+  canopy_area_m2 = c(
+    "Canopy area the canopy imagery delineated within the plot (m\u00b2)",
+    "0 or more (0 for no canopy), at most plot_area_m2; blank for an in situ survey without canopy imagery"
+  ),
+  canopy_tide_height_m = c(
+    "Tide height when the canopy imagery of the plot was taken (drone or other remote sensing), chart datum (m)",
+    "Number; blank for an in situ survey without canopy imagery"
+  ),
+  classified_area_m2 = c(
+    "Water area the canopy classification covered within the site, including water where no canopy was found (m\u00b2)",
+    "Greater than 0, at least canopy_area_m2"
+  ),
+  wet_mass_g = c(
+    "Mass of the tissue sample before drying (g)",
+    "Greater than 0"
+  ),
+  dry_mass_g = c(
+    "Mass of the same sample after drying (g)",
+    "Greater than 0, less than wet_mass_g"
+  ),
+  sample_mass_mg = c(
+    "Mass of the dried sample analysed, as the lab reports it (mg)",
+    "Greater than 0"
+  ),
+  carbon_mass_ug = c(
+    "Carbon measured in the sample (\u00b5g)",
+    "Greater than 0, less than the sample mass"
+  ),
+  nitrogen_mass_ug = c(
+    "Nitrogen measured in the sample (\u00b5g)",
+    "Greater than 0, less than the sample mass"
+  )
+)
+
+sheet_column_info <- list(
+  size = list(
+    survey_id = c(
+      "In situ survey the plant was counted in, as in the survey_in_situ sheet",
+      "Text or number"
+    )
+  ),
+  canopy = list(
+    year = c("Year of the canopy map", "Year, e.g. 2024"),
+    canopy_area_m2 = c(
+      "Canopy area mapped within the site from the canopy imagery (m\u00b2)",
+      "0 or more (0 for no canopy)"
+    ),
+    canopy_tide_height_m = c(
+      "Tide height when the imagery of the canopy map was taken, chart datum (m)",
+      "Number"
+    )
+  )
+)
+
+column_text <- function(sheet, column) {
+  sheet_column_info[[sheet]][[column]] %||% column_info[[column]]
 }
 
-read_csv_rows <- function(path) as_sheet_rows(utils::read.csv(path, check.names = FALSE))
+# Whether a run needs a sheet: weight, size and survey make in situ survey biomass, a
+# pre-fit model stands in for a missing model sheet, and a canopy sheet adds
+# canopy biomass.
+sheet_need <- function(id, species = "nereo") {
+  if (id == "survey") {
+    return("Required for in situ survey biomass and the cover calibration")
+  }
+  if (id == "canopy") {
+    return("Optional: for canopy biomass")
+  }
+  prefit <- Filter(is_prefit, model_sources(id, species = species))
+  need <- if (length(prefit) > 0) {
+    sprintf(
+      "Optional: without it, the %s model is used",
+      source_note(prefit[1])
+    )
+  } else {
+    "Optional"
+  }
+  if (id == "size") {
+    need <- paste0(need, "; required for a census")
+  }
+  need
+}
+
+# The template's first sheet: each sheet, whether it is needed, what a row is,
+# and its columns with their accepted values, for a species and kind of size
+# data.
+template_readme <- function(species, census = is_census(species)) {
+  rows <- lapply(sheet_ids, function(id) {
+    columns <- sheet_columns(id, species, census)
+    data.frame(
+      sheet = sheet_name(id, census),
+      needed = sheet_need(id, species),
+      one_row_per = row_text(sheet_row(id, census)),
+      column = columns,
+      description = vapply(columns, function(x) column_text(id, x)[1], ""),
+      values = vapply(columns, function(x) column_text(id, x)[2], "")
+    )
+  })
+  all <- data.frame(
+    sheet = "All sheets",
+    needed = "",
+    one_row_per = "",
+    column = "Every column",
+    description = paste(
+      "Fill every cell: a blank cell is an error, except in an optional column and the canopy imagery columns of an in situ survey without canopy imagery.",
+      "Other columns are ignored, except text columns of the survey_canopy sheet, such as region or habitat, which canopy biomass can be totalled over by year."
+    ),
+    values = ""
+  )
+  do.call(rbind, c(list(all), unname(rows)))
+}
+
+# The template workbook for a species: a README sheet, then one sheet per
+# kind of data, named as read_workbook() reads it, with the sheet's columns as
+# headers and no rows.
+template_sheets <- function(species, census = is_census(species)) {
+  sheets <- lapply(sheet_ids, function(id) {
+    columns <- sheet_columns(id, species, census)
+    as.data.frame(stats::setNames(
+      rep(list(character()), length(columns)),
+      columns
+    ))
+  })
+  names(sheets) <- vapply(sheet_ids, sheet_name, "", census = census)
+  c(list(README = template_readme(species, census)), sheets)
+}
+
+template_file <- function(species, census = is_census(species)) {
+  sprintf(
+    "kelpbio-template-%s%s.xlsx",
+    species_info[[species]]$suffix,
+    if (census && species == "nereo") "-census" else ""
+  )
+}
+
+# The rows of each sheet in an Excel workbook named after a sheet, by sheet id;
+# other sheets are ignored. The size sheet is the one of the kind of size data
+# (`census`), else the other kind, else one named size.
+read_workbook <- function(path, census = FALSE) {
+  present <- readxl::excel_sheets(path)
+  names <- lapply(sheet_ids, function(id) {
+    candidates <- if (id == "size") {
+      c(sheet_name(id, census), sheet_name(id, !census), "size")
+    } else {
+      sheet_name(id)
+    }
+    intersect(candidates, present)[1]
+  })
+  names <- Filter(Negate(is.na), names)
+  lapply(names, function(name) {
+    as_sheet_rows(readxl::read_excel(path, sheet = name))
+  })
+}
+
+read_csv_rows <- function(path) {
+  as_sheet_rows(utils::read.csv(path, check.names = FALSE))
+}
 
 site_years <- function(rows) {
-  rows <- rows[!is.na(rows$year), ]
-  unique(paste(rows$site, rows$year, sep = "|"))
+  if (!all(c("site", "year") %in% names(rows))) {
+    return(character())
+  }
+  keep <- !is.na(rows$year) & !is.na(rows$site)
+  unique(paste(rows$site[keep], rows$year[keep], sep = "|"))
 }
 
 normalise_site <- function(site) gsub("[[:space:]_-]", "", tolower(site))
 
 # Site names that differ across the sheets only in case, spacing, hyphens or
-# underscores. They are treated as different sites, so biomass waits until they
-# are renamed to match.
+# underscores. They are treated as different sites, with a warning, as they are
+# likely the same site misspelled.
 site_mismatches <- function(sheets) {
-  sites <- unique(unlist(lapply(sheets, function(sheet) as.character(sheet$rows$site))))
+  sites <- unique(unlist(lapply(sheets, function(sheet) {
+    as.character(sheet$rows$site)
+  })))
   key <- normalise_site(sites)
   sort(sites[key %in% key[duplicated(key)]])
 }
 
-mismatch_advice <- "Rename the sites in the workbook so the names match exactly, then upload again."
+mismatch_advice <- "They are treated as different sites. If they are the same site, rename them in the workbook so the names match exactly, then upload again."
+
+# The surveys with canopy imagery, which the cover calibration is fitted to.
+drone_surveys <- function(rows) {
+  if (
+    !all(
+      c("plot_area_m2", "canopy_area_m2", "canopy_tide_height_m") %in%
+        names(rows)
+    )
+  ) {
+    return(rows[0, ])
+  }
+  rows[!is.na(rows$canopy_area_m2), ]
+}
+
+# The canopy sheet's other text columns, such as a region, which canopy
+# biomass can be summed over.
+canopy_groups <- function(rows) {
+  text <- vapply(rows, function(x) is.character(x) || is.factor(x), logical(1))
+  setdiff(names(rows)[text], c("site", "year"))
+}
 
 # Priors and sampler ----------------------------------------------------------------
 # The prior editor works on a table built from the model's kb_priors_*() list: one
-# row per entry, with the model term it applies to (as named in the diagnostics),
-# its family and hyperparameters (a: mean or rate, b: SD).
+# row per entry, named as the parameter it applies to (as the diagnostics name
+# it), with its family and hyperparameters (a: mean, log-scale mean or rate; b:
+# SD or log-scale SD).
 
 prior_labels <- c(
-  intercept = "Intercept", zero_inflation = "Zero inflation (logit)", dispersion = "Dispersion",
-  shape = "Shape", power = "Power", floor = "Floor", density = "Density", fronds = "Fronds",
-  precision = "Precision", canopy = "Canopy (log)", tide = "Tide", scaling = "Scaling",
-  sd_site = "SD of site effect", sd_year = "SD of year effect",
-  sd_site_year = "SD of site-year effect", sd_residual = "Residual SD"
+  intercept = "Intercept",
+  shape = "Shape",
+  diameter_power = "Diameter power",
+  weight_floor = "Weight floor",
+  fronds_slope = "Fronds slope",
+  precision = "Precision",
+  cover_slope = "Cover slope",
+  biomass_floor = "Biomass floor",
+  tide_height_slope = "Tide height slope",
+  cv_residual = "Residual coefficient of variation",
+  sd_site = "SD of site effect",
+  sd_year = "SD of year effect",
+  sd_site_year = "SD of site-year effect",
+  sd_residual = "Residual SD",
+  presence_intercept = "Presence intercept (logit)",
+  presence_cover_slope = "Presence cover slope (logit)"
 )
 
 prior_label <- function(id, name) {
-  if (name == "intercept" && id %in% c("blade", "wetdry", "carbon")) {
+  if (name == "intercept" && id %in% c("wetdry", "carbon", "nitrogen")) {
     return("Intercept (logit)")
   }
   if (name %in% names(prior_labels)) prior_labels[[name]] else name
 }
 
+# Each prior family: its kelpbio class and hyperparameters (a, then b if any).
+prior_families <- list(
+  normal = list(class = "kb_prior_normal", args = c("mean", "sd")),
+  lognormal = list(class = "kb_prior_lognormal", args = c("meanlog", "sdlog")),
+  exponential = list(class = "kb_prior_exponential", args = "rate")
+)
+
+# A model with no kelpbio model for the species (the Macrocystis size model)
+# has no priors.
 default_priors <- function(id, species = "nereo") {
+  if (!has_model(id, species)) {
+    return(data.frame(
+      name = character(),
+      label = character(),
+      family = character(),
+      a = numeric(),
+      b = numeric()
+    ))
+  }
   priors <- kelpbio_fn("priors", id, species)()
   rows <- lapply(names(priors), function(name) {
     prior <- priors[[name]]
-    normal <- inherits(prior, "kb_prior_normal")
+    family <- names(prior_families)[vapply(
+      prior_families,
+      function(f) inherits(prior, f$class),
+      logical(1)
+    )]
+    args <- prior_families[[family]]$args
     data.frame(
-      name = name, term = attr(prior, "term") %||% NA_character_, label = prior_label(id, name),
-      family = if (normal) "normal" else "exponential",
-      a = if (normal) prior$mean else prior$rate, b = if (normal) prior$sd else NA_real_
+      name = name,
+      label = prior_label(id, name),
+      family = family,
+      a = prior[[args[1]]],
+      b = if (length(args) > 1) prior[[args[2]]] else NA_real_
     )
   })
   do.call(rbind, rows)
@@ -254,91 +1055,169 @@ default_priors <- function(id, species = "nereo") {
 
 # One row of the prior table as a kelpbio prior; errors on invalid hyperparameters.
 as_prior <- function(row) {
-  if (row$family == "normal") kb_prior_normal(row$a, row$b) else kb_prior_exponential(row$a)
+  switch(
+    row$family,
+    normal = kb_prior_normal(row$a, row$b),
+    lognormal = kb_prior_lognormal(row$a, row$b),
+    exponential = kb_prior_exponential(row$a)
+  )
 }
 
 # The edited table as the priors list a kelpbio fit takes.
 prior_list <- function(rows) {
-  stats::setNames(lapply(seq_len(nrow(rows)), function(i) as_prior(rows[i, ])), rows$name)
+  stats::setNames(
+    lapply(seq_len(nrow(rows)), function(i) as_prior(rows[i, ])),
+    rows$name
+  )
 }
 
 # The message of the error kelpbio gives for each invalid prior, by prior name.
 prior_errors <- function(rows) {
   errors <- lapply(seq_len(nrow(rows)), function(i) {
-    tryCatch({
-      as_prior(rows[i, ])
-      NULL
-    }, error = function(e) conditionMessage(e))
+    tryCatch(
+      {
+        as_prior(rows[i, ])
+        NULL
+      },
+      error = function(e) condition_text(e)
+    )
   })
   unlist(stats::setNames(errors, rows$name))
 }
 
-# "Normal(0, 2)", "Exponential(1)".
+# "Normal(0, 2)", "LogNormal(2, 1)", "Exponential(1)", as kb_model_describe() writes them.
 format_prior <- function(prior) {
-  ifelse(
-    prior$family == "normal",
-    sprintf("Normal(%s, %s)", as.character(prior$a), as.character(prior$b)),
-    sprintf("Exponential(%s)", as.character(prior$a))
+  name <- c(
+    normal = "Normal",
+    lognormal = "LogNormal",
+    exponential = "Exponential"
+  )[prior$family]
+  args <- ifelse(
+    prior$family == "exponential",
+    as.character(prior$a),
+    paste0(prior$a, ", ", prior$b)
   )
+  sprintf("%s(%s)", name, args)
 }
 
-# The sampler settings, named as the kelpbio fit arguments.
-default_sampler <- function() list(chains = 4, niters = 1000, nthin = 1)
+# Every fit keeps the same number of draws, those of kelpbio's reference fits,
+# as the derived estimates combine fits draw by draw.
+fit_draws <- list(chains = 4L, niters = 1000L)
 
-# The message for each invalid sampler setting, by setting: each must be a
-# positive whole number, checked as kelpbio checks its fit arguments.
+# The sampler settings that can be changed: the thinning (kelpbio's `nthin`),
+# the sampler's target acceptance rate (`adapt_delta`, passed in `control`),
+# at kelpbio's defaults, and the random seed, drawn once per session
+# (new_seed()) so a fit can be reproduced.
+default_sampler <- function(seed = new_seed()) list(nthin = 1, adapt_delta = 0.95, seed = seed)
+
+new_seed <- function() sample.int(seed_max, 1L)
+
+# kelpbio takes any integer seed; the app offers positive ones.
+seed_max <- .Machine$integer.max
+
+# kelpbio takes any positive nthin; the app caps it, as a fit takes about
+# nthin times as long and the app's fits run on a shared server.
+nthin_max <- 30
+
+# The message for each invalid sampler setting, by setting: nthin must be a
+# whole number from 1 to nthin_max, adapt_delta a number from 0.5 to 0.999,
+# and seed a whole number from 1 to seed_max.
 sampler_errors <- function(sampler) {
   errors <- lapply(names(sampler), function(name) {
-    tryCatch({
-      x_name <- paste0("`", name, "`")
-      chk::chk_whole_number(sampler[[name]], x_name = x_name)
-      chk::chk_gt(sampler[[name]], value = 0, x_name = x_name)
-      NULL
-    }, error = function(e) conditionMessage(e))
+    tryCatch(
+      {
+        x_name <- paste0("`", name, "`")
+        if (name == "nthin") {
+          chk::chk_whole_number(sampler[[name]], x_name = x_name)
+          chk::chk_range(sampler[[name]], range = c(1, nthin_max), x_name = x_name)
+        } else if (name == "seed") {
+          chk::chk_whole_number(sampler[[name]], x_name = x_name)
+          chk::chk_range(sampler[[name]], range = c(1, seed_max), x_name = x_name)
+        } else {
+          chk::chk_number(sampler[[name]], x_name = x_name)
+          chk::chk_range(
+            sampler[[name]],
+            range = c(0.5, 0.999),
+            x_name = x_name
+          )
+        }
+        NULL
+      },
+      error = function(e) condition_text(e)
+    )
   })
   unlist(stats::setNames(errors, names(sampler)))
 }
 
 # The default of an argument of a kelpbio function, for help text that names a
-# threshold: default_arg(kb_convergence, "rhat").
+# threshold: default_arg(kb_converged, "rhat").
 default_arg <- function(fn, name) eval(formals(fn)[[name]])
 
 # Predictions ---------------------------------------------------------------------
 
 prediction_groupings <- c(
-  population = "Overall", site = "By site", year = "By year", site_year = "By site and year",
+  population = "Overall",
+  site = "Site",
+  year = "Year",
+  site_year = "Site and year",
   plant = "Individual plant"
 )
 
 # What each model predicts. `along` names the predictor of a curve model; its
-# table, and its by-site-and-year figure, give the value at `at`.
+# overall table gives the curve (`curve_table`), and its other tables, and its
+# by-site-and-year figure, the value at `at`, the predictor value (by species
+# where it differs) passed to kb_new_data() as `value`.
 prediction_info <- list(
-  density = list(response = "density", table = "Density (stipes/m\u00b2)"),
-  size = list(response = "mean sub-bulb diameter", table = "Mean sub-bulb diameter (mm)"),
+  size = list(response = "mean diameter", table = "Mean diameter (mm)"),
   weight = list(
-    response = "wet weight", along = "sub-bulb diameter", at = "a plant with a 50 mm sub-bulb diameter",
-    table = "Wet weight (kg) of a plant with a 50 mm sub-bulb diameter",
+    response = "wet weight",
+    along = "diameter",
+    at = "a plant with a 50 mm diameter",
+    value = list(nereo = list(diameter_mm = 50), macro = list(fronds = 10)),
+    table = "Wet weight (kg) of a plant with a 50 mm diameter",
+    curve_table = "Wet weight (kg) of a plant by size, for a typical site and year",
     plant_table = "Wet weight (kg) of each plant in the size sheet"
   ),
-  blade = list(response = "blade fraction", table = "Blade fraction"),
-  wetdry = list(response = "ratio of dry to wet mass", table = "Ratio of dry to wet mass"),
-  carbon = list(response = "carbon fraction of dry mass", table = "Carbon fraction of dry mass"),
+  wetdry = list(
+    response = "ratio of dry to wet mass",
+    table = "Ratio of dry to wet mass"
+  ),
+  carbon = list(
+    response = "carbon fraction of dry mass",
+    table = "Carbon fraction of dry mass"
+  ),
+  nitrogen = list(
+    response = "nitrogen fraction of dry mass",
+    table = "Nitrogen fraction of dry mass"
+  ),
   cover = list(
-    response = "wet biomass per square metre", along = "tide-corrected cover", at = "a tide-corrected cover of 0.5",
-    table = "Wet biomass (kg/m\u00b2) at a tide-corrected cover of 0.5"
+    response = "wet biomass per square metre",
+    along = "tide-corrected cover",
+    at = "a tide-corrected cover of 0.5",
+    value = list(cover = 0.5),
+    table = "Wet biomass (kg/m\u00b2) at a tide-corrected cover of 0.5",
+    curve_table = "Wet biomass (kg/m\u00b2) by tide-corrected cover, for a typical site and year"
   )
 )
 
 # The random effects a model has, from its prior entries.
 has_effect <- function(id, effect, species = "nereo") {
+  if (!has_model(id, species)) {
+    return(rep(FALSE, length(effect)))
+  }
   paste0("sd_", effect) %in% names(kelpbio_fn("priors", id, species)())
 }
 
-# The groupings a model's predictions can be shown at. A pre-fit model was
-# fitted to other sites and years, so only its overall predictions
-# apply. The weight model can also predict each plant in the size sheet
+# The groupings a model's predictions can be shown at. A pre-fit model offers
+# only its overall predictions, as predictions by site or year would reveal its
+# reference data, which stay private. The weight model can also predict each plant in the size sheet
 # (`plants`, from plant_rows()).
-prediction_choices <- function(id, prefit = FALSE, species = "nereo", plants = FALSE) {
+prediction_choices <- function(
+  id,
+  prefit = FALSE,
+  species = "nereo",
+  plants = FALSE
+) {
   groups <- if (prefit || !has_effect(id, "site", species)) {
     "population"
   } else if (has_effect(id, "year", species)) {
@@ -346,43 +1225,85 @@ prediction_choices <- function(id, prefit = FALSE, species = "nereo", plants = F
   } else {
     c("population", "site")
   }
-  if (id == "weight" && plants) groups <- c(groups, "plant")
+  if (id == "weight" && plants) {
+    groups <- c(groups, "plant")
+  }
   prediction_groupings[groups]
 }
 
 # The plants to predict the weight of: the rows of the size sheet, once it
-# passes its check. For Nereocystis, each row also gets its site-year's observed
-# stipe density from a density sheet that passes its check; site-years without
-# one take the model's mean density.
-plant_rows <- function(sheets, species) {
+# passes its check.
+plant_rows <- function(sheets) {
   size <- sheets$size
   if (is.null(size) || !is.null(size$error)) {
     return(NULL)
   }
-  density <- sheets$density
-  if (species == "nereo" && !is.null(density) && is.null(density$error)) kb_add_stipes_m2(size$rows, density$rows) else size$rows
+  size$rows
 }
 
-prediction_by <- list(population = NULL, site = "site", year = "year", site_year = c("site", "year"))
+prediction_by <- list(
+  population = NULL,
+  site = "site",
+  year = "year",
+  site_year = c("site", "year")
+)
 
-# A model's predictions at a grouping: curves along the predictor for the figure,
-# or, for the table (at = TRUE) and the by-site-and-year figure, the value at a
-# reference predictor value: a 50 mm plant, a cover of 0.5. The plant grouping
-# predicts the weight of each row of `plants`.
-model_predictions <- function(id, fit, grouping, at = FALSE, plants = NULL) {
+# The rows of your data in a fit with a combined source, whose predictions show
+# only your sites and years; NULL for any other source.
+own_rows <- function(id, source, sheets) {
+  if (is_combined(source)) sheets[[components[[id]]$sheet]]$rows
+}
+
+# A model's predictions at a grouping: curves along the predictor for the figure
+# and the overall table, or, for the other tables (at = TRUE) and the
+# by-site-and-year figure, the value at a reference predictor value: a 50 mm
+# plant, a cover of 0.5. The rows to predict at come from kb_new_data(); the
+# plant grouping predicts the weight of each row of `plants`. `own`, for a fit
+# to your data with a reference dataset (own_rows()), keeps only the sites and
+# years of your data, so the reference sites are not shown.
+model_predictions <- function(
+  id,
+  fit,
+  grouping,
+  species,
+  at = FALSE,
+  plants = NULL,
+  own = NULL
+) {
   if (grouping == "plant") {
     return(kb_predict_weight(fit, new_data = plants))
   }
-  by <- prediction_by[[grouping]]
+  if (id %in% c("wetdry", "carbon", "nitrogen")) {
+    return(switch(
+      id,
+      wetdry = kb_predict_wetdry(fit),
+      carbon = kb_predict_carbon(fit),
+      nitrogen = kb_predict_nitrogen(fit)
+    ))
+  }
+  value <- prediction_info[[id]]$value
+  if (id == "weight") {
+    value <- value[[species]]
+  }
   at <- at || grouping == "site_year"
-  switch(id,
-    density = kb_predict_density_by(fit, by),
-    size = kb_predict_size_by(fit, by),
-    weight = kb_predict_weight_by(fit, by, diameter_mm = if (at) 50),
-    blade = kb_predict_blade_by(fit, by),
-    wetdry = kb_predict_wetdry(fit),
-    carbon = kb_predict_carbon(fit),
-    cover = kb_predict_cover_by(fit, by, cover = if (at) 0.5)
+  new_data <- do.call(
+    kb_new_data,
+    c(list(fit, by = prediction_by[[grouping]]), if (at) value)
+  )
+  if (!is.null(own)) {
+    for (column in intersect(c("site", "year"), names(new_data))) {
+      new_data <- new_data[
+        as.character(new_data[[column]]) %in% as.character(own[[column]]),
+        ,
+        drop = FALSE
+      ]
+    }
+  }
+  switch(
+    id,
+    size = kb_predict_size(fit, new_data),
+    weight = kb_predict_weight(fit, new_data),
+    cover = kb_predict_cover_calibration(fit, new_data)
   )
 }
 
@@ -404,21 +1325,168 @@ prediction_aspect <- function(id, grouping) {
   if (curve) 6 / 8 else 4 / 8
 }
 
-prediction_caption <- function(id, grouping) {
+prediction_caption <- function(id, grouping, species = "nereo") {
   info <- prediction_info[[id]]
   if (grouping == "plant") {
-    return(sprintf("Predicted %s of each plant in the size sheet by %s, with 95%% compatibility intervals.", info$response, info$along))
+    return(sprintf(
+      "Predicted %s of each plant in the size sheet by %s, with 95%% compatibility intervals.",
+      info$response,
+      info$along
+    ))
   }
-  site <- has_effect(id, "site")
-  year <- has_effect(id, "year")
+  site <- has_effect(id, "site", species)
+  year <- has_effect(id, "year", species)
   curve <- !is.null(info$along)
   what <- if (curve) paste(info$response, "by", info$along) else info$response
-  if (grouping == "site_year" && curve) what <- paste(info$response, "of", info$at)
-  by <- switch(grouping,
-    population = if (year) " for a typical site and year" else if (site) " for a typical site" else "",
-    site = paste0(if (curve) ", faceted by site" else " by site", if (year) ", for a typical year"),
-    year = paste0(if (curve) ", faceted by year" else " by year", ", for a typical site"),
-    site_year = " by year, faceted by site"
+  if (grouping == "site_year" && curve) {
+    what <- paste(info$response, "of", info$at)
+  }
+  by <- switch(
+    grouping,
+    population = if (year) {
+      " for a typical site and year"
+    } else if (site) {
+      " for a typical site"
+    } else {
+      ""
+    },
+    site = paste0(
+      if (curve) " for each site" else " by site",
+      if (year) ", for a typical year"
+    ),
+    year = paste0(
+      if (curve) " for each year" else " by year",
+      ", for a typical site"
+    ),
+    site_year = " by site and year"
   )
   sprintf("Predicted %s%s, with 95%% compatibility intervals.", what, by)
+}
+
+# Derived estimates ----------------------------------------------------------------
+# The rows survey and canopy biomass are shown in: each choice's label and its
+# kelpbio pool_by value
+# (NULL keeps one row per survey or canopy map). Biomass is a standing stock in
+# the peak season, so sums stay within a year. kelpbio pools by any grouping;
+# the app offers the ones a report uses.
+
+survey_sums <- list(
+  site_year = list(label = "By site and year", pool_by = c("site", "year")),
+  survey = list(label = "Each in situ survey", pool_by = NULL)
+)
+
+# The canopy sheet's own grouping columns (canopy_groups()), such as a region
+# or habitat, each give totals by group and year. kelpbio averages the maps of a
+# site-year before pooling, so totals by site and year are one per site-year;
+# one row per map is offered only when some site-year has several (`repeated`).
+canopy_sums <- function(groups = character(), repeated = FALSE) {
+  c(
+    list(site_year = list(label = "Total by site and year", pool_by = c("site", "year"))),
+    if (repeated) list(map = list(label = "Total by canopy map", pool_by = NULL)),
+    list(year = list(label = "Total by year", pool_by = "year")),
+    stats::setNames(
+      lapply(groups, function(g) {
+        list(
+          label = sprintf("Total by %s and year", g),
+          pool_by = c(g, "year")
+        )
+      }),
+      groups
+    )
+  )
+}
+
+# Whether some site-year of the canopy sheet has more than one map.
+repeated_maps <- function(rows) {
+  anyDuplicated(paste(rows$site, rows$year, sep = "|")) > 0
+}
+
+# The example workbook of a species, as data-raw/test-workbooks.R writes it to
+# the repository, where the exported R script downloads it from.
+example_file <- function(species) sprintf("kelpbio-1-full-%s.xlsx", species)
+example_url <- function(species) {
+  paste0(source_url, "/raw/main/data-raw/workbooks/", example_file(species))
+}
+
+# The example workbook of a species: kelpbio's simulated data, one sheet each,
+# with a measured sample of Nereocystis plants and a census of Macrocystis
+# plants.
+example_rows <- function(species) {
+  suffix <- species_info[[species]]$suffix
+  name <- function(id) {
+    switch(
+      id,
+      size = paste0("size_", if (species == "macro") "census" else "sample"),
+      sheet_name(id)
+    )
+  }
+  lapply(sheet_ids, function(id) {
+    rows <- as.data.frame(getExportedValue(
+      "kelpbio",
+      sprintf("data_%s_sim_%s", name(id), suffix)
+    ))
+    rows[] <- lapply(rows, function(x) if (is.factor(x)) as.character(x) else x)
+    rows
+  })
+}
+
+# Stand-in sites ------------------------------------------------------------------
+# A site that a model has no data for takes the effect of a new site (kelpbio's
+# new_levels) unless sites in the model's data stand in for it (kelpbio's
+# representative_site; several are averaged). In situ survey biomass takes stand-ins for
+# the weight and size fits, canopy biomass for the cover calibration, each from
+# the rows it predicts.
+stand_in_ids <- list(survey = survey_ids, canopy = "cover")
+stand_in_rows <- c(survey = "survey", canopy = "canopy")
+
+# The sites of a fit, from kb_new_data().
+fit_sites <- function(fit) {
+  unique(as.character(kb_new_data(fit, by = "site")$site))
+}
+
+# The sites of `rows` that a fit has no data for.
+new_sites <- function(fit, rows) {
+  setdiff(unique(as.character(rows$site)), fit_sites(fit))
+}
+
+# The chosen stand-ins (`chosen`, by model) that are sites of each fit in use,
+# leaving out the models with none: kelpbio's representative_site, as a list
+# by fit.
+stand_in_sites <- function(chosen, fits) {
+  sites <- lapply(stats::setNames(nm = names(chosen)), function(id) {
+    if (!is.null(fits[[id]])) intersect(chosen[[id]], fit_sites(fits[[id]]))
+  })
+  Filter(length, sites)
+}
+
+# The arguments of kb_predict_biomass_in_situ() for the run: the weight fit, the
+# size fit or, in a census, the size sheet's plants, and the surveys.
+survey_biomass_args <- function(weight, size, sheets, census) {
+  list(
+    weight = weight,
+    size = if (census) sheets$size$rows else size,
+    survey = survey_rows(sheets$survey$rows, census)
+  )
+}
+
+# The cover calibration's fit, run in the background: kelpbio fits it to the
+# wet in situ survey biomass per m2 (with its draws), so the in situ survey biomass is
+# predicted first, in the same call.
+fit_cover_calibration <- function(species, weight, size, survey, ...) {
+  biomass <- kb_predict_biomass_in_situ(weight, size, survey, progress = "none")
+  kelpbio_fn("fit", "cover", species)(data = biomass, ...)
+}
+
+# A predictions table without its column of draws (the response, in kelpbio's
+# derived predictions), which a table or a spreadsheet cannot show.
+summary_columns <- function(rows) {
+  response <- attr(rows, "kb_response")
+  if (
+    !is.null(response) &&
+      response %in% names(rows) &&
+      !is.numeric(rows[[response]])
+  ) {
+    rows[[response]] <- NULL
+  }
+  rows
 }

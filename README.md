@@ -1,7 +1,7 @@
 
 <!-- README.md is generated from README.Rmd. Please edit that file -->
 
-# kelpbioshiny
+# kelpbioshiny <img src="man/figures/logo.png" align="right" height="139" />
 
 <!-- badges: start -->
 
@@ -16,16 +16,7 @@ package; see its documentation for details.
 
 ## Installation
 
-Install the pre-built binary from the Hakai R-universe:
-
-``` r
-install.packages(
-  "kelpbioshiny",
-  repos = c("https://hakaiinstitute.r-universe.dev", getOption("repos"))
-)
-```
-
-Or install from GitHub:
+Install from GitHub:
 
 ``` r
 # install.packages("pak")
@@ -34,7 +25,9 @@ pak::pak("HakaiInstitute/kelpbioshiny")
 
 ## Usage
 
-Run the app locally:
+The app is hosted at <https://kelpbio.poissonconsulting.io>.
+
+Or run it locally:
 
 ``` r
 kelpbioshiny::run_app()
@@ -44,4 +37,8 @@ kelpbioshiny::run_app()
 
 Copyright 2026 Tula Foundation.
 
-The code is released under the [MIT License](LICENSE.md).
+The code is released under the [MIT License](LICENSE.md). The pre-fit
+models and the Hakai Institute reference data the app offers come from
+[kelpbiodata](https://github.com/HakaiInstitute/kelpbiodata), under the
+CC BY 4.0 licence; any outputs that use them should carry its
+attribution statement (`kelpbiodata::kelpbiodata_attribution()`).

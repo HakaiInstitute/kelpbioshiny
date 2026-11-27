@@ -8,7 +8,9 @@
 .RProfile
 .httr-oauth
 
-.claude/
+.claude/*
+!.claude/CLAUDE.md
+!.claude/STYLE.md
 
 README.html
 
@@ -18,3 +20,7 @@ tests/testthat/testthat-problems.rds
 
 # script run logs
 scripts/*.log
+
+
+# Uploads for checking each warning by hand (data-raw/warning-checks.R)
+warning-checks/
