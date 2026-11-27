@@ -729,6 +729,16 @@ help_about_ui <- function() {
           "kelpbio",
           utils::citation("kelpbio")
         )
+      ),
+      panel(
+        "Hakai Institute data",
+        description = reference_licence,
+        div(class = "text-body-secondary", markdown(kelpbiodata::kelpbiodata_attribution())),
+        citation_block(
+          "citation_kelpbiodata",
+          "kelpbiodata",
+          utils::citation("kelpbiodata")
+        )
       )
     )
   )

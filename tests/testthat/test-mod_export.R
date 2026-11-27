@@ -55,3 +55,14 @@ test_that("canopy totals by map are offered only when a site-year has several ma
   expect_null(sums$map$pool_by)
   expect_identical(sums$site_year$pool_by, c("site", "year"))
 })
+
+test_that("the results README carries kelpbiodata's attribution when the run uses its reference data or fits", {
+  expect_false(uses_reference(list(weight = "user", size = "user")))
+  expect_true(uses_reference(list(weight = "user", wetdry = "prefit_hakai")))
+  expect_true(uses_reference(list(weight = "combined_hakai")))
+
+  expect_false(any(grepl("HIRMD", results_readme(list()), fixed = TRUE)))
+  readme <- results_readme(list(), reference = TRUE)
+  expect_true(any(grepl("credit both the Hakai Institute and HIRMD", readme, fixed = TRUE)))
+  expect_true(any(grepl("https://hirmd.ca/", readme, fixed = TRUE)))
+})

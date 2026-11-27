@@ -34,6 +34,17 @@ combined_source <- function(reference) {
 }
 is_combined <- function(source) startsWith(source, "combined_")
 fits_here <- function(source) source == "user" | is_combined(source)
+# Where the reference data and fits come from, shown with kelpbiodata's
+# attribution statement on the About page and in the results of a run that
+# uses them (uses_reference()).
+reference_licence <- "The pre-fit models and the Hakai Institute reference data come from the kelpbiodata package, under the CC BY 4.0 licence."
+
+# Whether a run uses kelpbiodata's reference data or fits, whose outputs carry
+# its attribution statement.
+uses_reference <- function(sources) {
+  sources <- unlist(sources)
+  any(is_prefit(sources) | is_combined(sources))
+}
 
 # The name of the kelpbiodata reference dataset of a model, by reference.
 reference_data_name <- function(id, species, reference) {

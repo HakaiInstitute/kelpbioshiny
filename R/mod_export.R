@@ -362,8 +362,9 @@ settings_rows <- function(store) {
 # The results as a ZIP: a folder per estimate (export_estimates()), with
 # its table as a CSV file and its figures as PNG and PDF files; the settings as
 # a CSV file; and a README that lists each estimate, what its rows are, its
-# notes or error, and its figures' captions.
-write_results <- function(estimates, settings, path) {
+# notes or error, and its figures' captions, and ends with kelpbiodata's
+# attribution statement when the run uses its reference data or fits.
+write_results <- function(estimates, settings, path, reference = FALSE) {
   dir <- tempfile("kb-results-")
   dir.create(dir)
   on.exit(unlink(dir, recursive = TRUE))
@@ -389,13 +390,13 @@ write_results <- function(estimates, settings, path) {
     }
   }
   write_csv(settings, file.path(dir, "settings.csv"))
-  writeLines(results_readme(estimates), file.path(dir, "README.txt"), useBytes = TRUE)
+  writeLines(enc2utf8(results_readme(estimates, reference)), file.path(dir, "README.txt"), useBytes = TRUE)
   files <- withr::with_dir(dir, list.files(recursive = TRUE))
   status <- withr::with_dir(dir, utils::zip(path, files, flags = "-q"))
   if (status != 0) stop("The results could not be zipped.", call. = FALSE)
 }
 
-results_readme <- function(estimates) {
+results_readme <- function(estimates, reference = FALSE) {
   entry <- function(estimate) {
     if (!is.null(estimate$error)) {
       return(c(paste0(estimate$folder, "/"), paste("  ", estimate$title), paste("   Could not be estimated:", estimate$error), ""))
@@ -415,7 +416,14 @@ results_readme <- function(estimates) {
     "Each folder holds one estimate: its table as a CSV file and its figures as PNG and PDF files. Biomass is in a folder per measure (wet, dry, carbon and nitrogen) within in_situ_biomass and canopy_biomass.",
     "settings.csv holds the sources, the prior and sampler settings each model was fitted with, and the representative sites of the run.",
     "",
-    unlist(lapply(estimates, entry))
+    unlist(lapply(estimates, entry)),
+    if (reference) {
+      c(
+        reference_licence,
+        # The statement's one link, as plain text.
+        gsub("\\[([^]]+)\\]\\(([^)]+)\\)", "\\2", kelpbiodata::kelpbiodata_attribution())
+      )
+    }
   )
 }
 
@@ -490,7 +498,10 @@ mod_export_server <- function(id, store) {
     enabled <- reactive(c(results = store$any_estimate()))
 
     files <- list(
-      results = cached_file(function(path) write_results(export_estimates(store), settings_rows(store), path), ".zip")
+      results = cached_file(
+        function(path) write_results(export_estimates(store), settings_rows(store), path, uses_reference(store$sources())),
+        ".zip"
+      )
     )
 
     # A download button while there is something to download.
