@@ -24,20 +24,15 @@ see its documentation for details.
 
 ## Installation
 
-Install the pre-built binary from the Hakai R-universe:
-
-``` r
-install.packages(
-  "kelpbioshiny",
-  repos = c("https://hakaiinstitute.r-universe.dev", getOption("repos"))
-)
-```
-
-Or install from GitHub:
+Install from GitHub, with kelpbio and kelpbiodata:
 
 ``` r
 # install.packages("pak")
-pak::pak("HakaiInstitute/kelpbioshiny")
+pak::pak(c(
+  "HakaiInstitute/kelpbio",
+  "HakaiInstitute/kelpbiodata",
+  "HakaiInstitute/kelpbioshiny"
+))
 ```
 
 ## Usage
@@ -53,3 +48,4 @@ kelpbioshiny::run_app()
 Copyright 2026 Tula Foundation.
 
 The code is released under the [MIT License](LICENSE.md).
+The pre-fit models and the Hakai Institute reference data the app offers come from [kelpbiodata](https://github.com/HakaiInstitute/kelpbiodata), under the CC BY 4.0 licence; any outputs that use them should carry its attribution statement (`kelpbiodata::kelpbiodata_attribution()`).
