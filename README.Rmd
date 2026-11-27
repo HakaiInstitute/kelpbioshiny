@@ -33,7 +33,9 @@ pak::pak("HakaiInstitute/kelpbioshiny")
 
 ## Usage
 
-Run the app locally:
+The app is hosted at <https://kelpbio.poissonconsulting.io>.
+
+Or run it locally:
 
 ``` r
 kelpbioshiny::run_app()
